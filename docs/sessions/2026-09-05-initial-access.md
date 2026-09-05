@@ -2,8 +2,8 @@
 
 - 날짜/시간 및 시간대: 2026-09-05T20:52:40+09:00
 - 실행 위치: Mac
-- 관련 이슈: 아직 GitHub 저장소/이슈 없음
-- 상태: `PASS` (Phase A 조사·백업), `BLOCKED` (물리 안전 및 GitHub 로그인), `NOT_PUSHED`
+- 관련 이슈: GitHub #1–#4
+- 상태: `PASS` (Phase A 조사·백업·private 저장소), `BLOCKED` (물리 안전), `NOT_RUN` (실제 녹화)
 
 ## 실행 및 관측
 
@@ -24,13 +24,16 @@
 15. 실제 데이터셋 `/start-recording` 호출은 journal에 없어 녹화 오류는 별도 `NOT_RUN`으로 유지했다.
 16. `inspect_ports.py`와 `preflight.py`의 하드웨어 없는 단위 테스트 3개가 통과했다.
 17. Jetson preflight가 팔로워와 두 카메라 누락을 검출해 `ready=false`로 안전하게 차단했다.
+18. GitHub CLI 인증을 macOS Keychain에서 확인하고 비공개 저장소를 생성했다.
+19. 선별한 12개 파일만 초기 커밋 `8dd6761`로 만들고 `main`에 push했다. `prompt/`, `.local/`, `backups/`는 제외했다.
+20. 포트 식별, 녹화 TX/RX, 회귀·데이터 검증, 후속 로드맵 이슈 #1–#4를 생성했다.
 
 ## 보존 및 안전
 
 - 기존 네트워크, LeLab, 캘리브레이션, USB, 카메라 설정을 변경하지 않았다.
 - 원격 장치를 열거나 프로세스를 중지하지 않았다.
 - 비밀번호, 토큰, 개인키, 환경 변수, 원본 로그를 수집하거나 기록하지 않았다.
-- 원본 백업은 SSH 신뢰 확인 뒤 실제 경로를 먼저 찾고 `backups/` 아래에 Git 비추적으로 생성할 예정이다.
+- 원본 백업은 Jetson과 Mac 양쪽에 생성됐고 SHA-256 manifest 전체 검증을 통과했다. Mac 사본은 `backups/` 아래 Git 비추적으로 보존한다.
 
 ## 다음 실행 한 단계
 

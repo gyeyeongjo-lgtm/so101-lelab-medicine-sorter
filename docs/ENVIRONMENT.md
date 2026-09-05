@@ -8,7 +8,8 @@
 - 운영체제: macOS 26.6.2, arm64
 - Git: 2.50.1
 - GitHub CLI: 프로젝트 로컬 `.local/bin/gh`, v2.100.0, 공식 배포 체크섬 검증 완료
-- GitHub 인증: 미인증
+- GitHub 인증: `gyeyeongjo-lgtm`, macOS Keychain, API 확인 `PASS`
+- GitHub 저장소: `gyeyeongjo-lgtm/so101-lelab-medicine-sorter`, private
 
 ## Jetson
 
