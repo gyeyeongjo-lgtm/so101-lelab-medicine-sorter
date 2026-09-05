@@ -27,6 +27,7 @@
 18. GitHub CLI 인증을 macOS Keychain에서 확인하고 비공개 저장소를 생성했다.
 19. 선별한 12개 파일만 초기 커밋 `8dd6761`로 만들고 `main`에 push했다. `prompt/`, `.local/`, `backups/`는 제외했다.
 20. 포트 식별, 녹화 TX/RX, 회귀·데이터 검증, 후속 로드맵 이슈 #1–#4를 생성했다.
+21. 작업 브랜치 `fix/usb-recording`의 증거 문서 커밋 `48d788b`을 push하고 GitHub API에서 동일 SHA를 확인했다.
 
 ## 보존 및 안전
 

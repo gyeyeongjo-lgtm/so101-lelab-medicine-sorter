@@ -14,7 +14,8 @@
 - `PASS`: 공식 GitHub CLI v2.100.0 arm64 바이너리를 프로젝트 로컬 `.local/bin/gh`에 설치하고 배포 체크섬을 검증했다.
 - `PASS`: 프로젝트 로컬 GitHub CLI가 macOS Keychain의 `gyeyeongjo-lgtm` 계정으로 인증됐고 API 호출도 통과했다.
 - `PASS`: 비공개 GitHub 저장소 `gyeyeongjo-lgtm/so101-lelab-medicine-sorter`를 만들고 초기 `main` 커밋 `8dd6761`을 push했다.
-- `PASS`: 후속 작업 브랜치 `fix/usb-recording`을 만들고 이슈 #1–#4를 생성했다.
+- `PASS`: 후속 작업 브랜치 `fix/usb-recording`의 증거 문서 커밋 `48d788b`을 push하고 원격 SHA를 확인했다.
+- `PASS`: 이슈 #1–#4를 생성하고 API에서 open 상태를 확인했다.
 - `USER_REPORTED`: 기존 리더-팔로워 텔레오퍼레이션, 캘리브레이션, 웹캠, 네트워크 설정은 성공 상태였다.
 - `PASS`: Jetson Phase A 환경 조사와 설정·캘리브레이션·소스·journal 백업을 완료했고 Jetson/Mac 양쪽 해시를 검증했다.
 - `OBSERVED`: 현재 serial은 `5AE6085272` 한 대만 있고 저장된 팔로워 `5AE6058306`은 없다. `/dev/video*`도 없다.
@@ -45,5 +46,5 @@
 - 저장소: <https://github.com/gyeyeongjo-lgtm/so101-lelab-medicine-sorter>
 - 공개 범위: private (`PASS`)
 - 기본 브랜치/초기 커밋: `main` / `8dd6761`
-- 작업 브랜치: `fix/usb-recording`
+- 작업 브랜치/검증된 원격 커밋: `fix/usb-recording` / `48d788b`
 - 이슈: #1 포트 식별, #2 녹화 TX/RX, #3 회귀·데이터 검증, #4 후속 로드맵

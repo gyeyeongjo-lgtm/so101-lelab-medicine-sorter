@@ -10,6 +10,7 @@ __pycache__/
 local/
 secrets/
 backups/
+/prompt/
 logs/raw/
 reports/raw/
 /datasets/
