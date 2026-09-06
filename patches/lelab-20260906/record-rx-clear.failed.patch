@@ -1,0 +1,22 @@
+--- a/lelab/record.py
++++ b/lelab/record.py
+@@ -774,4 +774,19 @@
+         robot.configure()
+         if teleop is not None:
+             teleop.configure()
++
++        # Feetech configuration performs a dense sequence of acknowledged
++        # register writes. On the Jetson USB serial path, stale or partial
++        # status bytes can remain after that burst and poison every retry of
++        # the first group sync-read. Clear only host-side receive state, then
++        # give both adapters a short turnaround window before record_loop.
++        # This does not change calibration, torque, baudrate, or motor goals.
++        for device in (robot, teleop):
++            bus = getattr(device, "bus", None)
++            port_handler = getattr(bus, "port_handler", None)
++            if port_handler is not None:
++                port_handler.clearPort()
++                port_handler.is_using = False
++        time.sleep(0.05)
++        logger.info("Serial RX buffers cleared after motor configuration; settled for 50 ms")
+         logger.info("✅ Devices ready")
