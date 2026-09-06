@@ -28,6 +28,13 @@
 
 추가 읽기 전용 시험에서 leader 단독도 ping 6/6, 개별 read 120/120, group read 20/20을 통과했다. 두 포트를 동시에 열고 30 Hz로 120 rounds씩 교차 group read한 시험도 양쪽 오류가 0건이었다. 단순 dual-open/read보다 dual-device 녹화 초기화의 register write·configure·torque 순서 직후 경계가 현재 핵심 조사 대상이다.
 
+이후 승인된 dual-configure 계측에서는 follower configure 직후와 follower→leader 전체
+configure 직후 최초 follower group-read가 각각 3/3 통과했다. configure 전 group-read와
+계측 지연을 제거한 cold 전체 순서도 최초 follower read 3/3, leader read 1/1이 모두
+SDK `comm=0`이었다. 설정 hash는 시험 전후 동일했고 Goal_Position write와 kernel USB
+event는 없었다. 따라서 hardware 초기화 순서 자체의 결정적 결함은 약해졌으며, 실제
+녹화의 background worker/dataset runtime 문맥 또는 간헐 packet·전기적 상태가 남는다.
+
 ## 사용자에게 확인된 정상 항목
 
 - 기존 텔레오퍼레이션 동작을 사용자가 직접 확인했다.
@@ -71,21 +78,20 @@
 
 ### 가장 유력한 원인
 
-1. **Configure·torque 활성화·제어 loop에서만 나타나는 조건부 bus 불안정**
-   - idle 상태에서는 ID 1–6이 모두 빠르고 안정적으로 응답했다.
-   - 녹화에서는 torque enable 순간과 첫 observation에서 실패했다.
-   - 우선 대상: torque 활성화 순간의 전압강하·부하, configure 직후 packet 상태, 실제 제어 loop의 timing.
-   - 텔레옵에서는 1 ms sleep의 무제한에 가까운 follower write loop가 설치 소스로 확인됐다.
+1. **실제 recording-worker/dataset runtime과 standalone 실행 문맥의 차이**
+   - 실제 무카메라 녹화는 background `recording-worker` 안에서 첫 observation이 실패했다.
+   - 동일 cold connect/calibration/configure/first-read는 standalone main thread에서 통과했다.
+   - record 경로는 bus 연결 전에 `LeRobotDataset.create()`를 실행한다.
+   - 이 차이는 아직 상관관계이며 원인으로 확정하지 않았다.
 
-2. **간헐적인 특정 모터 또는 downstream chain 문제**
+2. **간헐적인 packet·전원·connector/downstream chain 문제**
    - ID 5가 첫 실패 지점이었지만 읽기 전용 시험에서는 정상이었다.
    - 물리 문제라면 상시 단선보다 torque·움직임·진동·전원 부하에 따른 간헐 현상일 가능성이 높다.
 
-3. **LeLab lifecycle 또는 packet timing 문제**
-   - standalone group sync-read 자체는 통과했다.
-   - LeLab이 calibration write와 configure를 수행한 직후에만 실패한다면 잔류 packet, 초기화 순서, port ownership 또는 처리 timing을 의심한다.
-   - 카메라 없는 녹화가 첫 observation에서 재현되고 torque-only 및 dual-read가 통과해 현재 최우선 가설이다.
-   - 단순 configure 후 RX clear만 넣은 실제 회귀도 실패했으므로 lifecycle의 더 정확한 최초 실패 경계를 계측해야 한다.
+3. **텔레옵의 별도 고빈도 write-loop 문제**
+   - 설치된 loop는 1 ms sleep만 두고 follower Goal_Position sync-write를 반복한다.
+   - 약 62초 동안 read 오류 255건과 정상 sample 48건이 섞인 현상을 가장 잘 설명한다.
+   - 녹화 최초 read 실패와는 별도 결함일 가능성이 높다.
 
 ### 가능성은 있으나 현재 단독 원인으로 약한 것
 
@@ -115,9 +121,9 @@
 
 - follower bus를 LeLab 외 프로세스가 동시에 열고 있는지 여부
 - 물리 케이블·커넥터·전원 측정 결과
-- follower와 leader의 configure·torque 활성화 각 경계 직전/직후 read 성공률
-- 실제 제어 loop를 시작했을 때 최초 오류까지의 packet 순서
-- Feetech SDK가 반환하는 최초 low-level comm code와 실패 motor/register 경계
+- actual `recording-worker`에서 dataset 생성 이후 최초 low-level comm code
+- background thread와 standalone main thread 차이가 재현에 영향을 주는지 여부
+- 실패가 재현될 때 정확한 motor/register 경계와 전원/connector 상태
 - `_sync_read` 재시도 사이 RX clear가 간헐 packet loss에서 복구 효과가 있는지 여부
 
 ## 다음 확인 순서 — 변경 없는 진단부터
@@ -125,15 +131,20 @@
 1. LeLab 텔레옵·녹화를 중지하고 카메라 프리뷰를 닫는다.
 2. follower 포트의 serial identity를 다시 확인한다.
 3. 완료된 standalone 읽기 전용 결과를 기준선으로 보존한다.
-4. 다음에는 설정을 바꾸지 않고 LeLab 시작 직전의 port owner와 journal을 확보한다.
-5. 완료된 follower/leader 단독 및 dual-read 결과를 기준선으로 사용한다.
-6. 새 안전 승인 뒤 계측 harness로 두 device의 configure 경계를 한 단계씩 분리한다.
-7. 최초 실패 위치가 확인된 뒤에만 SDK-level 복구 patch를 만들고 무카메라 회귀한다.
+4. 반복적인 calibration/configure 실행을 멈추고 source-only worker 계측안을 준비한다.
+5. 다음 하드웨어 회귀는 새 승인 뒤 무카메라 실제 worker 1회로 제한한다.
+6. worker 계측에서도 통과하면 register write를 반복하지 않고 read-only soak와 현장
+   전원·connector 관찰로 간헐성을 확인한다.
+7. 최초 실패 위치가 다시 확인된 뒤에만 SDK-level 복구 patch를 만든다.
 
 ## 보존 및 안전 상태
 
 - Phase A 원본 백업과 recording incident snapshot을 Mac·Jetson에 보존했다.
-- 새 읽기 전용 진단 도구는 [scripts/diagnose_follower_bus.py](../scripts/diagnose_follower_bus.py)이다.
+- 읽기 전용 도구는 [scripts/diagnose_follower_bus.py](../scripts/diagnose_follower_bus.py)와
+  [scripts/diagnose_dual_bus_readonly.py](../scripts/diagnose_dual_bus_readonly.py)이다.
+- 승인 필수 lifecycle 도구는
+  [scripts/diagnose_dual_configure_lifecycle.py](../scripts/diagnose_dual_configure_lifecycle.py)이며
+  calibration/configure write와 torque toggle을 수행하므로 읽기 전용이 아니다.
 - 이 문서와 최신 incident 문서는 로컬 작업 트리에 정리되어 있다.
 - 승인된 분리 시험에서는 기존 calibration/configure와 torque toggle을 실행했지만 목표값,
   baudrate, return-delay, USB 연결은 바꾸지 않았다. 설치한 RX-clear patch는 실패 즉시 원본으로 롤백했다.

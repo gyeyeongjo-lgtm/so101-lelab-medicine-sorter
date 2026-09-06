@@ -52,14 +52,17 @@ Phase A 백업 journal에는 실제 `POST /start-recording` 호출이 없었지�
   follower observation에서 실패했다.
 - 실패 patch는 원본으로 롤백했고 LeLab service health는 정상이다.
 - follower/leader standalone 및 dual-open 교차 read는 모두 통과했다.
+- 승인된 dual-configure lifecycle과 사전 read 없는 cold full-order 시험도 최초 follower
+  group-read가 각각 3/3 통과했다. 저장 설정 hash는 변하지 않았고 service는 정상이다.
 
 ## 다음 최소 검증
 
-1. 변경 없이 port owner, serial identity, service inactive, journal 시작점을 확보한다.
-2. 새 안전 승인 뒤 follower와 leader의 calibration/configure 경계를 단계별로 실행하며
-   각 경계 직후 read와 low-level SDK 결과를 기록한다.
-3. 정확한 최초 실패가 확인된 뒤에만 bus-level recovery patch를 별도로 검증한다.
-4. 무카메라 회귀 통과 후에만 두 camera와 encoder를 다시 추가한다.
+1. 반복적인 calibration/configure 실행을 멈추고 source-only worker 계측 diff를 준비한다.
+2. 새 안전 승인 뒤 실제 무카메라 `recording-worker` 1회에서 dataset 생성 이후 각 bus
+   stage와 최초 low-level SDK 결과를 기록한다.
+3. worker에서도 통과하면 read-only soak와 현장 전원·connector 관찰로 간헐성을 본다.
+4. 정확한 최초 실패가 확인된 뒤에만 bus-level recovery patch를 별도로 검증한다.
+5. 무카메라 회귀 통과 후에만 두 camera와 encoder를 다시 추가한다.
 
 ## 자동 검사 결과
 
@@ -68,6 +71,7 @@ Phase A 백업 journal에는 실제 `POST /start-recording` 호출이 없었지�
 - follower standalone: 개별 120/120, group 20/20 `PASS`
 - leader standalone: 개별 120/120, group 20/20 `PASS`
 - dual-open 30 Hz 교차 group read: 양쪽 120/120 `PASS`
+- dual-configure instrumented/cold first follower read: 각각 3/3 `PASS`
 - 무카메라 baseline 및 RX-clear patch 회귀: 첫 observation `FAIL`
 
 preflight는 serial 및 camera 장치를 열지 않았다.

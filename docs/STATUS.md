@@ -1,6 +1,6 @@
 # 현재 상태
 
-업데이트: 2026-09-06T11:49:00+09:00
+업데이트: 2026-09-06T12:18:00+09:00
 
 ## 상태 요약
 
@@ -39,6 +39,12 @@
 - `PASS`: leader `/dev/ttyACM1` standalone 읽기 전용 시험도 serial `5AE6058306`, ping 6/6, 개별 position 120/120, group 20/20으로 통과했다.
 - `PASS`: leader와 follower 포트를 동시에 열고 30 Hz로 120 rounds 교차 group read한 시험은 양쪽 모두 120/120, 오류 0건이었다. 단순 dual-open 및 양방향 read traffic은 재현 조건에서 약해졌다.
 - `PASS`: patch 실패와 dual-read 결과를 Jetson/Mac 양쪽 backup에 보존하고 체크섬을 검증했다.
+- `PASS`: 승인된 dual-configure 계측 전 현재 calibration·robot record·설치 소스·journal 10개를 `20260906T120356+0900_pre-dual-configure`로 Jetson/Mac 양쪽에 보존하고 hash를 검증했다.
+- `NO_EFFECT`: 첫 계측 실행은 포트를 열기 전 내부 메서드명 불일치로 종료됐다. calibration/register/torque 호출은 0건이었고 service health를 복구했다.
+- `PASS`: 호출별 계측 trial에서 follower configure 직후 첫 position group-read 3/3, 전체 follower→leader configure 직후 3/3이 모두 SDK `comm=0`이었다. 양쪽 teardown torque disable/disconnect도 성공했고 Goal_Position write는 0건이었다.
+- `PASS`: 사전 group-read와 호출별 계측 지연을 제거한 cold full-order trial도 첫 follower read 3/3과 leader read 1/1이 모두 `comm=0`이었다.
+- `PASS`: 시험 전후 follower/leader calibration과 robot record hash가 동일하고, live `record.py`는 원본 hash `779fd897...`, kernel USB event 0건, LeLab health 정상이다.
+- `OBSERVED`: 동일 hardware sequence가 standalone에서는 재현되지 않아 calibration/configure 순서 자체의 결정적 결함은 약해졌다. 실제 녹화와 남은 주요 차이는 LeLab의 background `recording-worker`, 사전 dataset 생성/runtime context, 그리고 간헐성이다.
 - `INFO`: 현재까지의 확정 사실·가설·배제 사항은 `docs/PROBLEM_SUMMARY_REFERENCE_2026-09-05.md`에 참고용으로 정리했다.
 - `BLOCKED`: 녹화 초기화 직후 follower read 실패가 남아 있어 데이터셋 녹화를 회귀 통과로 판정할 수 없다.
 
@@ -57,7 +63,7 @@
 
 ## 다음 실행 한 단계
 
-RX-clear-only 수정은 실제 녹화에서 반증됐고 원본으로 복구했다. 다음 변경 전에는 dual bus lifecycle을 계측해 follower configure, leader configure, torque enable, 첫 observation 사이의 최초 실패와 SDK 통신 결과 코드를 정확히 분리한다. register write·torque 변경을 포함하는 새 시험이나 SDK patch 배포는 다시 구체적으로 승인받는다.
+Standalone dual-configure는 instrumented/cold 모두 통과했다. 다음에는 반복적인 calibration EEPROM write를 피하고, 먼저 설치 변경 없는 소스 계측안을 준비해 실제 `recording-worker`와 dataset 생성 이후의 최초 bus 호출을 구분한다. 실제 worker 회귀·torque 변경·새 patch 배포는 다시 구체적으로 승인받는다.
 
 ## GitHub
 

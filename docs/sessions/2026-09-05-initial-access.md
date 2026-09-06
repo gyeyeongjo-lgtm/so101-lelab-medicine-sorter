@@ -44,6 +44,13 @@
 35. 실패 증거를 Jetson/Mac에 보존한 뒤 live `record.py`를 pre-A/B 원본으로 롤백했다. live와 원본 SHA-256 `779fd897...`가 일치하고 service health와 inactive 상태를 확인했다.
 36. leader standalone 읽기 전용 시험은 ping 6/6, 개별 read 120/120, group 20/20을 통과했다.
 37. 두 serial 포트를 동시에 열어 30 Hz로 120 rounds 교차 group read한 시험도 leader/follower 각각 120/120 성공했다. 결과를 `20260906T114842+0900_dual-readonly`에 양쪽 보존했다.
+38. 사용자가 dual-configure 계측과 현장 안전을 승인했다. 시험 전 설정·설치 소스·journal 10개를 `20260906T120356+0900_pre-dual-configure`로 양쪽 보존하고 hash를 검증했다.
+39. 첫 계측 실행은 포트를 열기 전 존재하지 않는 내부 torque 메서드명 때문에 중단됐다. 하드웨어 호출은 없었고 service를 정상 복구한 뒤 설치 API에 맞게 도구를 수정했다.
+40. follower configure 경계 trial과 전체 follower→leader configure trial을 실행했다. 각 최초 follower position group-read가 3/3 `comm=0`, register/torque call error 0건, Goal_Position write 0건이었다.
+41. 두 trial 모두 leader/follower torque disable과 disconnect가 성공했다. 결과는 `20260906T121152+0900_dual-configure-result`에 양쪽 보존했다.
+42. configure 전 group-read와 호출별 계측 지연을 제거한 cold full-order trial을 1회 추가했다. 최초 follower read 3/3과 leader read 1/1이 모두 `comm=0`이었다.
+43. cold trial 뒤 양쪽 torque disable/disconnect와 LeLab service health를 확인했다. 설정 hash는 시험 전후 동일하고 kernel event는 없었다. 결과는 `20260906T121642+0900_dual-configure-cold`에 양쪽 보존했다.
+44. 실제 녹화와 standalone cold sequence의 남은 구조적 차이를 background `recording-worker`, 선행 dataset 생성/runtime context, 간헐성으로 좁혔다.
 
 ## 보존 및 안전
 
@@ -55,4 +62,4 @@
 
 ## 다음 실행 한 단계
 
-현재 원본 서비스는 정상 복구됐다. 다음에는 새 변경 전 port owner와 journal을 보존하고, 별도 안전 승인 아래 dual-device configure lifecycle을 단계별 계측해 최초 실패 경계를 찾는다.
+현재 원본 서비스는 정상 복구됐고 dual-configure standalone 시험은 모두 통과했다. 반복적인 calibration EEPROM write를 멈추고 실제 `recording-worker`에 적용할 source-only 계측안을 먼저 준비한다. 실제 worker 회귀는 별도 승인 뒤 1회로 제한한다.

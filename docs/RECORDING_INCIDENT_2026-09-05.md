@@ -167,6 +167,54 @@ traffic을 번갈아 보내는 행위가 단독 재현 조건이라는 가설을
 실제 녹화 초기화의 calibration/register write, 두 device의 configure와 torque enable,
 그리고 그 직후 첫 follower sync-read 경계다.
 
+## Dual-configure lifecycle 계측
+
+사용자가 register write·torque toggle을 포함한 단계별 계측과 현장 안전을 승인했다.
+시험 전 현재 calibration, robot record, 설치 소스, service journal 10개 파일을
+`20260906T120356+0900_pre-dual-configure`로 Jetson과 Mac에 보존하고 hash를 검증했다.
+
+첫 실행은 설치본에 없는 내부 메서드명을 계측하려 해 **포트를 열기 전에** 종료됐다.
+하드웨어 write·torque 변경은 없었고 service health를 복구한 뒤 설치된 API에 맞게
+도구를 수정했다.
+
+호출별 계측 시험 결과:
+
+- trial A: 양쪽 calibration write 후 follower configure만 실행
+- follower configure 직후 최초 `Present_Position` group-read: 3/3 `comm=0`
+- follower torque state: ID 1–6 모두 enabled, voltage 12.2 V
+- trial B: 녹화와 같은 follower configure→leader configure 전체 순서 실행
+- 전체 configure 직후 최초 follower group-read: 3/3 `comm=0`
+- leader group-read: 1/1 `comm=0`
+- register/torque call error: 0건
+- Goal_Position write: 0건
+- 양쪽 torque disable 및 disconnect: 모두 성공
+- 증거: `backups/jetson/20260906T121152+0900_dual-configure-result/`
+
+위 시험에는 configure 전 상태 확인 group-read와 호출별 event 기록 비용이 포함됐다.
+이 두 요소가 오류를 가렸을 가능성을 분리하기 위해, 사전 group-read와 호출별 래퍼를
+모두 제거하고 전체 순서 1회만 반복했다.
+
+- cold follower/leader connect: 각각 9.06 ms / 8.40 ms
+- follower/leader calibration write: 각각 9.62 ms / 8.96 ms
+- follower configure: 30.45 ms
+- leader configure: 16.22 ms
+- 그 직후 최초 follower group-read: 3/3 `comm=0`, 0.98–1.05 ms
+- leader group-read: 1/1 `comm=0`
+- Goal_Position write: 0건
+- 양쪽 torque disable 및 disconnect: 모두 성공
+- 증거: `backups/jetson/20260906T121642+0900_dual-configure-cold/`
+
+두 결과 모두 시험 전후 저장된 follower/leader calibration과 robot record hash가 같고,
+kernel USB event는 0건이었다. live `record.py`는 원본 hash `779fd897...`를 유지하며
+LeLab service health도 정상이다.
+
+따라서 dual-device calibration/configure/torque 순서와 cold first group-read는 현재
+standalone에서 결정적으로 실패하지 않는다. 실제 무카메라 녹화와 남은 구조적 차이는
+`threading.Thread(name="recording-worker")` 안에서 실행된다는 점과 bus 연결 전에
+`LeRobotDataset.create()`가 실행되는 runtime context다. 다만 같은 실제 녹화 경로도
+표본이 적으므로, 이 차이를 원인으로 확정하지 않고 간헐적인 packet/electrical 상태를
+동일 우선순위로 유지한다.
+
 ## 화면과 실제 journal의 대응
 
 첨부 화면의 토스트는 다음 오류를 표시한다.
@@ -228,17 +276,22 @@ Phase A에서 보존한 설치 소스 기준이다.
 
 ## 우선순위가 높은 원인 가설
 
-1. dual-device 녹화 초기화의 write/configure/torque 순서 직후 조건부 bus 불안정 — 가장 강함
+1. LeLab recording-worker/dataset runtime과 standalone의 실행 문맥 차이 — 중간~높음
 
-id=5 torque enable에서 먼저 실패하고 torque가 켜진 뒤 전체 position sync-read에서도 실패했지만, 다음 날 idle 읽기 전용 시험은 ID 5를 포함해 전부 통과했다. 특정 모터의 상시 고장보다는 torque/configure 순간의 전원·전압강하, packet timing, 잔류 packet 또는 실제 제어 부하에 민감한 상태를 우선 의심한다.
+실제 무카메라 녹화는 두 번 첫 bus 경계에서 실패했지만 동일한 cold hardware 순서는
+standalone main thread에서 통과했다. record 경로는 먼저 dataset을 만들고 background
+thread 안에서 serial lifecycle을 실행한다. 아직 인과는 아니며 다음 계측 대상이다.
 
 2. serial packet 소유권·초기화 순서·간헐 packet loss — 중간
 
 텔레옵 소스에는 worker의 joint read와 `/joint-positions` 요청이 같은 bus 객체를 읽을 수 있는데 bus-level mutex가 없다. 다만 `handle_start_recording`은 텔레옵이 active이면 녹화를 거부하고, 이번 녹화 traceback은 recording worker의 자체 bus에서 발생했다. 따라서 이 가설은 캘리브레이션/텔레옵 오류에는 강하지만 이번 녹화 오류의 단독 원인으로는 약하며, stale 프로세스나 별도 serial opener가 있었는지 추가 확인할 때만 남긴다.
 
-3. 반복되는 configure·torque sequence의 전기적 부하·타이밍 — 중간~높음
+3. 간헐적인 packet 또는 전기적 상태 — 중간~높음
 
-configure는 여러 motor write를 순차 실행하고 context 종료에서 torque를 순차 enable한다. 첫 시도는 id 5에서 이 구간에 실패했고 재시도에서는 통과했으므로 transient timing/power sensitivity가 있다.
+과거 실제 녹화에서는 id 5 torque enable과 전체 group-read가 각각 실패했지만 이번
+계측은 같은 쓰기·torque 순서를 세 번 통과했다. 특정 설정값의 결정적 오류보다
+간헐성이 강하며, 커널 USB event가 없다는 사실만으로 motor-side packet 손실이나
+전원·커넥터 margin을 배제할 수 없다.
 
 4. 역할·포트 경로의 불안정성 — 낮음~중간
 
@@ -257,14 +310,14 @@ configure는 여러 motor write를 순차 실행하고 context 종료에서 torq
 
 실험 한 번에 한 변수만 바꾼다. 현장 안전 확인은 완료됐지만 아래는 별도 승인 범위에서만 실행한다.
 
-1. LeLab 텔레옵·녹화 inactive, port owner, serial identity를 다시 확인한다.
-2. 설치 소스를 바꾸지 않는 계측 harness에서 follower connect/calibration/configure,
-   leader connect/calibration/configure의 각 경계 직후 read 결과와 SDK comm code를 남긴다.
-3. configure/register/torque write가 포함되는 위 시험은 새 구체적 안전 승인을 받은 뒤
-   낮은 횟수로 실행하고, 목표 위치·baudrate·return-delay는 바꾸지 않는다.
-4. 최초 실패 경계를 확인한 뒤에만 `_sync_read` 실패 시 RX clear 같은 bus-level 복구를
-   별도 patch로 검증한다. retry 횟수만 늘리지는 않는다.
-5. recording 초기화가 안정된 다음에 두 camera와 encoder를 한 대씩 추가한다.
+1. 반복적인 calibration EEPROM write를 멈추고, source-only로 실제 recording-worker에
+   최소 계측을 넣는 patch와 정확한 rollback diff를 준비한다.
+2. 다음 승인 회귀에서는 dataset 생성 완료, worker thread 시작, 각 bus stage와 최초
+   low-level comm code만 기록하고 무카메라 1회로 제한한다.
+3. worker에서도 통과하면 여러 번의 register write를 반복하지 말고 read-only soak 또는
+   물리 전원·커넥터 계측으로 간헐성을 확인한다.
+4. 최초 실패 경계가 다시 잡힌 뒤에만 bus-level recovery를 별도 patch로 검증한다.
+5. 무카메라 경로가 안정된 다음에 두 camera와 encoder를 한 대씩 추가한다.
 
 ### 읽기 전용 bus 시험 도구
 
