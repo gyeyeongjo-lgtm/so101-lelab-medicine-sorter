@@ -64,5 +64,5 @@ RX-clear-only 수정은 실제 녹화에서 반증됐고 원본으로 복구했�
 - 저장소: <https://github.com/gyeyeongjo-lgtm/so101-lelab-medicine-sorter>
 - 공개 범위: private (`PASS`)
 - 기본 브랜치/초기 커밋: `main` / `8dd6761`
-- 작업 브랜치/검증된 원격 커밋: `fix/usb-recording` / `4903c1a`
+- 작업 브랜치/진단 결과 커밋: `fix/usb-recording` / `c670c7a`
 - 이슈: #1 포트 식별, #2 녹화 TX/RX, #3 회귀·데이터 검증, #4 후속 로드맵
