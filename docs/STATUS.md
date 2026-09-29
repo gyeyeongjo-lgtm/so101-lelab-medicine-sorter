@@ -8,6 +8,7 @@
 - `BLOCKED_NETWORK`: 사용자가 Jetson이 offline임을 확인했고 `192.168.50.20` SSH 22, LeLab 8000, preview 8020은 모두 timeout이다. 네트워크·전원·USB는 변경하지 않았다.
 - `NOT_RUN`: 2026-09-29 Jetson live USB·LeLab·torque 상태 재확인과 신규 Jetson 백업은 offline으로 실행하지 못했다. 2026-09-28까지의 근거는 실시간 재확인으로 바꾸어 쓰지 않는다.
 - `PASS (Git read auth)`: 비공개 remote `gyeyeongjo-lgtm/so101-lelab-medicine-sorter` BRANCH 목록을 `git ls-remote` 로 읽었다. 다만 프로젝트 로컬 GitHub CLI는 현재 로그아웃 상태다.
+- `PASS (Git push)`: 진행 기록·코드·테스트·ArUco 인쇄 자산 116개 파일을 commit `a68b39f`로 저장하고 `origin/fix/usb-recording`에 push했다.
 - `DOCUMENTED`: `docs/CURRENT_SYSTEM_AND_ARUCO.md`에 물리 카메라 3대(Astra 정면, RealSense 사선, Generic USB 손목), 운영 ArUco 7개(ID0–3 작업대, ID4–6 바구니), ChArUco/검은 X의 구분, 현재 fit 거부 결과와 다음 6점 teach를 정리했다.
 - `SAFETY`: 오늘 로봇 모터·토크·USB·전원·캘리브레이션을 변경하지 않았다. 오프라인 중이므로 직전 테레옵의 정상 종료나 torque 0을 오늘 확인했다고 주장하지 않는다.
 

@@ -32,5 +32,6 @@
 - `PASS`: 프로젝트 `.venv`의 OpenCV 5.0.0 환경에서 하드웨어 없는 `unittest discover` 93/93이 통과했다.
 - `PASS`: `python3 -m compileall -q scripts tests`가 통과했다.
 - `FAIL (environment only)`: 시스템 Python 3.13의 첫 전체 테스트는 `cv2` 미설치로 91개 중 import error 1개가 발생했다. 코드 실패로 숨기지 않고, 실제 프로젝트 환경에서 재실행해 통과했다.
-- 커밋·push 결과는 후속 커밋에서 SHA와 함께 갱신한다.
-- 현재 중간 상태: `NOT_PUSHED`.
+- `PASS`: 진행 기록·코드·테스트·ArUco 인쇄 자산 116개 파일을 `a68b39f` (`feat: preserve ArUco vision and medicine sorting progress`)로 커밋했다.
+- `PASS`: `origin/fix/usb-recording` push가 `80e8047..a68b39f`로 성공했다. GitHub CLI 세션은 로그아웃이지만 기존 Git HTTPS credential의 쓰기 권한은 실제 push로 검증됐다.
+- 상태: `PUSHED`.
