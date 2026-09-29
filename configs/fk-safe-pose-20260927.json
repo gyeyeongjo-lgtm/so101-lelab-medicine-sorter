@@ -1,0 +1,15 @@
+{
+  "unit": "rad",
+  "joints": {
+    "Rotation": 0.08208801317072231,
+    "Pitch": -1.7008329457896387,
+    "Elbow": 1.6900924580850585,
+    "Wrist_Pitch": 0.7479982508547126,
+    "Wrist_Roll": -0.0483321946706122,
+    "Jaw": 0.08438250361539291
+  },
+  "source": "LeLab /joint-positions during approved safe-height teleoperation dry run",
+  "captured_at_unix": 1790490243.8686626,
+  "use_for_robot_world_fit": false,
+  "note": "This is a plumbing verification sample only. No known world point or validated TCP offset is attached."
+}

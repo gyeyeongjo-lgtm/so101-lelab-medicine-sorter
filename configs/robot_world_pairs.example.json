@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "unit": "mm",
+  "convention": "T_B_W transforms a point from World into Robot Base",
+  "pairs": [
+    {"name": "teach_01", "world_mm": [40.0, 40.0, 0.0], "robot_base_mm": null},
+    {"name": "teach_02", "world_mm": [290.0, 40.0, 0.0], "robot_base_mm": null},
+    {"name": "teach_03", "world_mm": [290.0, 230.0, 0.0], "robot_base_mm": null},
+    {"name": "teach_04", "world_mm": [40.0, 230.0, 0.0], "robot_base_mm": null},
+    {"name": "teach_05", "world_mm": [165.0, 80.0, 0.0], "robot_base_mm": null},
+    {"name": "teach_06", "world_mm": [165.0, 200.0, 0.0], "robot_base_mm": null}
+  ],
+  "robot_enabled": false,
+  "note": "Example only. Fill robot_base_mm from reviewed FK/TCP readings; do not guess values."
+}

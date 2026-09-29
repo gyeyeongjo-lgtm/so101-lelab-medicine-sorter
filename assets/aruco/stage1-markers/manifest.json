@@ -1,0 +1,18 @@
+{
+  "dictionary": "DICT_4X4_50",
+  "marker_ids": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "marker_black_square_mm": 70.0,
+  "quiet_zone_mm": 5.0,
+  "print_instruction": "Print each SVG at 100% / Actual Size. Do not use Fit to Page.",
+  "files": [
+    "aruco_DICT_4X4_50_id0.svg",
+    "aruco_DICT_4X4_50_id1.svg",
+    "aruco_DICT_4X4_50_id2.svg",
+    "aruco_DICT_4X4_50_id3.svg"
+  ]
+}

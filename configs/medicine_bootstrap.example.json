@@ -1,0 +1,26 @@
+{
+  "dataset_name": "so101_medicine_bootstrap",
+  "scope": "fixed-camera research prototype with empty containers/models only",
+  "classes": {
+    "0": "white_medicine_bottle_model"
+  },
+  "manual_collection_target": {
+    "positive": 8,
+    "negative": 2
+  },
+  "baseline_real_frame_target": {
+    "minimum": 50,
+    "preferred": 100
+  },
+  "negative_examples": [
+    "empty pickup ROI",
+    "pen or rectangular non-bottle object"
+  ],
+  "label_policy": {
+    "positive": "reviewed whole white bottle bbox only",
+    "negative": "empty YOLO label file",
+    "pseudo_labels_require_review": true
+  },
+  "safety": "dataset labels are not medicine identity decisions or robot motion targets",
+  "training_ready": false
+}

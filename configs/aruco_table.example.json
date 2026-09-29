@@ -1,0 +1,17 @@
+{
+  "dictionary": "DICT_4X4_50",
+  "marker_size_mm": 70.0,
+  "marker_centers_mm": {
+    "0": [0.0, 0.0],
+    "1": [600.0, 0.0],
+    "2": [600.0, 400.0],
+    "3": [0.0, 400.0]
+  },
+  "camera": {
+    "device": "/dev/video0",
+    "width": 640,
+    "height": 480,
+    "fps": 30
+  },
+  "calibration_file": null
+}

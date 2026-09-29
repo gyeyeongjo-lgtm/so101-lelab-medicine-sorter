@@ -1,6 +1,58 @@
 # SO-101 포트 매핑
 
-확인 시각: 2026-09-05T21:18:17+09:00
+최신 누적 확인: 2026-09-28
+2026-09-29 live 재확인: `BLOCKED_NETWORK` (Jetson offline)
+
+## 2026-09-28 최신 로봇 역할
+
+stable serial을 영구 식별자로 사용하고, raw `/dev/ttyACM*`는 해당 열거 시점의 교차 확인용으로만 사용한다.
+
+| 역할 | stable by-id | 당시 node | serial |
+|---|---|---:|---|
+| Leader | `/dev/serial/by-id/usb-1a86_USB_Single_Serial_5AE6085272-if00` | `/dev/ttyACM1` | `5AE6085272` |
+| Follower | `/dev/serial/by-id/usb-1a86_USB_Single_Serial_5AE6058306-if00` | `/dev/ttyACM0` | `5AE6058306` |
+
+이전 녹화/추론에서 raw ACM 번호와 robot record 역할이 뒤집혀던 이력이 있다. 새 세션 시작 전에는 UI 표시만 보지 말고 by-id→canonical node→실제 팔 역할을 다시 대조한다.
+
+## 2026-09-21 이후 현재 카메라 3대
+
+| 역할 | 장치 | 식별·경로 |
+|---|---|---|
+| 천장 정면 | Orbbec Astra | USB `2bc5:0401`, OpenNI2 `/opt/orbbec-openni2`; V4L2 node가 아님 |
+| 천장 사선 | Intel RealSense D435 | USB `8086:0b07`, serial `236223023645`; V4L2 color by-id |
+| 로봇팔·손목 | Generic USB Camera | USB `0bda:5844`; V4L2 by-id/node는 재열거 후 재확인 |
+
+아래 C920 3대 표는 2026-09-20 카메라 교체 전 이력이다.
+
+## 이력: 2026-09-20 C920 카메라 역할
+
+세 카메라가 동시에 연결된 상태에서 `/dev/v4l/by-id`, sysfs, udev property와 실제
+Safari preview를 대조했고 사용자가 물리 역할을 확정했다. 각 카메라의 `video-index0`
+node만 영상 입력으로 사용하며 같은 장치의 index1 node는 별도 카메라로 세지 않는다.
+
+| 역할 | stable by-id | 현재 node | USB serial / VID:PID |
+|---|---|---:|---|
+| 천장 사선 | `/dev/v4l/by-id/usb-046d_HD_Pro_Webcam_C920_27292FAF-video-index0` | `/dev/video0` | `27292FAF` / `046d:082d` |
+| 로봇팔·손목 | `/dev/v4l/by-id/usb-Generic_USB_Camera_200901010001-video-index0` | `/dev/video2` | `200901010001` / `0bda:5844` |
+| 천장 수직·ArUco 기준 | `/dev/v4l/by-id/usb-046d_HD_Pro_Webcam_C920_07FE1FAF-video-index0` | `/dev/video4` | `07FE1FAF` / `046d:082d` |
+
+`/dev/video1`, `/dev/video3`, `/dev/video5`는 각각 위 세 물리 카메라의 index1 node다.
+OpenCV index 숫자는 USB 재열거로 바뀔 수 있으므로 이후 설정은 stable by-id 지원 여부를
+먼저 확인하고, UI가 숫자만 받는 경우 매 실행 전 위 canonical 매핑을 재검증한다.
+
+## 이력: 2026-09 로봇 역할 보정
+
+사용자가 실제 팔을 기준으로 역할을 확정했고, 공식 CLI 비교군도 아래 stable
+`by-id` 경로로 실제 연결을 확인했다. `/dev/ttyACM*` 번호는 USB 재열거에 따라
+바뀔 수 있으므로 역할 설정에는 쓰지 않는다.
+
+| 역할 | 안정 경로 | 당시 tty | serial | 근거 |
+|---|---|---:|---|---|
+| 팔로워 | `/dev/serial/by-id/usb-1a86_USB_Single_Serial_5AE6058306-if00` | `/dev/ttyACM1` | `5AE6058306` | 사용자 물리 확인 + 공식 CLI의 `robot.port` |
+| 리더 | `/dev/serial/by-id/usb-1a86_USB_Single_Serial_5AE6085272-if00` | `/dev/ttyACM0` | `5AE6085272` | 사용자 물리 확인 + 공식 CLI의 `teleop.port` |
+
+아래 2026-09-05 표와 시간대별 내용은 당시 재열거 상태의 **이력**이다. 현재 역할
+설정의 근거로 사용하지 않는다.
 
 ## 관측 결과
 

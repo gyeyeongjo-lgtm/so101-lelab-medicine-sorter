@@ -327,10 +327,107 @@ thread 안에서 serial lifecycle을 실행한다. 아직 인과는 아니며 �
 `enable_torque`, `disable_torque`를 호출하지 않으며 종료도 반드시
 `disconnect(disable_torque=False)`로 한다.
 
+## 2026-09-06 공식 LeRobot CLI 비교군: UI 없이도 재현
+
+사용자의 구체적 현장 안전 확인 뒤, LeLab user service를 먼저 중지하여 웹 UI,
+recording-worker, WebSocket이 어느 직렬 버스도 공유하지 않는 상태에서 공식
+`lerobot-record`를 1회만 실행했다. 카메라·영상·Hub 업로드는 모두 껐고 새 진단
+dataset ID를 사용했다.
+
+현재 물리 역할은 사용자가 확정했고, 실제 CLI 인수에도 다음과 같이 반영됐다.
+
+- follower: `/dev/serial/by-id/usb-1a86_USB_Single_Serial_5AE6058306-if00`
+  (당시 `/dev/ttyACM1`)
+- leader: `/dev/serial/by-id/usb-1a86_USB_Single_Serial_5AE6085272-if00`
+  (당시 `/dev/ttyACM0`)
+
+관측 결과:
+
+- Python 3.14의 Draccus CLI parser 호환성 오류는 최소 patch 후 해소되어,
+  CLI가 실제 robot/teleop에 연결하고 `Recording episode 0`까지 진입했다.
+- 30 FPS 목표에서 첫 loop는 9.6 Hz, 다음 loop는 18.3 Hz였다. 카메라가 없는
+  조건이므로 이 경고는 영상 FPS 문제가 아니라 control/serial loop 지연의 관측이다.
+- 약 1초 뒤 `SOFollower.get_observation()`의
+  `sync_read("Present_Position")`가 IDs 1–6 전체에서 3회 실패했다.
+  SDK 원문은 `[TxRxResult] There is no status packet!`이며, episode는 완료되지 않았다.
+- CLI cleanup은 follower/leader disconnect까지 수행했다. service 복구 trap이 health
+  polling 중 connection-refused를 출력했으므로, 다음 하드웨어 시험 전에 service 상태와
+  원본/계측 `record.py` hash를 읽기 전용으로 재확인해야 한다.
+
+### 이 비교군이 반증한 것
+
+이 실패는 LeLab UI·recording-worker·WebSocket 경쟁을 배제한 상태에서 동일하게
+발생했다. 따라서 이들 요소는 **이번 sync-read 오류의 주원인이 아니다**. 이전의
+worker-context 가설은 보조적/간헐 요인으로 낮춘다. 또한 camera/encoder/Hub 업로드도
+이 시험에는 없었다.
+
+### 남은 가장 유력한 범위
+
+idle read-only와 dual-read가 통과하고, 실제 control/torque lifecycle 뒤만 실패하는
+패턴이다. 다음 우선순위는 (1) follower arm의 전원/공통 bus 전원 margin, (2) 분해·조립
+후 USB-to-first-servo 및 daisy-chain connector/케이블 접촉, (3) torque/진동 시 드러나는
+shoulder-pan 기계적 결속 또는 과전류, (4) half-duplex adapter timing이다. kernel USB
+reset이 없다는 사실은 servo-side packet loss나 전원/connector 문제를 배제하지 않는다.
+
+모터 ID, baud rate, calibration, torque 설정은 이 근거만으로 변경하지 않는다.
+
+## 2026-09-08 현재 UI 설정의 역할-포트 반전 보정
+
+LeLab service를 재시작한 뒤 현재 Calibration UI와 robot record를 확인했을 때,
+저장값은 leader=`/dev/ttyACM1`, follower=`/dev/ttyACM0`였다. 사용자가 현장에서 확정한
+실제 역할은 반대(leader=`5AE6085272`/당시 ACM0, follower=`5AE6058306`/당시 ACM1)였다.
+이는 UI 녹화가 서로 다른 역할의 device driver를 잘못된 arm에 연결하게 하는 실제
+구성 결함이다.
+
+기존 calibration/config 파일과 camera 목록은 변경하지 않고 robot record 전체를
+`/home/jetson3/so101-recovery-backups/20260908T163404+0900_port-map-correction/`
+에 백업했다. 그 뒤 port 두 필드만 다음 stable by-id 경로로 atomic replace 했다.
+
+- leader: `/dev/serial/by-id/usb-1a86_USB_Single_Serial_5AE6085272-if00`
+- follower: `/dev/serial/by-id/usb-1a86_USB_Single_Serial_5AE6058306-if00`
+
+변경 후 LeLab restart와 `/health`은 PASS였고, UI 재로딩에서도 leader 안정 경로가
+표시됐다. 이 변경은 모터를 열거나 torque/calibration을 실행하지 않았다. 실제
+Collect data 회귀 결과는 별도 현장 안전 확인 뒤에만 판정한다.
+
+## 2026-09-08 포트 보정 후 UI Collect data 1회
+
+현장 안전 확인 후, 새 local dataset
+`Supermassive111/port_map_regression_20260908_20260908_164019`로 camera 2대,
+1 episode, 5초, reset 0초의 회귀를 1회 실행했다. Hub upload는 실행하지 않았다.
+
+- robot bus connect: PASS
+- teleop bus connect: PASS
+- calibration file 존재 확인: leader/follower 모두 PASS
+- follower `Present_Position` read, torque/configure, record loop: **NOT_RUN**
+- 최초 실패: `OpenCVCamera(0)` connect
+- 실제 저장: episode 0, session duration 0초
+
+정확한 원문은 `Failed to open OpenCVCamera(0). Run lerobot-find-cameras opencv`
+이다. 직전 camera discovery가 `/dev/video0`부터 `/dev/video9`까지 모두 open 실패했고,
+`/camera-preview/0` 및 `/camera-preview/2`도 503을 반환했다. 따라서 이번 회귀의
+직접 원인은 serial TX/RX가 아니라 **Jetson camera node/점유/권한 상태**다. 포트
+보정 후 serial record path의 성공/실패는 카메라 상태를 복구한 다음에만 다시 판정한다.
+
+## 2026-09-08 camera 복구 후 UI Collect data 1회
+
+새 현장 안전 확인 뒤 새 local dataset
+`Supermassive111/camera_recovery_regression_20260908_20260908_170150`로 1회 실행했다.
+두 camera live feed가 실제로 표시된 뒤 episode를 종료했으며, LeLab UI summary는
+1 episode, 135 frames, 30 FPS를 보고했다. Hub upload는 사용자가 `Skip Upload`로
+명시적으로 건너뛰어 실행하지 않았다.
+
+따라서 이번 경로에서는 camera open과 record 시작 이후 즉시 종료되는 TX/RX 오류가
+재현되지 않았다. 다만 UI의 49초 session 표시는 reset/사용자 종료 시간을 포함할 수
+있으므로, 135개 frame의 metadata·parquet/video decode를 read-only로 검증하기 전에는
+dataset 전체 유효성이나 장기 bus 안정성을 PASS로 확대 해석하지 않는다. 이전의
+`port_map_regression_...` 실패 dataset은 삭제하지 않고 보존한다.
+
 ```sh
 PY=/home/jetson3/.local/share/uv/tools/lelab/bin/python
 $PY /path/to/diagnose_follower_bus.py \
-  --port /dev/ttyACM0 --expected-serial 5AE6085272 --rounds 5 \
+  --port /dev/serial/by-id/usb-1a86_USB_Single_Serial_5AE6058306-if00 \
+  --expected-serial 5AE6058306 --rounds 5 \
   > /tmp/so101-follower-readonly-$(date +%Y%m%dT%H%M%S%z).json
 ```
 

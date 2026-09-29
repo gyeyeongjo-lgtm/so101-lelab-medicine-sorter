@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+
+ORBBEC_OPENNI_ROOT=/opt/orbbec-openni2
+export OPENNI2_REDIST="$ORBBEC_OPENNI_ROOT"
+export LD_LIBRARY_PATH="$ORBBEC_OPENNI_ROOT${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+exec "$ORBBEC_OPENNI_ROOT/bin/check-orbbec-openni" "$@"

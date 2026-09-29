@@ -1,6 +1,14 @@
 # 실행 환경
 
-확인 시각: 2026-09-05T21:18:17+09:00
+최초 확인: 2026-09-05T21:18:17+09:00
+
+네트워크 주소 재확인: 2026-09-17
+
+## 2026-09-29 기록 상태
+
+- Jetson `192.168.50.20` 전원/네트워크가 사용자에 의해 offline인 상태라 SSH 22, LeLab 8000, preview 8020 모두 응답하지 않았다.
+- 따라서 오늘의 USB·서비스·토크 상태와 신규 Jetson 백업은 `BLOCKED_NETWORK / NOT_RUN`이다.
+- 아래 Jetson 항목은 이전 접속에서 실제 확인한 최신 누적 기록이며 2026-09-29 live 재확인으로 간주하지 않는다.
 
 ## Mac
 
@@ -8,12 +16,15 @@
 - 운영체제: macOS 26.6.2, arm64
 - Git: 2.50.1
 - GitHub CLI: 프로젝트 로컬 `.local/bin/gh`, v2.100.0, 공식 배포 체크섬 검증 완료
-- GitHub 인증: `gyeyeongjo-lgtm`, macOS Keychain, API 확인 `PASS`
-- GitHub 저장소: `gyeyeongjo-lgtm/so101-lelab-medicine-sorter`, private
+- GitHub CLI: 2026-09-29 `gh auth status` 세션은 로그아웃 상태
+- Git HTTPS remote: `git ls-remote origin` 성공. 기존 credential의 private remote 읽기는 `PASS`
+- GitHub 저장소: `gyeyeongjo-lgtm/so101-lelab-medicine-sorter`; private 판정은 기존 검증 기록을 유지하며 최종 push로 쓰기 권한을 재검증한다.
 
 ## Jetson
 
-- SSH: `jetson3@192.168.0.10:22`
+- 최신 LAN SSH: `jetson3@192.168.50.20:22`
+- 이전 주소: `192.168.0.10`, `192.168.0.30`
+- `192.168.50.20`의 ED25519 지문은 이전 주소에서 확인한 동일 Jetson 지문과 일치
 - hostname: `ubuntu`
 - 모델: NVIDIA Jetson Orin Nano Engineering Reference Developer Kit Super
 - 운영체제: Ubuntu 22.04.5 LTS

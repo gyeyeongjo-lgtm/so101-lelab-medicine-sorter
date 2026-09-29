@@ -8,9 +8,13 @@ __pycache__/
 !.env.example
 .local/
 local/
+configs/*.local.json
 secrets/
 backups/
 /prompt/
+/.cache/
+/artifacts/
+/Miniforge3.sh
 logs/raw/
 reports/raw/
 /datasets/

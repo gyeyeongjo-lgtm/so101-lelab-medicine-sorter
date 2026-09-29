@@ -1,0 +1,20 @@
+[Unit]
+Description=SO-101 read-only medicine YOLO and angled camera preview
+After=network-online.target systemd-modules-load.service
+Wants=network-online.target
+Conflicts=astra-v4l2-bridge.service so101-camera-preview.service
+
+[Service]
+Type=simple
+User=jetson3
+Group=video
+WorkingDirectory=/home/jetson3/so101-medicine-bootstrap/models/yolo11n-medicine-smoke-v1
+Environment=PYTHONUNBUFFERED=1
+Environment=OPENNI2_REDIST=/opt/orbbec-openni2
+Environment=LD_LIBRARY_PATH=/opt/orbbec-openni2
+ExecStart=/usr/bin/python3 /home/jetson3/so101-medicine-bootstrap/models/yolo11n-medicine-smoke-v1/medicine_yolo_web.py --model /home/jetson3/so101-medicine-bootstrap/models/yolo11n-medicine-smoke-v1/best.onnx --raw-rgb-command /opt/orbbec-openni2/bin/orbbec-rgb-pipe --angled-device /dev/v4l/by-id/usb-Intel_R__RealSense_TM__Depth_Camera_435_Intel_R__RealSense_TM__Depth_Camera_435_236223023645-video-index0 --workspace-config /opt/so101-rgbd/astra_rgbd.example.json --host 0.0.0.0 --port 8020
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

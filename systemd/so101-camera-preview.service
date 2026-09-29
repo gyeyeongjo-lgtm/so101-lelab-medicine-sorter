@@ -1,0 +1,17 @@
+[Unit]
+Description=SO-101 overhead camera preview
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=jetson3
+Group=video
+WorkingDirectory=/opt/so101-camera-preview
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /opt/so101-camera-preview/camera_preview_server.py --port 8010
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
