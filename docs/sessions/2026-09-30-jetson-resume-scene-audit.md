@@ -71,3 +71,20 @@ Git commit/push: `c83f537`을 `origin/fix/usb-recording`에 push 완료. 이 문
 - 사용자가 P1 위치를 물었고 리더 조작은 아직 하지 않았다고 밝혔다. 사용자가 보고 있는 인앱 웹 URL은 `192.168.50.22:8020`으로, 실제 제어 중인 LeLab `192.168.50.20:8000`과 주소가 달랐다. Mac의 `.22:8020/health`는 timeout이어서 같은 작업대 화면인지 확인되지 않았다.
 - 위치·화면 혼동 상태에서는 teach를 진행하지 않고 `/stop-teleoperation`을 1회 호출해 HTTP 200 `Teleoperation stopped successfully`를 받았다. 종료 후 teleoperation·recording·inference active=false를 확인했다. follower torque register는 직접 확인하지 않아 `NOT_VERIFIED`다.
 - P1–P6 관절 sample 0개, TCP·`T_B_W` 적합 `NOT_RUN`, 실제 이동 승인 없음, `robot_enabled=false` 유지. 정면 카메라 기준 X 배열은 위쪽 P1/P2, 아래쪽 P4/P3이고 follower arm은 영상의 위쪽에 보인다. P1은 영상 왼쪽 위, ArUco ID2 바로 오른쪽 X다. 같은 기준 화면을 사용자와 확인하기 전 재시작하지 않는다.
+
+## 동일 화면 확인 후 6점 teach 수집
+
+- 사용자가 P1을 `192.168.50.20:8000/camera-preview/8` 정면 화면의 ID2 오른쪽 X로 확인했고 기존 안전·자세·텔레옵 방식 승인을 유지했다. 재시작 직전 정면 영상의 작업대 중앙이 비었고 세 제어 작업 모두 inactive였다.
+- 저장된 `so-101` leader ACM1/follower ACM0/config `so-101.json` 그대로 `/move-arm` 1회 HTTP 200, teleoperation active를 확인했다. LeLab OpenAPI에는 속도 상한 인자가 없으므로 사용자에게 리더를 천천히 조작하도록 안내했다.
+- 사용자가 각 X 접촉을 확인한 뒤 `/ws/joint-data` 15개씩만 읽었다. 첫 P1 후보는 손끝 위치 재정렬 전 샘플로 제외하고, 재정렬 P1 및 P2–P6의 총 90개를 채택 후보로 로컬 입력 파일에 보존했다. 모든 점의 방송 중 최대 관절 표준편차는 수치 반올림 수준(≤2.3e-16 rad), Jaw 범위는 0.082246–0.087587 rad(폭 0.005341 rad)였다. serial bus를 추가로 열거나 `/joint-positions`를 호출하지 않았다.
+- 정면 영상에서 P1–P5 손끝은 각 X 부근에 있었으나 일부 시점에서 손끝 간 틈처럼 보였다. 사용자는 P4에서 두 손끝이 실제로 서로 맞닿는다고 확인했다. 영상만으로 TCP의 반복 가능한 단일 물리점과 테이블 접촉 오차를 입증한 것은 아니다. P6는 사용자 접촉 확인과 방송값을 받았으며, 종료 후 영상은 이미 팔이 작업대 위에서 물러난 상태라 P6 접촉 프레임 검증은 `NOT_VERIFIED`다.
+- P6 방송 직후 `/stop-teleoperation` HTTP 200을 받았다. 종료 확인에서 LeLab `/health` 정상, teleoperation·recording·inference 모두 active=false였다. follower torque register는 직접 읽지 않아 `NOT_VERIFIED`다. 원본 카메라 녹화나 실제 물체 이동은 하지 않았다.
+
+## FK·TCP·World→Base 오프라인 적합 판정
+
+- Jetson에 설치된 LeLab의 `so101_new_calib.urdf`를 Mac 임시 폴더로 읽기 전용 복사했다. SHA-256 `443d38d756e01bac7d3455b24430047ddc6427105e0d3454b2003116f5f67236`; `base→gripper` 체인의 zero-pose `[20.615,-277.473,266.852]` mm가 이전 기록과 일치했다.
+- 기존 `urdf_forward_kinematics.py`의 FK와 `fit_robot_world_tcp_transform.py`의 동시 fit으로 6점 결과는 `REJECTED_NEEDS_MORE_OR_BETTER_TEACH_SAMPLES`다. RMSE `13.377 mm`(허용 5), 최대 `19.111 mm`(허용 8), 조건수 `6250.9`(허용 1000), rank 9, TCP offset norm `75.409 mm`. 점별 residual P1–P6은 약 `7.260,16.068,19.111,15.811,10.498,6.115 mm`다. 조건수는 파라미터 단위/스케일에도 좌우되므로 이것만으로 원인을 확정하지 않으며, 위치 오차 기준 자체가 명확히 실패했다.
+- 한 점씩 제외한 여섯 번의 오프라인 fit에서도 RMSE가 `9.472–14.268 mm`, 조건수 `5997.7–11237.9`로 모두 거부됐다. 하나의 명백한 이상점만 제거해 해결되지 않는다.
+- Astra intrinsic을 기존 MJPEG 좌표에 적용해 6개 World 점을 다시 투영했을 때 변화는 각 점 최대 약 2.75 mm였고, 그 좌표의 fit도 RMSE `13.179 mm`로 거부됐다. 렌즈 왜곡만으로 설명되지 않는다.
+- 새 `scripts/fit_robot_world_from_joint_samples.py`는 방송 sample 안정성·고정 Jaw·motion 차단을 검증한 뒤 실제 URDF FK와 기존 fit을 재사용한다. 로컬 거부 결과 `configs/robot_world_transform.20260930.closed-tip.local.json`에 입력·URDF SHA, `robot_enabled=false`, `motion_authorized=false`를 기록했다. 신규 입력 검사 4/4, 기존 fit 4/4, FK 3/3 단위 테스트가 통과했다. 거부된 변환은 로봇 목표 좌표로 사용하지 않는다.
+- 다음은 동일한 단일 접촉점을 눈으로 명확히 확인할 수 있도록 한 고정 fingertip 끝 또는 탈착 포인터를 TCP로 정하고, 손목 방향 다양성과 독립 holdout을 포함한 teach를 재설계하는 것이다. 새 현장 준비·안전 승인 전 추가 모터 동작은 `NOT_RUN`이다. 프로젝트 로컬 GitHub CLI는 로그아웃 상태라 issue API 갱신은 `NOT_RUN`이다.
