@@ -38,3 +38,11 @@
 - browser automation은 LAN 프리뷰 URL을 `ERR_BLOCKED_BY_CLIENT`로 차단했다. 기존 HTTP 프레임을 읽어 offline으로 영상과 ID를 확인했다.
 
 Git commit/push: `c83f537`을 `origin/fix/usb-recording`에 push 완료. 이 문장의 결과 기록은 후속 문서 커밋에 포함한다.
+
+## X 재노출 후 정면 프리뷰 확인
+
+- 사용자가 X를 다시 보이게 조정했다. Mac에서 LeLab `/health` HTTP 200과 `/camera-preview/8`의 새 MJPEG 640×480 정면 프레임을 읽기 전용으로 확인했다.
+- 단일 프레임 육안 검사에서 검은 X 6개와 작업대 모서리의 ArUco 4장이 화면에 보였다. 바구니는 작업대에 없고 약통 모형 1개가 중앙에 남아 있다.
+- 이번 확인은 marker ID 자동 판독, X 중심 World 좌표 재추출, 로봇 teach 및 변환 적합을 수행하지 않았다. 기존 `T_B_W` 거부와 `robot_enabled=false`는 그대로다.
+- X는 robot-world teach를 위한 임시 접촉점이다. 6점 teach와 적합 검증을 통과한 뒤 X 테이프를 치워 바구니 공간을 확보할 수 있다. 작업대 기준 ID0–3은 유지하며, 바구니 복귀 시 ID4–6 검출과 빨강/초록/파랑 매핑을 다시 확인한다.
+- 모터·토크·USB·전원·서비스 설정 변경은 없었다. 실제 접촉 teach는 현장 안전 확인과 별도 명시 승인 전까지 `NOT_RUN`이다.

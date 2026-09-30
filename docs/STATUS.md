@@ -4,6 +4,8 @@
 
 ## 2026-09-30 Jetson 재연결·현장 배치 재점검
 
+- `PASS (X visibility follow-up)`: LeLab 정면 `/camera-preview/8`의 새 640×480 프레임에서 검은 X 6개가 모두 보인다. 작업대 모서리의 ArUco 4장도 화면에 보이며, 바구니는 치워져 있고 약통 모형 1개가 중앙에 남아 있다. X는 6점 robot-world teach용 임시 접촉점이지 운영 중 바구니마다 필요한 마커가 아니다. 이 1프레임 육안 점검은 ArUco ID 판독·X world 좌표 재추출·로봇 teach 완료를 뜻하지 않는다.
+- `NEXT (camera-only)`: 현 배치에서 ID0–3을 판독하고 X 6개 중심의 World 좌표를 다시 추출한다. 이후 모터·토크를 수반하는 teach는 별도 현장 안전 확인과 명시 승인 전까지 `NOT_RUN`이다. teach 완료 후 X 테이프는 제거할 수 있으나 ID0–3 작업대 기준 마커는 고정 유지하고, 바구니 ID4–6은 복귀 후 검출·색상 매핑을 재확인한다.
 - `PASS (connection)`: Jetson `192.168.50.20:22` SSH와 LeLab `:8000/health`가 응답했다. 실제 로그인은 `jetson3`, Jetson 시각은 2026-09-30 15:53 KST였다.
 - `PASS (control preflight)`: LeLab teleoperation·recording·inference는 모두 inactive였다. 이 점검에서는 serial 장치를 열거나 모터·토크를 변경하지 않았다. Follower torque register 값은 `NOT_VERIFIED`다.
 - `PASS (USB/config identity)`: Leader stable serial `5AE6085272`→`/dev/ttyACM1`, Follower `5AE6058306`→`/dev/ttyACM0`이며 실제 `so-101.json`의 leader/follower port와 일치했다. 현재 camera record는 ceiling_vertical index 8, ceiling_oblique index 4, end_effector index 6의 3대다.
