@@ -4,6 +4,10 @@
 
 ## 2026-09-30 Jetson 재연결·현장 배치 재점검
 
+- `STOPPED_SAFE (6-point teach attempt)`: 사용자가 follower 범위 밖·즉시 중단 준비·리더/팔로워 시작 자세 정렬과 기존 텔레옵의 천천히 손으로 조작하는 방식에 동의했다. LeLab `/move-arm` 1회가 HTTP 200으로 시작되고 active 및 `/ws/joint-data` 방송을 확인했다. 리더 조작 전 P1 위치/보는 웹 주소가 혼동되어 `/stop-teleoperation` 1회로 즉시 중단했고 teleoperation·recording·inference는 모두 inactive다. P1–P6 sample은 0개, fit은 `NOT_RUN`, `robot_enabled=false`. Follower torque register는 종료 후 직접 확인하지 않아 `NOT_VERIFIED`다.
+- `BLOCKED_VIEW_IDENTITY`: 천장 정면 `/camera-preview/8`(LeLab `192.168.50.20:8000`)에서 P1은 화면 왼쪽 위 X이며 바로 왼쪽의 ArUco ID2 옆이다. 사용자 화면의 ambient URL `192.168.50.22:8020`은 Mac에서 health 연결이 timeout되어 동일 현장 화면인지 확인하지 못했다. 기준 화면을 맞추기 전 텔레옵 재개는 하지 않는다.
+- `USER_APPROVED / BLOCKED_SAFETY (6-point teach)`: 사용자가 "6점 저속 텔레옵 teach 승인"을 명시했다. 새 정면 영상에서 중앙 약통이 치워지고 X 6개가 보였으나, 두 차례 확인 모두 사람이 follower arm 뒤쪽 가까이에 보여 사람·손의 작업 범위 이탈을 확인할 수 없다. `/move-arm` 시작 요청은 보내지 않았고 모터·토크 변화는 `NOT_RUN`이다. 리더 조작자는 follower 이동 범위 밖에 자리하고 즉시 중단 방법이 준비됐다는 현장 확인이 필요하다.
+- `PASS (teach preflight read-only)`: LeLab `/health` 정상, teleoperation·recording·inference 모두 active=false. 실제 설치 OpenAPI에서 `/move-arm`이 텔레옵 시작, `/stop-teleoperation`이 중단임을 확인했다. 저장된 `so-101` record는 leader=`/dev/ttyACM1`, follower=`/dev/ttyACM0`, 두 config=`so-101.json`이다. canonical serial↔ACM 연결은 앞선 같은 날 확인한 결과를 근거로 하며 이번 점검에서 serial bus를 열지 않았다.
 - `PASS (camera-only 6 X coordinates)`: 정면 MJPEG 132프레임 중 ID0–3 네 마커가 모두 검출된 82프레임에서 검은 X 6개 중심을 추출하고, 프레임별 homography로 World 좌표를 재계산했다. P1–P6의 이전값 대비 최대 점별 차이는 약 1.98 mm, 점별 RMS 시간 변동은 0.22–0.43 mm였다. 새 좌표는 별도 로컬 `configs/robot_world_pairs.20260930.closed-tip.local.json`에 보존하고 2026-09-28 원본은 변경하지 않았다.
 - `PASS (post-check read-only)`: LeLab `/health`는 정상, teleoperation·recording·inference 모두 active=false였다. recording status의 `current_phase=preparing`, `session_ended=false`는 남아 있어 세션 내부 정리는 `NOT_VERIFIED`이며 재시작하지 않았다.
 - `BLOCKED_APPROVAL (physical teach)`: 닫힌 fingertip TCP와 P1–P6의 follower 관절 sample 수집은 모터·토크를 수반한다. 중앙 약통 모형을 치우고 현장 안전·중단 방법을 확인한 뒤 새 명시 승인 전까지 수행하지 않는다. 현재 `T_B_W` 거부, `robot_enabled=false`는 유지한다.

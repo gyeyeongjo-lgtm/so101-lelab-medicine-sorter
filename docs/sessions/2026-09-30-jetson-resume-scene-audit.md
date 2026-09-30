@@ -55,3 +55,19 @@ Git commit/push: `c83f537`을 `origin/fix/usb-recording`에 push 완료. 이 문
 - 이전 입력을 덮어쓰지 않고 `configs/robot_world_pairs.20260930.closed-tip.local.json`에 새 pixel/World 값과 `robot_enabled=false`, `motion_authorized=false`, `teach_result=NOT_RUN`을 기록했다. 이 로컬 파일은 Git ignore 대상이므로 정확한 수치는 이 세션 문서에도 남긴다.
 - 추출 후 LeLab `/health` 정상, teleoperation·recording·inference는 모두 active=false였다. recording status에 `current_phase=preparing`, `session_ended=false`가 남아 있어 내부 세션 정리 완료는 확인하지 않았다. 서비스·로봇·USB를 변경하지 않았다.
 - 다음 실제 teach 전에 사용자가 중앙 약통 모형을 치우고 손·사람이 팔 작업 범위 밖에 있는지, 팔 지지와 즉시 중단 방법을 현장에서 확인해야 한다. 모터·토크 동작에 대한 새 명시 승인 전까지 teach는 `NOT_RUN`이다. 이전 거부된 `T_B_W`를 실제 이동에 사용하지 않는다.
+
+## 6점 teach 승인 후 안전 preflight
+
+- 사용자가 "6점 저속 텔레옵 teach 승인"을 명시했다. 시작 전 정면 MJPEG를 두 차례 새로 읽어 중앙 약통 모형이 치워졌고 X 6개가 노출된 것을 확인했다.
+- 두 영상 모두 사람의 몸이 follower arm 뒤쪽 가까이에 보였다. 리더 조작자가 팔로워의 실제 이동 범위 밖에 있는지 영상만으로 확정할 수 없어 텔레옵 시작을 보류했다. 현장 위치와 즉시 중단 수단에 대한 사용자 확인이 필요하다.
+- LeLab `/health` 정상, `/teleoperation-status`, `/recording-status`, `/inference-status`의 active는 모두 false였다. recording status의 `current_phase=preparing`, `session_ended=false`는 계속 남아 있지만 active는 false다.
+- 현재 설치 OpenAPI를 읽어 `/move-arm`이 실제 텔레옵 시작 API이고 필수 입력이 leader/follower port와 config임을 확인했다. 실제 `so-101` record는 leader ACM1, follower ACM0, 두 config `so-101.json`이다. 이번 점검은 serial bus를 열지 않았다.
+- `/move-arm` 또는 로봇 이동·토크·전원·USB·서비스 변경 요청은 하지 않았다. P1–P6 joint sample과 transform fit은 `NOT_RUN`; `robot_enabled=false` 유지.
+
+## 6점 teach 텔레옵 시작과 안전 중단
+
+- 사용자는 팔로워 이동 범위 밖에 있고 중단 준비가 됐다고 확인했다. 이어 리더·팔로워 시작 자세를 맞췄고 기존 텔레옵에서 리더를 천천히 조작하는 방식에 동의했다. OpenAPI에는 별도의 속도 상한 인자가 없으므로 소프트웨어 속도 제한을 적용했다고 주장하지 않는다.
+- 시작 직전 LeLab teleoperation·recording·inference 모두 inactive였다. 저장된 `so-101`의 leader ACM1, follower ACM0, config `so-101.json`을 그대로 사용해 `/move-arm`을 단 한 번 호출했다. HTTP 200 `Teleoperation started successfully`, active=true, `/ws/joint-data`에서 `Rotation`, `Pitch`, `Elbow`, `Wrist_Pitch`, `Wrist_Roll`, `Jaw` 방송 3건을 확인했다. 별도 serial reader와 `/joint-positions`는 사용하지 않았다.
+- 사용자가 P1 위치를 물었고 리더 조작은 아직 하지 않았다고 밝혔다. 사용자가 보고 있는 인앱 웹 URL은 `192.168.50.22:8020`으로, 실제 제어 중인 LeLab `192.168.50.20:8000`과 주소가 달랐다. Mac의 `.22:8020/health`는 timeout이어서 같은 작업대 화면인지 확인되지 않았다.
+- 위치·화면 혼동 상태에서는 teach를 진행하지 않고 `/stop-teleoperation`을 1회 호출해 HTTP 200 `Teleoperation stopped successfully`를 받았다. 종료 후 teleoperation·recording·inference active=false를 확인했다. follower torque register는 직접 확인하지 않아 `NOT_VERIFIED`다.
+- P1–P6 관절 sample 0개, TCP·`T_B_W` 적합 `NOT_RUN`, 실제 이동 승인 없음, `robot_enabled=false` 유지. 정면 카메라 기준 X 배열은 위쪽 P1/P2, 아래쪽 P4/P3이고 follower arm은 영상의 위쪽에 보인다. P1은 영상 왼쪽 위, ArUco ID2 바로 오른쪽 X다. 같은 기준 화면을 사용자와 확인하기 전 재시작하지 않는다.
