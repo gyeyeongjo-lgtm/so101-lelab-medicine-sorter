@@ -30,6 +30,7 @@ Missing: Depth 줄자 대조, 검증 완료된 T_W_C, T_B_W, limits, grasp offse
 - 변환 표기는 `T_A_B = B 좌표의 점을 A 좌표로 변환`으로 통일한다.
 - 픽셀 좌표나 단순 scale 값을 로봇 명령으로 사용하지 않는다.
 - 기준 작업대 좌표는 ID 0–3의 실측 marker 중심을 사용한다.
+- 2026-09-30 정정: 2026-09-22의 여섯 수치는 실제로 검은 마커의 가까운 가장자리/대각선 모서리 간격이었다. 이를 중심 거리로 간주한 이전 reference 좌표와 모든 해당 XY 진단은 무효다. ID0 75 mm·나머지 가정 70 mm의 edge-gap 적합으로 중심을 다시 계산했고, 직접 중심 실측 ID2–ID3≈400 mm·ID3–ID0≈346 mm와 교차 확인했다. 저장소 예시 config만 보정했으며 Jetson 설치본과 live 카메라는 아직 재검증하지 않았다.
 - ID 4–6은 바구니 검증용이며 물체 ID가 아니다.
 - 내부 단위는 mm다. 추후 로봇 API가 다른 단위를 요구할 때 adapter 경계에서만 변환한다.
 - `T_B_W`, 로봇 한계, 물체별 grasp offset이 모두 검증되기 전 `robot_enabled=false`를 유지한다.
@@ -83,8 +84,7 @@ RGB-D 진단에만 `--low-bandwidth` 320×240 모드를 추가했다. 상시 RGB
 - `FAIL`: 기준점 3D 잔차가 43.82–137.00 mm라 현재 `T_W_C`는 진단값일 뿐이다.
 - 640↔320 marker pixel은 약 0.5배로 대응하고 OpenNI FOV focal과 calibration focal도
   가까워 단순 해상도 scaling 문제는 아니다.
-- 기준 marker 중심 거리는 2026-09-22 재실측해 config에 반영했다. ID0 검은 사각형 폭도
-  75 mm로 실측해 반영했으며, ID1–6이 같은 폭인지는 아직 확인하지 않았다.
+- 당시 기준 marker 거리 측정값은 중심 간이 아니라 검은 사각형 가장자리 간격이었다는 사실이 2026-09-30 확인됐다. 아래 2026-09-22 수치와 진단은 구 좌표계의 이력이며 현재 calibration 증거로 쓰지 않는다. ID0 검은 사각형 폭은 75 mm 실측, ID1–3은 70 mm 가정이다.
 - 75 mm PnP Z와 depth는 marker별 약 122–250 mm 차이가 났다. RGB/depth edge 기반
   정합 최적값은 `(dx,dy)=(-2,-1)` px라 수십 pixel registration 오류는 원인이 아니다.
 - ID5 실측 폭 70 mm를 적용한 live 30-frame 중앙값은 depth 771 mm, PnP Z 867.696 mm다.
@@ -117,7 +117,7 @@ RGB-D 진단에만 `--low-bandwidth` 320×240 모드를 추가했다. 상시 RGB
 
 - 저장된 RGB/uint16 depth snapshot에서 기준 작업대 plane보다 15–180 mm 높은 component를
   `scripts/depth_foreground_candidates.py`가 camera-only 후보로 추출한다.
-- 초기 pickup ROI는 table X=80–220 mm, Y=200–300 mm다. 이 ROI는 현재 대표 빈 약통은
+- 구 좌표계의 초기 pickup ROI는 table X=80–220 mm, Y=200–300 mm였다. 보정된 예시 config에서는 같은 물리 영역의 보수적 경계 X=101–273 mm, Y=251–379 mm를 사용한다. 이 ROI는 live 재검증 전이다. 당시 대표 빈 약통은
   포함하고 로봇팔과 바구니 marker 영역은 제외한다.
 - 최초 배치에서 선택 후보는 table `(140.254,242.293)` mm, 높이 중앙값 42.240 mm였다.
 - 이 선택값은 데이터 수집용 proposal이며 YOLO 분류, 약품 식별, grasp pose 또는 robot target이

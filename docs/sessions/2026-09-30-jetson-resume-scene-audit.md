@@ -118,3 +118,10 @@ Git commit/push: `c83f537`을 `origin/fix/usb-recording`에 push 완료. 이 문
 - 이 임시 모델은 marker 회전·흰 여백·ID1–3 실제 검은 폭 오차를 아직 반영하지 않는다. 사용자에게 ID2–ID3 및 ID3–ID0의 검은 중심 간 실제 거리를 요청했다. 이후 카메라 프리뷰 busy 원인을 확인하고, corrected reference와 P6 영상/holdout을 재검증해야 한다. 현재 카메라·로봇 설정은 변경하지 않았고 로봇 이동은 금지한다. 새 도구+기존 FK/fit 단위 테스트 13개 통과.
 - 문서·진단 코드·테스트 commit `84e24b8`을 비공개 `origin/fix/usb-recording`에 push했다. GitHub CLI는 로그아웃이므로 issue API 갱신은 `NOT_RUN`; 원본 MJPEG·관절 입력·진단 결과는 Git ignore 로컬 파일로만 보존했다.
 - 텔레옵 종료 후에도 LeLab 정면 `/camera-preview/8`은 `Camera is unavailable or busy`다. 읽기 전용 SSH에서 `astra-v4l2-bridge.service` active, `/dev/video8` 존재, LeLab uvicorn 포트 8000·8002·8022 프로세스를 확인했다. 일반 사용자 `fuser/lsof`는 `/proc/*/fd` 권한 제한으로 정확한 점유 PID를 밝히지 못했다. 다중 서버 중 어느 것이 카메라를 점유하는지는 `NOT_VERIFIED`; 서비스를 중지하거나 재시작하지 않았다.
+
+## ID2–ID3·ID3–ID0 중심 실측 교차검증
+
+- 사용자는 검은 마커 중심 간 ID2–ID3≈400 mm, ID3–ID0≈346 mm를 새로 실측했다. 기존 edge-gap 모델 예측 397.667/346.758 mm와 각각 −2.333/+0.758 mm 차이다. '약' 단위의 줄자 측정 오차 범위 안으로 보지만, marker 회전과 ID1–3 실제 폭 가정은 여전히 별도 한계다.
+- 저장소 `configs/astra_rgbd.example.json`의 reference centers를 ID0 `(0,0)`, ID1 `(403.5,0)`, ID2 `(401.375,347.228)`, ID3 `(3.708,346.738)` mm로 변경했다. 기존 중심은 `legacy_reference_centers_mm`에, 과거 여섯 edge-gap 수치는 측정 기준 설명과 함께 보존했다. 이전 pickup ROI의 같은 물리 범위를 새 homography로 투영해 보수적 축정렬 경계 X=101–273, Y=251–379 mm로 조정했다. 과거 depth/2.5D basket XY 진단은 구 좌표계 사용으로 stale 표시했다.
+- `scripts/diagnose_aruco_reference_gaps.py`가 설정 갱신 후에도 legacy 중심으로 기존 teach 입력을 재투영하도록 수정했다. 재진단은 RMSE 5.299 mm, 최대 9.218 mm, 조건수 8474.4로 동일하게 `REJECTED`; `robot_enabled=false`, `motion_authorized=false`다. JSON 유효성, 진단/FK/fit/RGB-D/ROI/YOLO web 관련 단위 테스트 42개 통과.
+- Jetson 설치 설정 `/opt/so101-rgbd/astra_rgbd.example.json`은 root 소유이고 SHA-256 `ce43a0d02263d6eae506c4037442560c63c37a2eb855b8744e5b525f1ce6d9e1`인 구 버전이다. 8020 medicine YOLO 서비스 inactive, Astra bridge active, LeLab 8000의 세 작업 inactive다. 정면 preview는 계속 `Camera is unavailable or busy`라 설치 설정은 변경하지 않았고 live marker 재투영은 `NOT_RUN`. 실제 로봇 이동 승인도 없다.

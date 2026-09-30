@@ -113,7 +113,8 @@ def main() -> int:
         parser.error("output parent does not exist")
     config = json.loads(args.config.read_text(encoding="utf-8"))
     markers = config["markers"]
-    old = {index: np.asarray(markers["reference_centers_mm"][str(index)][:2], dtype=float) for index in range(4)}
+    source_centers = markers.get("legacy_reference_centers_mm", markers["reference_centers_mm"])
+    old = {index: np.asarray(source_centers[str(index)][:2], dtype=float) for index in range(4)}
     new, edge_residuals = marker_centers_from_edge_gaps(markers)
     transform = four_point_homography(old, new)
     pairs, _ = load_reviewed_pairs(args.pairs, args.urdf)
