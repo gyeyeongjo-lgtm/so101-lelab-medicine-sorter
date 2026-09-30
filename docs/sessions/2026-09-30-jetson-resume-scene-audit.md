@@ -125,3 +125,21 @@ Git commit/push: `c83f537`을 `origin/fix/usb-recording`에 push 완료. 이 문
 - 저장소 `configs/astra_rgbd.example.json`의 reference centers를 ID0 `(0,0)`, ID1 `(403.5,0)`, ID2 `(401.375,347.228)`, ID3 `(3.708,346.738)` mm로 변경했다. 기존 중심은 `legacy_reference_centers_mm`에, 과거 여섯 edge-gap 수치는 측정 기준 설명과 함께 보존했다. 이전 pickup ROI의 같은 물리 범위를 새 homography로 투영해 보수적 축정렬 경계 X=101–273, Y=251–379 mm로 조정했다. 과거 depth/2.5D basket XY 진단은 구 좌표계 사용으로 stale 표시했다.
 - `scripts/diagnose_aruco_reference_gaps.py`가 설정 갱신 후에도 legacy 중심으로 기존 teach 입력을 재투영하도록 수정했다. 재진단은 RMSE 5.299 mm, 최대 9.218 mm, 조건수 8474.4로 동일하게 `REJECTED`; `robot_enabled=false`, `motion_authorized=false`다. JSON 유효성, 진단/FK/fit/RGB-D/ROI/YOLO web 관련 단위 테스트 42개 통과.
 - Jetson 설치 설정 `/opt/so101-rgbd/astra_rgbd.example.json`은 root 소유이고 SHA-256 `ce43a0d02263d6eae506c4037442560c63c37a2eb855b8744e5b525f1ce6d9e1`인 구 버전이다. 8020 medicine YOLO 서비스 inactive, Astra bridge active, LeLab 8000의 세 작업 inactive다. 정면 preview는 계속 `Camera is unavailable or busy`라 설치 설정은 변경하지 않았고 live marker 재투영은 `NOT_RUN`. 실제 로봇 이동 승인도 없다.
+
+## Jetson config-only 배포·정면 preview 점유 조사
+
+- 저장소의 변경 직전 config SHA-256이 Jetson 설치본 `ce43a0d02263d6eae506c4037442560c63c37a2eb855b8744e5b525f1ce6d9e1`와 정확히 같음을 확인했다. 보정본 SHA-256은 `4084552908c877c90585eb76b5b5ebf23b49d8abfc1bd858608d7ebcc355ffd0`; 임시 전송본 JSON parse와 SHA를 확인했다.
+- Jetson 원본을 `/home/jetson3/so101-recovery-backups/20260930T192133+0900_aruco-center-correction/astra_rgbd.example.json.before`에 `cp -p`로 보존하고 기존 SHA가 같음을 확인했다. medicine YOLO 8020 서비스 inactive 상태에서 이 JSON 한 파일만 root:root 0644로 설치했다. 설치 후 SHA가 Mac 보정본과 일치한다. 8020 서비스를 시작하거나 로봇·USB·전원·캘리브레이션을 변경하지 않았다.
+- 배포 후 LeLab `/health` 정상, teleoperation·recording·inference active=false다. recording `current_phase=preparing`, `session_ended=false` 내부 상태는 여전히 `NOT_VERIFIED`. `/camera-preview/8`은 42-byte `Camera is unavailable or busy`라 새 좌표의 live reprojection은 `NOT_RUN`이다.
+- root 읽기 전용 `fuser/lsof`에서 Astra bridge PID 304709와 LeLab 8000 Python PID 367493이 `/dev/video8`을 보유한다. LeLab PID에는 이 장치 FD가 다수 남아 있다. 설치 `lelab/server.py`의 preview 경로는 `cv2.VideoCapture`를 연 뒤 stream generator에서 release하며, `/camera-preview-stop`은 등록된 stop event를 set한다. API 1회는 `stopping=1`로 성공했으나 재시도도 busy였다. 이는 중복 FD의 정확한 발생 원인을 아직 입증하지 않는다.
+- 8000 프로세스는 root system service가 아닌 systemd *user* `lelab.service`의 `ExecStart=/usr/bin/sg dialout ... uvicorn ... --port 8000`, `MainPID=367491`이다. 서비스 unit은 읽기 전용으로 확인했다. 사용자에게 웹이 잠시 끊기는 8000 서비스 재시작 승인을 요청했으며, 승인 전에는 재시작하지 않는다.
+
+## 승인된 LeLab 재시작·보정 좌표 카메라 스모크
+
+- 사용자가 LeLab 8000 서비스 재시작을 명시 승인했다. 시작 직전 teleoperation·recording·inference active=false를 다시 확인하고 `systemctl --user restart lelab.service`를 한 번만 실행했다. 새 MainPID 371356, health 정상, 세 작업 active=false. `recording-status`의 `current_phase=preparing`, `session_ended=false`는 여전히 남아 있어 내부 정리는 `NOT_VERIFIED`다.
+- `/camera-preview/8` MJPEG가 약 3초 동안 3,307,033 bytes를 반환해 이전 busy가 해소됐다. 새 640×480 정면 프레임 SHA-256 `57e50f3023ec908d81ec8c6dec30c702a6e053ab8b70ef1be0e1eff5058ac327`를 Mac 임시에 보존하고 Jetson에서는 저장 이미지에만 OpenCV를 적용했다. 카메라를 별도 Python 프로세스로 추가 개방하지 않았다.
+- 저장 프레임에서 ArUco DICT_4X4_50 ID0=(517.5,433.25), ID1=(223.75,436.5), ID2=(255.0,233.5), ID3=(481.75,230.5) pixel을 모두 원본 영상으로 판독했다. `scripts/check_aruco_x_still.py`로 X 6개 중심을 추출하고 배포된 보정 config의 4점 homography로 투영했다. P1–P2=265.071 mm, P1–P4=167.996 mm로 사용자 약식 실측 260/160 mm와 각각 +5.071/+7.996 mm다. 이는 단일 프레임의 좌표 스모크이며 반복성/절대 정확도 합격 판정은 아니다.
+- 새 프레임의 X 좌표는 기존 teach 입력의 보정 X 좌표와 점별 최대 약 4.6 mm 달랐다. 추출법·촬영 시점·테이프 위치 중 어느 원인인지는 확정할 수 없고, teach 당시의 관절값과 사후 X 좌표를 혼합해 새 robot-world fit을 만들지 않는다. P5·P6 당시 영상 QA도 여전히 `NOT_VERIFIED`다. `T_B_W` 거부, `robot_enabled=false`, `motion_authorized=false` 유지.
+- 재시작 후 저장 `so-101` record는 leader ACM1, follower ACM0, camera index 8/4/6이고 canonical serial Leader `5AE6085272`→ACM1, Follower `5AE6058306`→ACM0가 유지된다. 배포 config SHA는 여전히 `4084552908c877c90585eb76b5b5ebf23b49d8abfc1bd858608d7ebcc355ffd0`다. 로봇 모터 명령·USB·토크·캘리브레이션은 건드리지 않았다.
+- 저장 프레임 검사 스크립트의 Jetson 실프레임 시험과 관련 로컬 단위 테스트 44개 통과. Git에는 원본 이미지·원본 MJPEG·관절 입력을 넣지 않는다.
+- 배포와 오프라인 검사가 끝난 Jetson `/tmp`의 보정 JSON staging, 저장 프레임 사본, 검사 스크립트 사본 세 파일만 정확한 경로를 확인해 삭제했다. `/opt` 설치본과 `/home/jetson3/so101-recovery-backups/20260930T192133+0900_aruco-center-correction/`의 원본 백업은 유지했다.
