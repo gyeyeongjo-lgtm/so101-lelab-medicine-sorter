@@ -37,4 +37,4 @@
 - 사선 MJPEG의 첫 프레임은 녹색 초기화 화면이었다. 같은 수신 구간의 후속 프레임에서 실제 장면을 확인했다.
 - browser automation은 LAN 프리뷰 URL을 `ERR_BLOCKED_BY_CLIENT`로 차단했다. 기존 HTTP 프레임을 읽어 offline으로 영상과 ID를 확인했다.
 
-Git commit/push: `NOT_PUSHED` (이번 세션 기록의 후속 단계에서 갱신).
+Git commit/push: `c83f537`을 `origin/fix/usb-recording`에 push 완료. 이 문장의 결과 기록은 후속 문서 커밋에 포함한다.

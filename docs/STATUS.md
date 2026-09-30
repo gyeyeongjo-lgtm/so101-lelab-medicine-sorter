@@ -12,6 +12,7 @@
 - `PASS (basket cross-check)`: 정면의 물리 배치는 왼쪽 ID5·가운데 ID6·오른쪽 ID4다. 사선 화면에서 왼쪽 초록·가운데 파랑·오른쪽 빨강을 확인해 기존 ID4=빨강, ID5=초록, ID6=파랑 매핑이 유지됨을 교차 검증했다. 바구니의 좌우 순서는 고정 가정으로 쓰지 않는다.
 - `UNVERIFIED_TEACH_LAYOUT`: 2026-09-28의 검은 X 6점은 현재 약통·바구니에 가려져 중심 위치 유지 여부를 확인할 수 없다. `robot_world_pairs.20260928.closed-tip.local.json`의 World 좌표는 재검증 전 현재 teach에 재사용하지 않는다. 현재 `T_B_W`는 계속 거부 상태이며 `robot_enabled=false`다.
 - `NEXT (physical)`: 6점 teach를 재개하려면 사용자가 빈 약통·바구니를 작업대에서 치워 X 6개와 ID0–3을 정면·사선 카메라에 노출하고, 팔 지지·작업 공간·중단 방법을 현장에서 확인해야 한다. 이후 새 World 좌표부터 다시 측정한다.
+- `PASS (GitHub)`: 위 읽기 전용 점검과 다음 단계 기록을 commit `c83f537`로 비공개 `origin/fix/usb-recording`에 push했다.
 
 ## 2026-09-29 GitHub 기록 재개
 
