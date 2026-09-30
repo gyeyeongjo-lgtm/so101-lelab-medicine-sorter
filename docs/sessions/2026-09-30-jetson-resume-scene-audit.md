@@ -88,3 +88,31 @@ Git commit/push: `c83f537`을 `origin/fix/usb-recording`에 push 완료. 이 문
 - Astra intrinsic을 기존 MJPEG 좌표에 적용해 6개 World 점을 다시 투영했을 때 변화는 각 점 최대 약 2.75 mm였고, 그 좌표의 fit도 RMSE `13.179 mm`로 거부됐다. 렌즈 왜곡만으로 설명되지 않는다.
 - 새 `scripts/fit_robot_world_from_joint_samples.py`는 방송 sample 안정성·고정 Jaw·motion 차단을 검증한 뒤 실제 URDF FK와 기존 fit을 재사용한다. 로컬 거부 결과 `configs/robot_world_transform.20260930.closed-tip.local.json`에 입력·URDF SHA, `robot_enabled=false`, `motion_authorized=false`를 기록했다. 신규 입력 검사 4/4, 기존 fit 4/4, FK 3/3 단위 테스트가 통과했다. 거부된 변환은 로봇 목표 좌표로 사용하지 않는다.
 - 다음은 동일한 단일 접촉점을 눈으로 명확히 확인할 수 있도록 한 고정 fingertip 끝 또는 탈착 포인터를 TCP로 정하고, 손목 방향 다양성과 독립 holdout을 포함한 teach를 재설계하는 것이다. 새 현장 준비·안전 승인 전 추가 모터 동작은 `NOT_RUN`이다. 프로젝트 로컬 GitHub CLI는 로그아웃 상태라 issue API 갱신은 `NOT_RUN`이다.
+
+## 단일 손가락 끝 재측정·텔레옵 재개
+
+- 사용자가 팔로워 손가락 하나에 분홍색 식별 테이프를 붙였다. 테이프 자체를 TCP로 취급하지 않고, 해당 손가락의 노출된 단단한 플라스틱 끝 한 점을 반복 접촉점으로 정했다. 실제 접촉에서 테이프가 X에 닿는다면 중단하고 배치를 수정해야 한다.
+- 정면 Astra MJPEG 60프레임 중 원본 영상 ID1–3과 히스토그램 균등화 영상 ID0이 모두 검출된 59프레임으로 X를 재측정했다. ID0 원본 검출은 0/60, 균등화 후 59/60이었다. P1–P6 `world_mm`는 각각 `[276.322,300.505]`, `[57.358,294.654]`, `[63.308,165.119]`, `[276.581,166.501]`, `[213.944,253.072]`, `[118.185,209.153]`이다. 점별 시간 RMS 변동 약 0.21–0.42 mm, 이전 teach 좌표와 최대 약 4.82 mm 차이가 있어 이전 관절값과 결합하지 않는다. 새 입력은 `configs/robot_world_pairs.20260930.single-fingertip.local.json`에 분리 저장하고 모든 joint sample을 null로 시작했다.
+- 사용자가 작업대의 약통·바구니 제거, 사람의 팔로워 이동 범위 이탈, 즉시 중단 준비를 확인하고 새 단일 손끝 텔레옵을 명시 승인했다. LeLab `/health` 정상, teleoperation·recording·inference 시작 전 모두 inactive였다. recording status에는 `current_phase=preparing`, `session_ended=false`가 남아 있어 내부 정리 완료는 `NOT_VERIFIED`다.
+- canonical USB는 leader `5AE6085272`→`/dev/ttyACM1`, follower `5AE6058306`→`/dev/ttyACM0`로 재확인했고 저장된 `so-101` record와 일치했다. 새 정면 프레임에서 X 6개·작업대 마커 4개와 비어 있는 중앙 작업대를 확인했다. OpenAPI의 `TeleoperateRequest`는 기존 4개 설정 필드뿐이며 속도 상한 인자가 없다.
+- 기존 포트/config로 `/move-arm` 1회 HTTP 200 `Teleoperation started successfully`를 받았다. 리더를 천천히 움직여 표시한 손가락의 단단한 끝 한 점으로 P1을 가볍게 접촉하라고 요청했다. 이 기록 시점에는 새 관절 sample과 fit은 `NOT_RUN`, `robot_enabled=false`, `motion_authorized=false`; follower torque register는 `NOT_VERIFIED`다.
+- 사용자가 P1 완료를 보고한 후 `/ws/joint-data` 15개를 읽었다. 평균 관절값 Rotation 0.499433, Pitch -0.184890, Elbow 0.958205, Wrist_Pitch -0.031454, Wrist_Roll -0.298432, Jaw 0.083314 rad이고 방송 중 최대 표준편차는 0 rad였다. 정면 화면에서 표시된 손가락 끝은 P1 X 근처에 있으나 테이프/플라스틱 중 실제 접촉면은 구분되지 않아 `NOT_VERIFIED`로 둔다. 같은 플라스틱 끝점으로 P2에 이동해 멈출 것을 요청했고, P2 sample은 아직 `NOT_RUN`이다.
+- 사용자가 P1에서는 플라스틱이 닿았고 P2 완료했다고 확인했다. P2 첫 15개 방송은 최대 표준편차 0.003651 rad로 미세 움직임이 있어 제외하고, 재측정 15개(최대 표준편차 0 rad)만 보존했다. P2 관절 평균은 Rotation -0.543929, Pitch -0.760273, Elbow 1.352534, Wrist_Pitch 0.232455, Wrist_Roll -0.310707, Jaw 0.083314 rad다. 정면 영상에서 표시한 끝이 P2 X에 위치했다. 같은 끝점으로 P3를 요청했다.
+- P3 사용자 안정 접촉 확인 후 방송값 15개(최대 표준편차 0 rad)를 기록했다. 평균은 Rotation -0.376684, Pitch 0.554669, Elbow -0.177218, Wrist_Pitch 0.448799, Wrist_Roll -0.169546, Jaw 0.083314 rad다. 정면 영상에서 표시한 끝이 P3 X에 위치해 P4로 이어간다.
+- P4 사용자 안정 접촉 확인 후 방송값 15개(최대 표준편차 0 rad)를 기록했다. 평균은 Rotation 0.264676, Pitch 1.377084, Elbow -1.556604, Wrist_Pitch 0.898365, Wrist_Roll -0.293829, Jaw 0.083314 rad다. 정면 영상에서 표시한 끝이 P4 X에 위치했다.
+- P5 사용자 안정 접촉 확인 후 방송값 15개(최대 표준편차 0 rad)를 기록했다. 평균은 Rotation 0.189493, Pitch -0.108172, Elbow 0.794029, Wrist_Pitch 0.126584, Wrist_Roll -0.278486, Jaw 0.083314 rad다. LeLab 정면 프리뷰는 두 번 모두 `Camera is unavailable or busy`를 반환해 P5 영상 접촉 QA는 `NOT_VERIFIED`다. 카메라 서비스·USB는 변경하지 않고 사용자 현장 확인으로 P6를 요청했다.
+- P6 사용자 안정 접촉 확인 후 방송값 15개(최대 표준편차 0 rad)를 기록했다. 평균은 Rotation -0.215577, Pitch 0.148065, Elbow 0.421181, Wrist_Pitch 0.362875, Wrist_Roll -0.341394, Jaw 0.083314 rad다. P5·P6 영상 접촉 QA는 camera busy로 `NOT_VERIFIED`다. `/stop-teleoperation` HTTP 200 직후 LeLab health 정상, teleoperation·recording·inference active=false. recording `current_phase=preparing`, `session_ended=false`의 내부 정리와 follower torque register는 `NOT_VERIFIED`다. 카메라·USB·전원·설정은 변경하지 않았다.
+
+## 단일 손끝 6점 오프라인 적합 결과
+
+- 설치 URDF SHA-256 `443d38d756e01bac7d3455b24430047ddc6427105e0d3454b2003116f5f67236`을 확인하고, 실제 관절 방송값만으로 `scripts/fit_robot_world_from_joint_samples.py`를 실행했다. 새 입력 SHA-256 `1b79299dca8df475dcedc493ba8b1b920426069655ee6ae7942dcc0eb9e48b84`는 결과 파일의 source hash와 일치한다.
+- 결과 `REJECTED_NEEDS_MORE_OR_BETTER_TEACH_SAMPLES`: RMSE 12.665 mm(허용 ≤5), 최대 잔차 17.731 mm(≤8), 조건수 6774.9(≤1000), rank 9, TCP offset norm 48.769 mm다. P1–P6 점별 잔차는 12.784/16.697/12.093/17.731/5.050/5.836 mm다. 어떤 한 점을 제외해도 RMSE 9.080–13.625 mm 및 최대 잔차 14.125–18.348 mm로 모두 거부된다. 이전 닫힌 두 손끝 결과 RMSE 13.377 mm보다 약간 작지만, 허용 기준을 넘는다.
+- rigid transform에서는 점 사이 거리가 보존되어야 하는데, 카메라 World와 적합한 FK TCP의 P1–P2 거리는 각각 219.0/206.0 mm, P1–P4는 134.0/158.3 mm, P2–P3는 129.7/156.5 mm다. 이는 단순 평행이동·회전만의 문제가 아님을 보여주지만, 원인이 카메라 scale, 실제 접촉점, FK/관절 해석 중 무엇인지는 아직 확정하지 않는다. 사용자에게 로봇을 멈춘 채 X 중심 간 실제 P1–P2/P1–P4 거리를 자로 재달라고 요청했다.
+- 거부 변환은 이동에 사용하지 않고 `robot_enabled=false`, `motion_authorized=false`다. 독립 holdout·실제 물체 이동은 `NOT_RUN`. 원본 MJPEG와 관절 sample, 로컬 결과는 Git에 넣지 않는다.
+
+## ArUco 기준 거리의 측정 기준 확인과 임시 교정
+
+- 사용자는 X 교점 중심 P1–P2=260 mm, P1–P4=160 mm라고 실측했다. 기존 World는 각각 219.0/134.0 mm로 두 축 모두 약 19% 작았다. 더 중요한 확인: 과거 ID0–3의 여섯 거리값(예: ID2–ID3=325 mm)은 marker 중심 간이 아니라 검은 ArUco 정사각형의 가까운 변/대각선 모서리 사이를 잰 값이다. `configs/astra_rgbd.example.json`에는 이를 중심 거리로 간주해 좌표가 들어가 있었으므로 축척 오류가 확정됐다.
+- 활성 config를 수정하지 않고 `scripts/diagnose_aruco_reference_gaps.py`로 검은 사각형이 작업대 축과 평행하다는 임시 가정하에 경계 간격을 다시 적합했다. 사용자가 확인한 ID0 폭 75 mm, ID1–3의 기존 가정 70 mm를 사용했다. 임시 중심(mm): ID0 `(0,0)`, ID1 `(403.5,0)`, ID2 `(401.375,347.228)`, ID3 `(3.708,346.738)`. 가장자리 간격 residual RMS 2.623 mm, 최대 절대 3.481 mm다. 이를 4점 homography로 기존 X World 값에 적용하면 P1–P2=265.68 mm, P1–P4=167.58 mm로 사용자의 약식 실측 260/160 mm와 가까워진다.
+- 새 중심과 동일한 방송 관절값으로 재계산한 *오프라인 진단* fit은 RMSE 5.299 mm, 최대 9.218 mm, 조건수 8474.4로 개선됐지만 여전히 세 기준을 초과해 `REJECTED`다. P1–P6 잔차는 4.638/2.624/6.269/3.746/1.329/9.218 mm이고 P6는 카메라 영상 QA가 안 된 점이다. P6를 제외한 5점 RMSE 2.999 mm·최대 3.893 mm지만 조건수 15298.8 및 독립 검증 부재로 승인할 수 없다. `configs/aruco_reference_gap_diagnostic.20260930.local.json`에 입력 SHA와 함께 보존했다.
+- 이 임시 모델은 marker 회전·흰 여백·ID1–3 실제 검은 폭 오차를 아직 반영하지 않는다. 사용자에게 ID2–ID3 및 ID3–ID0의 검은 중심 간 실제 거리를 요청했다. 이후 카메라 프리뷰 busy 원인을 확인하고, corrected reference와 P6 영상/holdout을 재검증해야 한다. 현재 카메라·로봇 설정은 변경하지 않았고 로봇 이동은 금지한다. 새 도구+기존 FK/fit 단위 테스트 13개 통과.
