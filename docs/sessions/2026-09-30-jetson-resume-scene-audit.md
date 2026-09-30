@@ -143,3 +143,4 @@ Git commit/push: `c83f537`을 `origin/fix/usb-recording`에 push 완료. 이 문
 - 재시작 후 저장 `so-101` record는 leader ACM1, follower ACM0, camera index 8/4/6이고 canonical serial Leader `5AE6085272`→ACM1, Follower `5AE6058306`→ACM0가 유지된다. 배포 config SHA는 여전히 `4084552908c877c90585eb76b5b5ebf23b49d8abfc1bd858608d7ebcc355ffd0`다. 로봇 모터 명령·USB·토크·캘리브레이션은 건드리지 않았다.
 - 저장 프레임 검사 스크립트의 Jetson 실프레임 시험과 관련 로컬 단위 테스트 44개 통과. Git에는 원본 이미지·원본 MJPEG·관절 입력을 넣지 않는다.
 - 배포와 오프라인 검사가 끝난 Jetson `/tmp`의 보정 JSON staging, 저장 프레임 사본, 검사 스크립트 사본 세 파일만 정확한 경로를 확인해 삭제했다. `/opt` 설치본과 `/home/jetson3/so101-recovery-backups/20260930T192133+0900_aruco-center-correction/`의 원본 백업은 유지했다.
+- 저장소 좌표 보정 commit `5ccf145`와 Jetson 적용/카메라 스모크 commit `334caba`를 비공개 `origin/fix/usb-recording`에 push했다. GitHub CLI 로그아웃으로 issue API 갱신은 `NOT_RUN`. 원본 프레임과 관절 입력은 Git 제외 상태다.
