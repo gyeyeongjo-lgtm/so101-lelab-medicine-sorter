@@ -46,3 +46,12 @@ Git commit/push: `c83f537`을 `origin/fix/usb-recording`에 push 완료. 이 문
 - 이번 확인은 marker ID 자동 판독, X 중심 World 좌표 재추출, 로봇 teach 및 변환 적합을 수행하지 않았다. 기존 `T_B_W` 거부와 `robot_enabled=false`는 그대로다.
 - X는 robot-world teach를 위한 임시 접촉점이다. 6점 teach와 적합 검증을 통과한 뒤 X 테이프를 치워 바구니 공간을 확보할 수 있다. 작업대 기준 ID0–3은 유지하며, 바구니 복귀 시 ID4–6 검출과 빨강/초록/파랑 매핑을 다시 확인한다.
 - 모터·토크·USB·전원·서비스 설정 변경은 없었다. 실제 접촉 teach는 현장 안전 확인과 별도 명시 승인 전까지 `NOT_RUN`이다.
+
+## X 6점 World 좌표 재측정
+
+- LeLab 정면 `/camera-preview/8`에서 약 5초간 MJPEG 132프레임을 읽었다. OpenCV 5.0.0 `DICT_4X4_50`으로 ID0–3 모두 판독된 프레임은 82개다. 나머지 50개는 한 개 이상 누락돼 좌표 계산에서 제외했다.
+- 각 유효 프레임에서 X 6개를 알려진 좁은 영상 영역의 검은 연결 성분으로 추출했다. `configs/astra_rgbd.example.json`의 ID0–3 실측 중심 좌표를 이용해 프레임별 homography를 만들고 X 중심의 World mm 중앙값을 계산했다.
+- P1 `[276.093,297.597]`, P2 `[57.433,297.973]`, P3 `[59.713,168.125]`, P4 `[272.714,163.633]`, P5 `[212.448,251.704]`, P6 `[115.971,210.738]` mm. 2026-09-28 보존값 대비 점별 최대 차이는 P1 약 1.98 mm다. 점별 시간 RMS 변동은 0.215–0.434 mm다. 이는 영상 내 안정성이며 물리 절대 정확도는 아니다.
+- 이전 입력을 덮어쓰지 않고 `configs/robot_world_pairs.20260930.closed-tip.local.json`에 새 pixel/World 값과 `robot_enabled=false`, `motion_authorized=false`, `teach_result=NOT_RUN`을 기록했다. 이 로컬 파일은 Git ignore 대상이므로 정확한 수치는 이 세션 문서에도 남긴다.
+- 추출 후 LeLab `/health` 정상, teleoperation·recording·inference는 모두 active=false였다. recording status에 `current_phase=preparing`, `session_ended=false`가 남아 있어 내부 세션 정리 완료는 확인하지 않았다. 서비스·로봇·USB를 변경하지 않았다.
+- 다음 실제 teach 전에 사용자가 중앙 약통 모형을 치우고 손·사람이 팔 작업 범위 밖에 있는지, 팔 지지와 즉시 중단 방법을 현장에서 확인해야 한다. 모터·토크 동작에 대한 새 명시 승인 전까지 teach는 `NOT_RUN`이다. 이전 거부된 `T_B_W`를 실제 이동에 사용하지 않는다.
