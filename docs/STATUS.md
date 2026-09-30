@@ -1,6 +1,17 @@
 # 현재 상태
 
-업데이트: 2026-09-29
+업데이트: 2026-09-30
+
+## 2026-09-30 Jetson 재연결·현장 배치 재점검
+
+- `PASS (connection)`: Jetson `192.168.50.20:22` SSH와 LeLab `:8000/health`가 응답했다. 실제 로그인은 `jetson3`, Jetson 시각은 2026-09-30 15:53 KST였다.
+- `PASS (control preflight)`: LeLab teleoperation·recording·inference는 모두 inactive였다. 이 점검에서는 serial 장치를 열거나 모터·토크를 변경하지 않았다. Follower torque register 값은 `NOT_VERIFIED`다.
+- `PASS (USB/config identity)`: Leader stable serial `5AE6085272`→`/dev/ttyACM1`, Follower `5AE6058306`→`/dev/ttyACM0`이며 실제 `so-101.json`의 leader/follower port와 일치했다. 현재 camera record는 ceiling_vertical index 8, ceiling_oblique index 4, end_effector index 6의 3대다.
+- `OBSERVED (preview ownership)`: `astra-v4l2-bridge.service`는 active이며 Astra를 `/dev/video8`에 공급한다. `medicine-yolo-preview.service` 8020은 2026-09-28 20:35부터 inactive다. LeLab `/camera-preview/8`과 `/camera-preview/4`는 HTTP 200과 실제 프레임을 반환했다. 기존 서비스 소유권을 변경하지 않았다.
+- `PASS (camera-only current scene)`: Astra 정면 1프레임에서 DICT_4X4_50 ID0–6을 모두 검출했다. 기존 YOLO11n ONNX는 약통 모형 3개를 confidence 0.873/0.722/0.540으로 검출했다. 이는 단일 프레임 스모크이며 일반 성능·약품 정체성 검증이 아니다.
+- `PASS (basket cross-check)`: 정면의 물리 배치는 왼쪽 ID5·가운데 ID6·오른쪽 ID4다. 사선 화면에서 왼쪽 초록·가운데 파랑·오른쪽 빨강을 확인해 기존 ID4=빨강, ID5=초록, ID6=파랑 매핑이 유지됨을 교차 검증했다. 바구니의 좌우 순서는 고정 가정으로 쓰지 않는다.
+- `UNVERIFIED_TEACH_LAYOUT`: 2026-09-28의 검은 X 6점은 현재 약통·바구니에 가려져 중심 위치 유지 여부를 확인할 수 없다. `robot_world_pairs.20260928.closed-tip.local.json`의 World 좌표는 재검증 전 현재 teach에 재사용하지 않는다. 현재 `T_B_W`는 계속 거부 상태이며 `robot_enabled=false`다.
+- `NEXT (physical)`: 6점 teach를 재개하려면 사용자가 빈 약통·바구니를 작업대에서 치워 X 6개와 ID0–3을 정면·사선 카메라에 노출하고, 팔 지지·작업 공간·중단 방법을 현장에서 확인해야 한다. 이후 새 World 좌표부터 다시 측정한다.
 
 ## 2026-09-29 GitHub 기록 재개
 
