@@ -1,6 +1,14 @@
 # 현재 상태
 
-업데이트: 2026-09-30
+업데이트: 2026-10-01
+
+## 2026-10-01 P6 재측정 재개 사전 점검
+
+- `PASS (service-only recovery)`: Jetson `192.168.50.20`은 ping·SSH에 응답했으나 LeLab 8000은 inactive였다. 기존 `lelab.service`는 2026-09-30 22:20 KST에 `Result=success`, `ExecMainStatus=15`로 종료된 상태였다. 기존 설정을 바꾸지 않고 user service를 한 번 시작했으며 8000 health가 정상이다. 8002·8022와 복구된 8000의 teleoperation·recording·inference는 모두 inactive였다. follower torque register는 `NOT_VERIFIED`다.
+- `PASS (canonical USB metadata)`: Leader `5AE6085272`→`/dev/ttyACM1`, Follower `5AE6058306`→`/dev/ttyACM0`가 유지됐다. serial bus는 열지 않았다.
+- `BLOCKED (physical P6 scene)`: 새 천장 정면 프레임에 약통 3개와 바구니 3개가 다시 놓여 P6 X가 가려진다. 손목 프레임에는 두 그리퍼 안쪽이 보이지만 같은 표시 손가락의 표식·노출 플라스틱 접촉점은 확인되지 않는다. 정면 화면 왼쪽 작업대에는 분홍색 조각이 여전히 보인다. 2026-09-30의 빈 작업대 안전 확인을 현재 배치에 적용하지 않고 P6 텔레옵·joint sample 수집은 `NOT_RUN`이다.
+- `SAFETY`: `robot_enabled=false`, `motion_authorized=false`와 기존 robot-world fit `REJECTED`를 유지한다. 약통·바구니를 치워 P6과 ID0–3을 노출하고 표식/접촉점 및 현장 안전을 다시 확인하기 전 로봇을 움직이지 않는다.
+- `GIT`: 이번 사전 점검의 commit·push 결과는 작업 종료 시 별도로 검증한다. 상세 기록은 `docs/sessions/2026-10-01-p6-reteach-preflight.md`를 참조한다.
 
 ## 2026-09-30 Jetson 재연결·현장 배치 재점검
 
