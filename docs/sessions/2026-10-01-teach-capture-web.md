@@ -52,3 +52,8 @@
 - 저장소의 보정된 ID0–3 중심, 과거 X 픽셀 좌표와 P1/P2/P4/P5/P6 정면 프레임의 네 마커로 월드점 6개를 투영했다. P3 접촉 프레임은 ID3 가림으로 제외했다. 다섯 프레임 사이 점별 최대 투영 편차 1.509 mm. Jetson 설치본과 SHA-256 `443d38d7...f67236`이 일치하는 로컬 URDF 사본으로 저장 관절값의 FK를 계산했다. 캡처 metadata의 `use_for_robot_world_fit=false`는 유지하고 탐색 수치만 산출했으며 출력 변환을 설치·사용하지 않았다.
 - 정확히 재촬영한 P1과 P2–P6을 합친 *탐색*은 RMSE 4.731 mm(기준 ≤5), 최대 6.861 mm(≤8), rank 9이나 조건수 4807.5(≤1000 실패), TCP offset norm 122.159 mm다. P2–P6만 적합한 모델의 새 P1 의사-holdout 오차는 17.675 mm(≤8 실패). 이는 진정한 독립 holdout 시험이 아니고 물리 접촉 QA도 미완료이므로 변환은 `REJECTED`다.
 - 첫 오지정 P1을 P5 반복으로 *가정*해 7자세를 탐색해도 RMSE 5.814 mm, 최대 9.275 mm, 조건수 3935.1로 거부된다. 이 가정은 실제 P5 단일점 접촉을 입증하지 못하고 원본 라벨을 변경할 근거가 아니다. 이 결과로 로봇을 움직이지 않는다. `robot_enabled=false`, `motion_authorized=false`; 약통 이동과 독립 holdout은 `NOT_RUN`이다.
+
+## 종료 직전 연결 재점검
+
+- 사용자가 직접 종료한 뒤 LeLab health 정상·teleoperation/recording/inference inactive를 확인한 것이 마지막 성공한 로봇 상태 점검이다. 이후 문서 push 뒤 LeLab 8000과 Mac 8030 모두 일시 응답하지 않았다. Jetson ping 2/2와 SSH 22 TCP 연결이 한 번 성공했으나 8000 timeout, 다음 SSH는 timeout, 다음 ping은 0/2로 원격 연결이 불안정해졌다. 따라서 **현재** Jetson 서비스·제어 상태는 `NOT_VERIFIED`다.
+- Mac 8030 read-only 서버만 다시 실행해 HTTP 상태 응답을 복구했다. 현재 정면/사선/손목과 관절 수신은 모두 timeout으로 표시되며 프레임은 없다. Jetson 서비스·USB·토크·모터·전원은 변경하지 않았다. 재연결 후 제어 상태와 bus 소유권을 다시 확인하기 전 현장 동작을 재개하지 않는다.
