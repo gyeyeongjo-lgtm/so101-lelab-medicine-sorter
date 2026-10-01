@@ -7,7 +7,7 @@
 - `REJECTED (original P1 label)`: 첫 P1 저장본 `20261001T093659_729629Z_6e598848`의 정면/사선 영상에서 ID2 바로 오른쪽 P1 X는 노출돼 있고 손끝은 안쪽 왼쪽 P5 X 근처에 있다. P1 접촉 증거로 사용할 수 없다. 원본 metadata/영상을 수정·삭제하지 않고 오지정 기록으로 남겼다. P5 반복 접촉이었다는 가설도 정확한 단일 손끝 접촉은 `NOT_VERIFIED`다.
 - `PASS (correct P1 recapture / safe stop)`: 사용자가 P1과 P5의 위치를 다시 구분하고 현장 안전·같은 손끝·시작 자세를 확인해 기존 LeLab 텔레옵을 직접 시작했다. 저장 직전 정면 화면에서 손끝이 ID2 바로 오른쪽 P1에 있고 P5 X는 별도로 보임을 확인했다. 새 P1 `20261001T113908_064438Z_ba1584e0`에 정면/사선/손목 640×480 JPEG 3장과 관절 방송 15개를 저장했다. 최대 수신 시각 차이 10.4 ms, 관절 표준편차 0 rad, Jaw 평균 0.06622 rad다. 사용자 종료 뒤 LeLab health 정상, 텔레옵·녹화·추론 inactive다. 정확한 물리 한 점 접촉·높이는 여전히 `NOT_VERIFIED`다.
 - `REJECTED (offline diagnostic only)`: 보정된 marker 중심·기존 X 픽셀·P1/P2/P4/P5/P6 저장 프레임의 네 마커로 World 점을 다시 투영했다. P3 접촉 프레임은 ID3이 가려져 사용하지 않았고, 다섯 프레임 사이 점별 최대 투영 편차는 1.509 mm다. 검증되지 않은 여섯 캡처를 *탐색 진단에만* 넣은 결과 RMSE 4.731 mm, 최대 6.861 mm이나 조건수 4807.5(허용 ≤1000)로 거부된다. P2–P6 적합의 새 P1 의사-holdout 오차도 17.675 mm다. 첫 잘못된 P1을 P5 반복으로 가정해도 RMSE 5.814 mm/최대 9.275 mm/조건수 3935.1로 거부된다. 독립 holdout은 `NOT_RUN`; 결과는 모션에 사용하지 않는다.
-- `SAFETY/NEXT`: 저장 metadata의 `use_for_robot_world_fit=false`, `robot_enabled=false`, `motion_authorized=false`와 기존 변환 `REJECTED`를 유지한다. 향후 정확한 고정 손끝점의 영상 확인과 독립 holdout/자세 다양성 검증이 필요하며, 새 모터 동작은 별도 현장 안전·명시 승인 전 `NOT_RUN`이다. 원본 영상·관절값은 Git-ignore 로컬에만 남긴다.
+- `SAFETY/NEXT`: 저장 metadata의 `use_for_robot_world_fit=false`, `robot_enabled=false`, `motion_authorized=false`와 기존 변환 `REJECTED`를 유지한다. 다음은 같은 단단한 손끝 한 점을 하나의 X에 서로 다른 안전한 손목 자세로 접촉시켜 TCP를 World와 분리해 추정하고, 남겨 둔 자세로 검증하는 단계다. 세부 조건은 `docs/TEACH_CAPTURE_WEB.md`에 기록했다. 새 모터 동작은 별도 현장 안전·명시 승인 전 `NOT_RUN`이며 원본은 Git-ignore 로컬에만 둔다.
 
 ## 2026-10-01 P2–P5 사용자 텔레옵·3영상 접촉 캡처
 
