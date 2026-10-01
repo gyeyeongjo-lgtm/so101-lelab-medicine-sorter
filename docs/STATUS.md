@@ -8,6 +8,7 @@
 - `PASS (camera-only live smoke)`: 페이지에서 두 640×480 JPEG가 각각 HTTP 200으로 보이고 수신 프레임 나이가 약 70 ms였다. LeLab 텔레옵 inactive 상태의 캡처 POST는 HTTP 400으로 거부됐고 로컬 저장 폴더는 비어 있다. 브라우저에서도 두 영상과 읽기 전용 경고·지점 선택 UI를 확인했다. 실제 텔레옵 중 동시 캡처는 `NOT_RUN`이다.
 - `PASS (preview recovery)`: 첫 라이브 스모크에서 사선 `/camera-preview/4`가 HTTP 503이었다. root `fuser`는 LeLab 8000 Python PID 393472의 `/dev/video4` 점유를 보였다. 공식 `/camera-preview-stop` 1회로도 503이 유지돼, 8000/8002/8022의 제어 작업 inactive 및 serial 두 포트 무점유를 확인하고 기존 8000 user service만 1회 재시작했다. 새 MainPID 394934, health 정상, 세 작업 inactive, 사선 MJPEG HTTP 200으로 복구됐다. 카메라·로봇 설정, USB, 토크는 변경하지 않았다.
 - `PASS (offline tests)`: 새 웹 캡처·기존 읽기 전용 관절 모니터 테스트 8개가 통과했다. 실제 접촉 영상 QA와 새 다점 robot-world fit은 `NOT_RUN`, 기존 fit `REJECTED`, `robot_enabled=false`, `motion_authorized=false` 유지다.
+- `PASS (GitHub)`: 구현·테스트·사용 절차를 commit `1e5cb91`로 비공개 `origin/fix/usb-recording`에 push했다. 원본 영상·관절 방송, 로컬 캡처 폴더는 커밋하지 않았다.
 - `NEXT (physical approval)`: 사용자의 현장 준비·명시 승인 뒤에만 같은 세션에서 정면/사선 영상과 P1–P6 관절값을 다시 짝지어 수집한다. 미사용 holdout 점으로 검증한다. 세부 절차는 `docs/TEACH_CAPTURE_WEB.md`에 있다.
 
 ## 2026-10-01 P6 재측정 재개 사전 점검

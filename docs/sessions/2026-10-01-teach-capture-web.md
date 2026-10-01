@@ -7,3 +7,4 @@
 - Mac `127.0.0.1:8030` 실실행에서 정면·사선 프레임 나이는 약 68/67 ms였고 `/frame/ceiling.jpg`, `/frame/oblique.jpg` 모두 HTTP 200, 실제 640×480 JPEG였다. 브라우저에서 두 영상·지점 선택·접촉 확인·수신 상태 UI를 확인했다.
 - 텔레옵 비활성 상태에서 `POST /api/capture`는 HTTP 400 `LeLab teleoperation is not active; capture refused`를 반환했고 `.local/teach-captures/`는 비어 있었다. 이 스모크에서 `/move-arm`, 모터, 토크, serial, USB, 녹화, 추론은 실행하지 않았다.
 - 새 캡처 테스트 5개와 기존 읽기 전용 관절 모니터 테스트 3개, 총 8개 통과. 실제 텔레옵 중 두 영상과 관절 방송의 짝 저장은 `NOT_RUN`; 실제 접촉 QA·새 World/TCP 적합도 `NOT_RUN`이다. 기존 변환은 계속 거부하며 `robot_enabled=false`, `motion_authorized=false`다.
+- 코드·테스트·문서 commit `1e5cb91`을 비공개 `origin/fix/usb-recording`에 push했다. 작업 중 원본 영상·관절 방송은 Git에 넣지 않았다.
