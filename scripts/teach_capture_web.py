@@ -29,7 +29,8 @@ from urllib.parse import urlsplit
 
 JOINT_NAMES = ("Rotation", "Pitch", "Elbow", "Wrist_Pitch", "Wrist_Roll", "Jaw")
 POINT_NAMES = frozenset({"P1", "P2", "P3", "P4", "P5", "P6", "H1", "H2"})
-CAMERAS = {"ceiling": 8, "oblique": 4}
+CAMERAS = {"ceiling": 8, "oblique": 4, "wrist": 6}
+REQUIRED_CAMERAS = frozenset({"ceiling", "oblique"})
 MAX_JPEG_BYTES = 2_000_000
 MAX_FRAME_AGE_NS = 750_000_000
 MAX_JOINT_AGE_NS = 400_000_000
@@ -176,13 +177,20 @@ class CaptureState:
         target = joints[-1].received_ns
         selected: dict[str, Frame] = {}
         gaps: dict[str, float] = {}
+        optional_camera_omitted: list[str] = []
         for name, samples in frames.items():
             if not samples:
-                raise ValueError(f"{name} frame is unavailable")
+                if name in REQUIRED_CAMERAS:
+                    raise ValueError(f"{name} frame is unavailable")
+                optional_camera_omitted.append(name)
+                continue
             frame = min(samples, key=lambda item: abs(item.received_ns - target))
             gap = abs(frame.received_ns - target)
             if now_ns - frame.received_ns > MAX_FRAME_AGE_NS or gap > MAX_PAIR_GAP_NS:
-                raise ValueError(f"{name} frame is not close enough to the joint sample")
+                if name in REQUIRED_CAMERAS:
+                    raise ValueError(f"{name} frame is not close enough to the joint sample")
+                optional_camera_omitted.append(name)
+                continue
             selected[name] = frame
             gaps[name] = round(gap / 1e6, 1)
         return {
@@ -192,6 +200,7 @@ class CaptureState:
             "joint_mean_rad": means,
             "joint_max_std_rad": max(stds.values()),
             "frame_joint_receive_gap_ms": gaps,
+            "optional_camera_omitted": optional_camera_omitted,
         }
 
 
@@ -226,6 +235,7 @@ def save_capture(root: Path, selected: dict) -> dict:
         "joint_mean_rad": selected["joint_mean_rad"],
         "joint_max_std_rad": selected["joint_max_std_rad"],
         "frame_joint_receive_gap_ms": selected["frame_joint_receive_gap_ms"],
+        "optional_camera_omitted": selected["optional_camera_omitted"],
         "contact": "user asserted; visual review pending",
         "synchronization": "server receive-time approximation; exposure timestamps unavailable",
         "use_for_robot_world_fit": False,
@@ -235,6 +245,7 @@ def save_capture(root: Path, selected: dict) -> dict:
     (folder / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n")
     return {"stem": stem, "point": selected["point"], "folder": str(folder),
             "frame_joint_receive_gap_ms": selected["frame_joint_receive_gap_ms"],
+            "optional_camera_omitted": selected["optional_camera_omitted"],
             "joint_max_std_rad": selected["joint_max_std_rad"]}
 
 
@@ -243,10 +254,10 @@ PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <style>body{margin:0;background:#101820;color:#eef5fb;font-family:system-ui,sans-serif}main{max-width:1300px;margin:auto;padding:20px}h1{margin:0 0 8px;font-size:24px}.warn{background:#4b2a20;padding:12px;border-radius:8px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(350px,1fr));gap:12px}figure{margin:0}img{width:100%;background:#000;aspect-ratio:4/3;object-fit:contain;border:1px solid #425466;border-radius:8px}figcaption{margin:8px 0}section{background:#1b2936;border-radius:8px;padding:16px;margin-top:16px}button,select{padding:10px;font-size:16px;border-radius:6px}button{background:#36b37e;color:#081b13;border:0;font-weight:700}button:disabled{opacity:.4}pre{white-space:pre-wrap}label{display:block;margin:12px 0}</style></head><body><main>
 <h1>SO-101 접촉 증거 캡처 · 읽기 전용</h1>
 <p class="warn">로봇 시작·정지 기능은 없습니다. 현장 안전 확인과 별도 승인 후 기존 LeLab에서만 텔레옵을 조작하세요. 이 페이지의 사진·관절값은 검수 전 로봇 좌표에 사용하지 않습니다.</p>
-<div class="grid"><figure><figcaption>천장 정면</figcaption><img id="ceiling" alt="ceiling"></figure><figure><figcaption>천장 사선</figcaption><img id="oblique" alt="oblique"></figure></div>
-<section><h2>접촉 시점 저장</h2><p>표시한 손가락의 단단한 끝이 X 중심에 가볍게 닿고 완전히 멈춘 뒤 선택하세요. 두 영상과 최근 관절 방송 15개를 함께 보존합니다.</p><label>지점 <select id="point"><option>P1</option><option>P2</option><option>P3</option><option>P4</option><option>P5</option><option>P6</option><option>H1</option><option>H2</option></select></label><label><input id="confirmed" type="checkbox"> 현장에서 같은 플라스틱 끝의 실제 접촉과 안정 상태를 확인했습니다</label><button id="capture" onclick="capturePoint()">영상 + 관절값 저장</button><pre id="result"></pre></section>
+<div class="grid"><figure><figcaption>천장 정면 · 필수</figcaption><img id="ceiling" alt="ceiling"></figure><figure><figcaption>천장 사선 · 필수</figcaption><img id="oblique" alt="oblique"></figure><figure><figcaption>손목 · 보조</figcaption><img id="wrist" alt="wrist"></figure></div>
+<section><h2>접촉 시점 저장</h2><p>표시한 손가락의 단단한 끝이 X 중심에 가볍게 닿고 완전히 멈춘 뒤 선택하세요. 정면·사선 영상과 최근 관절 방송 15개를 반드시 저장하며, 손목 영상은 신선할 때만 함께 보존합니다.</p><label>지점 <select id="point"><option>P1</option><option>P2</option><option>P3</option><option>P4</option><option>P5</option><option>P6</option><option>H1</option><option>H2</option></select></label><label><input id="confirmed" type="checkbox"> 현장에서 같은 플라스틱 끝의 실제 접촉과 안정 상태를 확인했습니다</label><button id="capture" onclick="capturePoint()">영상 + 관절값 저장</button><pre id="result"></pre></section>
 <section><h2>수신 상태</h2><pre id="status">연결 중…</pre></section></main><script>
-async function refresh(){for(const name of ['ceiling','oblique']){const image=document.getElementById(name);if(image.complete)image.src='/frame/'+name+'.jpg?t='+Date.now()}try{const r=await fetch('/api/status',{cache:'no-store'});document.getElementById('status').textContent=JSON.stringify(await r.json(),null,2)}catch(e){document.getElementById('status').textContent=String(e)}}
+async function refresh(){for(const name of ['ceiling','oblique','wrist']){const image=document.getElementById(name);if(image.complete)image.src='/frame/'+name+'.jpg?t='+Date.now()}try{const r=await fetch('/api/status',{cache:'no-store'});document.getElementById('status').textContent=JSON.stringify(await r.json(),null,2)}catch(e){document.getElementById('status').textContent=String(e)}}
 async function capturePoint(){const result=document.getElementById('result');if(!document.getElementById('confirmed').checked){result.textContent='현장 접촉 확인 체크가 필요합니다.';return}result.textContent='동시 자료 확인 중…';try{const r=await fetch('/api/capture',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({point:document.getElementById('point').value,contact_confirmed:true})});const d=await r.json();result.textContent=JSON.stringify(d,null,2)}catch(e){result.textContent=String(e)}}
 refresh();setInterval(refresh,250);
 </script></body></html>""".encode("utf-8")
@@ -286,7 +297,7 @@ class CaptureHandler(BaseHTTPRequestHandler):
             self.send_bytes(PAGE, "text/html; charset=utf-8")
         elif path == "/api/status":
             self.send_json(self.server.state.status())
-        elif path in ("/frame/ceiling.jpg", "/frame/oblique.jpg"):
+        elif path in tuple(f"/frame/{name}.jpg" for name in CAMERAS):
             name = path.split("/")[-1].split(".")[0]
             try:
                 self.send_bytes(self.server.state.latest_frame(name).jpeg, "image/jpeg")
@@ -370,6 +381,10 @@ def main() -> int:
     parts = urlsplit(args.lelab_url)
     if parts.scheme not in ("http", "https") or not parts.netloc or parts.path not in ("", "/"):
         parser.error("--lelab-url must be an HTTP(S) origin without a path")
+    try:
+        import websocket  # noqa: F401 - fail before binding if the joint receiver cannot start
+    except ImportError:
+        parser.error("websocket-client is required for joint broadcasts; capture server not started")
     args.lelab_url = args.lelab_url.rstrip("/")
     args.output_root.mkdir(parents=True, exist_ok=True)
     state = CaptureState()

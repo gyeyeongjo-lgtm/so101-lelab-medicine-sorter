@@ -4,11 +4,14 @@
 
 ## 2026-10-01 P1·P6 웹 접촉 증거 저장
 
+- `PASS (optional wrist evidence, camera-only)`: Mac 8030 캡처 페이지에 LeLab 손목 `/camera-preview/6` 보조 프레임을 추가했다. 정면/사선 필수 게이트와 15개 관절 검사는 유지하고, 손목 프레임이 없거나 오래됐으면 `optional_camera_omitted`로 기록해 필수 저장을 막지 않는다. 실제 640×480 손목 영상에 양 그리퍼와 X가 보였고 최종 8030 상태에서 정면/사선/손목 수신 오류가 모두 null이었다. 단위 테스트 7개 통과, 텔레옵 inactive 저장은 HTTP 400 거부. 실제 텔레옵 중 3영상 동시 저장은 `NOT_RUN`이다.
+- `OBSERVED (local server restart)`: 첫 `.venv` 시작은 `websocket-client` 부재로 관절 worker만 실패했다. 의존성 사전 검사를 추가하고 기존 정상 Python으로 8030만 재시작했다. 재시작 직후 일시적 카메라 503이 있었으나 다음 상태 재조회에서 세 카메라 모두 정상 수신됐다. LeLab 8000 서비스·USB·로봇 설정은 변경하지 않았고 teleoperation inactive를 확인했다.
+- `PASS (offline scene consistency, no motion)`: 두 저장 정면 프레임 모두 ArUco ID0–3 검출에 성공했다. 과거 단일 손끝 기록의 X 픽셀 중심과 비교할 수 있는 비가림 8개 관측의 이동은 각각 0.087–1.097 px였다. 따라서 기준 마커·X의 화면 배치는 대체로 유지됐지만 접촉한 X 자체는 그리퍼에 가려져 직접 중심 검출할 수 없었다. 보정된 마커 중심 좌표로 과거 X 픽셀을 이번 프레임에 재투영하면 P1–P2 약 266.0 mm, P1–P4 약 167.8 mm다. 과거 로컬 pair 파일의 `world_mm`는 보정 전 축척이므로 새 관절값과 그대로 결합하지 않는다.
 - `PASS (user-operated teleoperation / evidence save)`: 사용자가 기존 LeLab 텔레옵을 직접 시작·종료했다. Mac `127.0.0.1:8030`은 정면 Astra와 사선 RealSense 프레임 및 관절 방송을 정상 수신했다. 사용자 현장 접촉·정지 확인 직후 P1과 P6을 각각 한 번 저장했다. 이 작업에서 Mac 캡처 앱은 로봇 제어 API를 호출하지 않았다.
 - `PASS (local integrity)`: 두 지점 각각 JPEG 2장과 관절 방송 15개를 Git-ignore `.local/teach-captures/`에 저장했고, JPEG 4장의 SHA-256이 metadata와 일치한다. 수신 시각 기준 영상·마지막 관절 방송 차이는 P1 정면/사선 6.3/7.6 ms, P6 7.4/0.1 ms이며 최대 관절 표준편차는 두 지점 모두 0 rad였다. 이는 센서 노출 시각 동기화 증거는 아니다.
 - `PARTIAL (visual QA)`: 두 영상에서 손끝이 각각 지정 X 주변에 있지만 640×480 영상으로 동일한 플라스틱 끝의 정확한 단일점 접촉을 확정할 수 없다. 사용자 확인은 metadata의 주장으로 유지하고 접촉 영상 QA는 `NOT_VERIFIED`다. 기존 robot-world fit은 계속 `REJECTED`이며 새 적합과 holdout 검증은 `NOT_RUN`, `robot_enabled=false`, `motion_authorized=false`다.
 - `PASS (safe post-check)`: 사용자 종료 보고 뒤 LeLab health 정상, teleoperation·recording·inference 모두 active=false였다. recording status에는 `current_phase=preparing`, `session_ended=false`가 남아 내부 세션 정리는 `NOT_VERIFIED`다. follower torque register는 `NOT_VERIFIED`다.
-- `NEXT`: 저장 증거와 기존 P2–P5의 동일 조건 여부를 검토하고, 필요한 경우 독립 접촉/holdout 계획을 세운다. 이번 두 점만으로 robot-world 변환을 승인하거나 실제 약통 이동을 하지 않는다.
+- `NEXT (physical help required)`: P2–P5에는 이번과 같은 두 카메라 접촉 증거가 없어, 새 P1·P6만으로 다점 fit/holdout을 승인할 수 없다. 사용자가 현장 안전·별도 텔레옵 승인을 확인한 뒤 동일 프로토콜로 나머지 지점과 독립 holdout을 촬영한다. 이번 두 점만으로 robot-world 변환을 승인하거나 실제 약통 이동을 하지 않는다.
 
 ## 2026-10-01 접촉 증거 웹 캡처 준비
 

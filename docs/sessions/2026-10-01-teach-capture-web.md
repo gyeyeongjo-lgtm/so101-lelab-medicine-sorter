@@ -17,3 +17,16 @@
 - 정면·사선 저장 영상에서 각 X 주변에 그리퍼 손끝은 보인다. 그러나 640×480 해상도와 손끝 가림 때문에 동일한 단일 플라스틱 끝의 정확한 접촉은 영상만으로 `NOT_VERIFIED`다. Mac 수신 시각은 카메라 센서 노출 동기화가 아니다. 원본 이미지·관절값은 Git-ignore `.local/teach-captures/`에만 유지한다.
 - 사용자가 텔레옵 종료를 보고한 뒤 LeLab health 정상, teleoperation·recording·inference active=false를 각각 확인했다. recording 내부 `current_phase=preparing`, `session_ended=false`와 follower torque register는 `NOT_VERIFIED`다.
 - 새 robot-world fit/holdout, 자동 이동, 약통 취급은 `NOT_RUN`이다. 두 metadata의 `use_for_robot_world_fit=false`, `robot_enabled=false`, `motion_authorized=false`를 유지한다. 기존 거부된 변환을 사용하지 않는다.
+
+## 저장 프레임과 과거 X 배치의 오프라인 대조
+
+- 로봇·카메라 장치를 열지 않고 P1·P6의 저장된 정면 JPEG에 `scripts/check_aruco_x_still.py`의 DICT_4X4_50 검출/검은 X 중심 추출법을 적용했다. 두 프레임에서 ID0–3이 모두 검출됐다. 과거 `20260930.single-fingertip` 기록의 픽셀 중심과 비교 가능한 비가림 X 8개는 P1 프레임의 P2/P3/P4/P6에서 각각 0.152/1.097/0.910/0.452 px, P6 프레임의 P1/P3/P4/P5에서 각각 0.402/0.872/0.807/0.087 px 이동했다. P1·P6 접촉 지점 자체는 그리퍼에 가려져 중심 재검출이 불가했다. P6 프레임의 P2도 연결 성분 판별 실패라 제외했다.
+- 저장 프레임의 마커 중심과 `configs/astra_rgbd.example.json`의 **보정된** 기준 중심으로 과거 X 픽셀을 재투영했다. P1 프레임 기준 P1≈(341.342,376.867), P2≈(75.408,371.379), P6≈(148.068,263.419) mm이며 P1–P2≈265.991 mm, P1–P4≈167.832 mm다. 두 프레임 간 같은 방식의 P1/P6 좌표 차이는 0.4 mm 미만이다. 이는 단일 프레임 camera-plane 진단이며 손끝 실제 접촉·절대 정확도 검증은 아니다.
+- 이전 pair 파일의 `world_mm`는 마커 중심 거리 정정 전 축척을 사용해 P1=(276.322,300.505), P6=(118.185,209.153) mm로 기록돼 있다. 픽셀 배치가 거의 같아도 숫자 좌표는 일치하지 않는다. 그 파일의 World 좌표를 이번 관절 캡처와 무보정 혼합하지 않는다. P2–P5의 이번 프로토콜 영상·관절 증거와 독립 holdout이 없어 새 적합은 `NOT_RUN`, 기존 거부 상태와 motion 차단을 유지한다.
+
+## 손목 보조 카메라 추가 및 Mac 8030 재점검
+
+- LeLab `/camera-preview/6` 기존 손목 프리뷰는 HTTP 200으로 약 2초 동안 891,756 byte를 전송했다. 640×480 저장 스모크 한 장에서 양쪽 그리퍼 손가락과 X가 같이 보인다. 접촉 순간은 아니므로 접촉 검증은 아니다.
+- `scripts/teach_capture_web.py`에 손목 프리뷰를 보조 stream으로 추가했다. 정면·사선이 필수인 기존 선택 조건은 유지하며 손목 frame은 신선하고 마지막 관절 방송과 250 ms 이내일 때만 metadata/JPEG에 포함한다. 없거나 stale이면 `optional_camera_omitted=["wrist"]`로 표기한다. 로봇 제어 경로는 추가하지 않았다. 관련 단위 테스트 7개 통과.
+- 갱신 전 Mac 8030 PID의 정확한 명령을 확인하고 사용자 제어 작업 teleoperation/recording/inference inactive를 읽은 뒤, Mac 프로세스만 정상 종료했다. 첫 `.venv` 시작은 `websocket` 모듈 부재로 joint worker가 예외를 내고 서버만 떠서 즉시 종료했다. 이를 방지하도록 서버 바인딩 전 의존성 검사를 추가했다. 누락 환경 실행은 exit 2와 명확한 오류로 거부됐고, 기존에 정상인 system `python3` 환경으로 다시 시작했다.
+- 최종 8030 상태에서 정면/사선/손목 프레임 나이는 약 33/11/25 ms, 각 오류 null, LeLab health 정상·teleoperation inactive였다. 마지막 재시작 직후 한 번은 사선·손목 503과 정면 stream closed가 보였으나 다음 조회에서 모두 회복됐다. LeLab 서비스·USB·모터·토크는 건드리지 않았다. 텔레옵 inactive에서 `/api/capture`는 HTTP 400으로 거부됐다. 세 카메라와 관절값의 **실제 텔레옵 중 동시 저장은 `NOT_RUN`**이다.

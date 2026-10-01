@@ -57,6 +57,28 @@ class TeachCaptureTests(unittest.TestCase):
             self.assertEqual(len(metadata["joint_samples"]), 15)
             self.assertTrue((folder / "ceiling.jpg").is_file())
             self.assertTrue((folder / "oblique.jpg").is_file())
+            self.assertFalse((folder / "wrist.jpg").exists())
+            self.assertEqual(metadata["optional_camera_omitted"], ["wrist"])
+
+    def test_fresh_wrist_frame_is_saved_without_becoming_required(self):
+        state, now = ready_state()
+        state.add_frame("wrist", b"\xff\xd8wrist\xff\xd9", received_ns=now - 50_000_000,
+                        received_unix_ns=2_690_000_000)
+        selected = state.select("P1", now_ns=now)
+        self.assertEqual(set(selected["frames"]), {"ceiling", "oblique", "wrist"})
+        self.assertEqual(selected["optional_camera_omitted"], [])
+        with tempfile.TemporaryDirectory() as temporary:
+            saved = save_capture(Path(temporary), selected)
+            folder = Path(saved["folder"])
+            self.assertTrue((folder / "wrist.jpg").is_file())
+            self.assertIn("wrist", json.loads((folder / "metadata.json").read_text())["images"])
+
+    def test_stale_wrist_frame_is_omitted_without_blocking_capture(self):
+        state, now = ready_state()
+        state.add_frame("wrist", b"\xff\xd8wrist\xff\xd9", received_ns=now - 1_000_000_000)
+        selected = state.select("P1", now_ns=now)
+        self.assertEqual(set(selected["frames"]), {"ceiling", "oblique"})
+        self.assertEqual(selected["optional_camera_omitted"], ["wrist"])
 
     def test_rejects_stale_or_moving_data(self):
         state, now = ready_state()
