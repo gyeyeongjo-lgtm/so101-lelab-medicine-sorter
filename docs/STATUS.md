@@ -2,6 +2,14 @@
 
 업데이트: 2026-10-01
 
+## 2026-10-01 접촉 증거 웹 캡처 준비
+
+- `PASS (read-only web implementation)`: Mac loopback `127.0.0.1:8030`에 새 `scripts/teach_capture_web.py`를 구현했다. LeLab 8000의 정면 `/camera-preview/8`, 사선 `/camera-preview/4`, `/ws/joint-data`만 구독하며 로봇 제어·serial 접근 API가 없다. 프레임·관절 15개를 수신 시각 기준으로 묶되 센서 노출 시각 동기화는 `NOT_VERIFIED`다. 원본은 Git-ignore `.local/teach-captures/`에만 저장하고 metadata에 motion 차단 플래그를 기록한다.
+- `PASS (camera-only live smoke)`: 페이지에서 두 640×480 JPEG가 각각 HTTP 200으로 보이고 수신 프레임 나이가 약 70 ms였다. LeLab 텔레옵 inactive 상태의 캡처 POST는 HTTP 400으로 거부됐고 로컬 저장 폴더는 비어 있다. 브라우저에서도 두 영상과 읽기 전용 경고·지점 선택 UI를 확인했다. 실제 텔레옵 중 동시 캡처는 `NOT_RUN`이다.
+- `PASS (preview recovery)`: 첫 라이브 스모크에서 사선 `/camera-preview/4`가 HTTP 503이었다. root `fuser`는 LeLab 8000 Python PID 393472의 `/dev/video4` 점유를 보였다. 공식 `/camera-preview-stop` 1회로도 503이 유지돼, 8000/8002/8022의 제어 작업 inactive 및 serial 두 포트 무점유를 확인하고 기존 8000 user service만 1회 재시작했다. 새 MainPID 394934, health 정상, 세 작업 inactive, 사선 MJPEG HTTP 200으로 복구됐다. 카메라·로봇 설정, USB, 토크는 변경하지 않았다.
+- `PASS (offline tests)`: 새 웹 캡처·기존 읽기 전용 관절 모니터 테스트 8개가 통과했다. 실제 접촉 영상 QA와 새 다점 robot-world fit은 `NOT_RUN`, 기존 fit `REJECTED`, `robot_enabled=false`, `motion_authorized=false` 유지다.
+- `NEXT (physical approval)`: 사용자의 현장 준비·명시 승인 뒤에만 같은 세션에서 정면/사선 영상과 P1–P6 관절값을 다시 짝지어 수집한다. 미사용 holdout 점으로 검증한다. 세부 절차는 `docs/TEACH_CAPTURE_WEB.md`에 있다.
+
 ## 2026-10-01 P6 재측정 재개 사전 점검
 
 - `PASS (P6-only teleoperation / safe stop)`: 사용자가 남은 컵·분홍 조각 제거, 동일 표시 손가락의 노출 플라스틱 끝, 사람의 팔로워 범위 이탈·즉시 중단 준비·시작 자세 정렬, P6 1점 저속 텔레옵을 현재 시점에 확인·승인했다. 새 정면 프레임에 X 6개와 ID0–3이 보이고 두 serial 장치의 root `fuser` 점유 PID가 없었다. 저장된 leader ACM1/follower ACM0로 `/move-arm` 1회 HTTP 200을 받아 사용자 P6 안정 접촉 보고 후 `/ws/joint-data` 15개를 읽고 `/stop-teleoperation` HTTP 200으로 즉시 종료했다. 종료 후 health 정상, 세 작업 active=false. 토크 register와 접촉 순간의 영상 증거는 `NOT_VERIFIED`다.
