@@ -40,3 +40,15 @@
 - 정면·사선·손목 영상에서 각 손끝은 지정 X 주변에 보인다. 다만 손가락 표식과 정확한 단일 플라스틱 접촉점·수직 높이는 가림/해상도 때문에 확정할 수 없어 영상 QA는 `PARTIAL`이다. P2/P4/P5 정면 영상에서는 ID0–3 모두 검출됐고 P1 기준 marker 중심 이동 최대 0.354 px였다. P3 영상에서는 ID3이 가려져 ID0–2만 검출됐다. 단일 프레임의 4-marker homography는 P3에서 `NOT_RUN`이다.
 - 사용자가 텔레옵을 직접 종료했고, 이후 LeLab health 정상, teleoperation·recording·inference 모두 inactive를 확인했다. recording 내부 `current_phase=preparing`, `session_ended=false`와 follower torque register는 직접 확인하지 않아 `NOT_VERIFIED`다. Mac 8030은 계속 카메라 3대만 수신한다. 새 원본은 Git-ignore `.local/teach-captures/`에만 보존하며 Git에 넣지 않는다.
 - P1/P6은 직전 별도 텔레옵의 2영상, P2–P5는 이번 텔레옵의 3영상 자료다. 접촉 검수·독립 holdout이 아직 충분하지 않고 P3 기준 마커 일부가 가려졌으므로 metadata의 `use_for_robot_world_fit=false`, `robot_enabled=false`, `motion_authorized=false`를 바꾸지 않았다. 새 robot-world fit과 실제 약통 이동은 `NOT_RUN`, 이전 변환은 계속 `REJECTED`다.
+
+## P1 오지정 확인과 정확한 위치 재촬영
+
+- 첫 P1 `20261001T093659_729629Z_6e598848` 정면 영상에서 P1 X(약 291,220 px)가 그리퍼 왼쪽에 보이고, 손끝은 안쪽 P5 X(약 332,246 px)를 가린다. oblique 영상도 안쪽 X 부근이다. 실제 접촉 물리점은 확인되지 않았으나 이 파일을 P1 접촉 증거로 사용할 수 없다는 판정은 명확하다. 원본을 고치거나 삭제하지 않았다. 잘못된 P1을 포함한 6점 탐색 결과는 RMSE 28.050 mm, 최대 49.205 mm, 조건수 4267.3으로 거부됐다. P1을 제외한 P2–P6 탐색은 RMSE 1.679 mm/최대 2.345 mm이나 조건수 5699.0으로 거부된다. 모든 탐색은 로봇 비활성·접촉 QA 미완료 상태의 원인 진단일 뿐이다.
+- 사용자가 ID2 바로 오른쪽 X=P1, 안쪽 왼쪽 X=P5를 다시 구분하도록 안내받고 P1 한 점의 현장 안전·텔레옵 직접 조작을 새로 승인했다. 텔레옵 활성 및 정면/사선/손목/관절 수신 정상 확인 후 사용자가 정확한 P1 안정 접촉을 보고했다. 저장 직전 정면 프레임에서 그리퍼가 ID2 바로 오른쪽 P1을 가리고 P5는 별도로 보였다. 새 P1 `20261001T113908_064438Z_ba1584e0`에 640×480 JPEG 3장과 관절 방송 15개를 저장했다. 수신 시각 차이 정면/사선/손목 10.4/0.2/0.1 ms, 관절 최대 표준편차 0 rad, Jaw 평균 0.06622 rad다. 정면·사선·손목 영상은 P1 주변 손끝을 보이지만 정확한 플라스틱 한 점 접촉 및 높이는 여전히 `NOT_VERIFIED`다.
+- 사용자가 텔레옵을 직접 종료했고 LeLab health 정상, teleoperation·recording·inference 모두 inactive를 확인했다. recording 내부 `current_phase=preparing`, `session_ended=false`, follower torque register는 `NOT_VERIFIED`. Mac 8030 프리뷰는 세 카메라를 계속 수신한다. 원본은 Git-ignore `.local/teach-captures/`에만 보존한다.
+
+## 여섯 점 오프라인 탐색 재진단 — 모션 금지
+
+- 저장소의 보정된 ID0–3 중심, 과거 X 픽셀 좌표와 P1/P2/P4/P5/P6 정면 프레임의 네 마커로 월드점 6개를 투영했다. P3 접촉 프레임은 ID3 가림으로 제외했다. 다섯 프레임 사이 점별 최대 투영 편차 1.509 mm. Jetson 설치본과 SHA-256 `443d38d7...f67236`이 일치하는 로컬 URDF 사본으로 저장 관절값의 FK를 계산했다. 캡처 metadata의 `use_for_robot_world_fit=false`는 유지하고 탐색 수치만 산출했으며 출력 변환을 설치·사용하지 않았다.
+- 정확히 재촬영한 P1과 P2–P6을 합친 *탐색*은 RMSE 4.731 mm(기준 ≤5), 최대 6.861 mm(≤8), rank 9이나 조건수 4807.5(≤1000 실패), TCP offset norm 122.159 mm다. P2–P6만 적합한 모델의 새 P1 의사-holdout 오차는 17.675 mm(≤8 실패). 이는 진정한 독립 holdout 시험이 아니고 물리 접촉 QA도 미완료이므로 변환은 `REJECTED`다.
+- 첫 오지정 P1을 P5 반복으로 *가정*해 7자세를 탐색해도 RMSE 5.814 mm, 최대 9.275 mm, 조건수 3935.1로 거부된다. 이 가정은 실제 P5 단일점 접촉을 입증하지 못하고 원본 라벨을 변경할 근거가 아니다. 이 결과로 로봇을 움직이지 않는다. `robot_enabled=false`, `motion_authorized=false`; 약통 이동과 독립 holdout은 `NOT_RUN`이다.
