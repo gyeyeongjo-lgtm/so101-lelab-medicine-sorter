@@ -31,3 +31,12 @@
 - 갱신 전 Mac 8030 PID의 정확한 명령을 확인하고 사용자 제어 작업 teleoperation/recording/inference inactive를 읽은 뒤, Mac 프로세스만 정상 종료했다. 첫 `.venv` 시작은 `websocket` 모듈 부재로 joint worker가 예외를 내고 서버만 떠서 즉시 종료했다. 이를 방지하도록 서버 바인딩 전 의존성 검사를 추가했다. 누락 환경 실행은 exit 2와 명확한 오류로 거부됐고, 기존에 정상인 system `python3` 환경으로 다시 시작했다.
 - 최종 8030 상태에서 정면/사선/손목 프레임 나이는 약 33/11/25 ms, 각 오류 null, LeLab health 정상·teleoperation inactive였다. 마지막 재시작 직후 한 번은 사선·손목 503과 정면 stream closed가 보였으나 다음 조회에서 모두 회복됐다. LeLab 서비스·USB·모터·토크는 건드리지 않았다. 텔레옵 inactive에서 `/api/capture`는 HTTP 400으로 거부됐다. 세 카메라와 관절값의 **실제 텔레옵 중 동시 저장은 `NOT_RUN`**이다.
 - 현재 정면 프레임에 X 6개, ID0–3, 빈 작업대가 보였다. 사용자에게 P2–P5 동일 방식 텔레옵을 직접 진행할지 물었고 사용자는 “지금은 진행하지 않겠습니다”라고 답했다. 이 승인 보류를 존중해 새 모터 동작·접촉 캡처는 `NOT_RUN`; 8030 읽기 전용 프리뷰만 유지한다.
+
+## P2–P5 별도 사용자 텔레옵 및 3영상 저장
+
+- 사용자가 후속으로 진행을 요청했다. 시작 전 LeLab health 정상, 세 제어 작업 inactive, Mac 8030 정면/사선/손목 프레임 신선·오류 null을 확인했다. Jetson canonical leader `5AE6085272`→ACM1, follower `5AE6058306`→ACM0. root `fuser`의 두 serial 점유 PID 394935는 `ps`에서 LeLab 8000 uvicorn worker였고 다른 점유자는 없었다. 일반 사용자 `fuser`는 `/proc` 권한 오류로 불완전했으므로 root 결과를 사용했다.
+- 정면 640×480 화면에 ID0–3과 X 6개, 빈 작업대가 보였다. 사용자가 약통·바구니 제거, 팔로워 범위 밖 위치·즉시 중단 준비, 같은 표시 손가락의 노출 플라스틱 끝, 리더/팔로워 시작 자세 정렬 및 이번 P2–P5 텔레옵 직접 조작을 확인·승인했다. 사용자가 기존 LeLab UI에서 텔레옵을 직접 시작했으며 Mac은 active=true와 세 프리뷰·관절 방송을 읽기 전용으로 확인했다. LeLab 시작 API에는 별도 속도 제한이 없어 사용자가 리더를 직접 천천히 조작했다.
+- 사용자 지점별 안정 접촉 보고 직후 P2=`20261001T104113_441956Z_ebe0cc0f`, P3=`20261001T104209_916212Z_fd13bdcf`, P4=`20261001T104304_247474Z_8d4e1103`, P5=`20261001T104405_710890Z_5e415c4e`로 각각 한 번 저장했다. 각 폴더에 정면/사선/손목 640×480 JPEG 3장과 관절 방송 15개가 있다. 손목 선택 누락은 0건, 각 지점의 최대 수신 시각 차이는 7.8/16.8/14.8/16.1 ms, 최대 관절 표준편차 0 rad다. 네 점 Jaw 평균은 약 0.06622 rad다. JPEG 12장 SHA-256이 metadata와 일치했다.
+- 정면·사선·손목 영상에서 각 손끝은 지정 X 주변에 보인다. 다만 손가락 표식과 정확한 단일 플라스틱 접촉점·수직 높이는 가림/해상도 때문에 확정할 수 없어 영상 QA는 `PARTIAL`이다. P2/P4/P5 정면 영상에서는 ID0–3 모두 검출됐고 P1 기준 marker 중심 이동 최대 0.354 px였다. P3 영상에서는 ID3이 가려져 ID0–2만 검출됐다. 단일 프레임의 4-marker homography는 P3에서 `NOT_RUN`이다.
+- 사용자가 텔레옵을 직접 종료했고, 이후 LeLab health 정상, teleoperation·recording·inference 모두 inactive를 확인했다. recording 내부 `current_phase=preparing`, `session_ended=false`와 follower torque register는 직접 확인하지 않아 `NOT_VERIFIED`다. Mac 8030은 계속 카메라 3대만 수신한다. 새 원본은 Git-ignore `.local/teach-captures/`에만 보존하며 Git에 넣지 않는다.
+- P1/P6은 직전 별도 텔레옵의 2영상, P2–P5는 이번 텔레옵의 3영상 자료다. 접촉 검수·독립 holdout이 아직 충분하지 않고 P3 기준 마커 일부가 가려졌으므로 metadata의 `use_for_robot_world_fit=false`, `robot_enabled=false`, `motion_authorized=false`를 바꾸지 않았다. 새 robot-world fit과 실제 약통 이동은 `NOT_RUN`, 이전 변환은 계속 `REJECTED`다.

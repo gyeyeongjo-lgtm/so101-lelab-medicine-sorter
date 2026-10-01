@@ -2,6 +2,14 @@
 
 업데이트: 2026-10-01
 
+## 2026-10-01 P2–P5 사용자 텔레옵·3영상 접촉 캡처
+
+- `PASS (preflight)`: LeLab 8000 health 정상, teleoperation·recording·inference inactive와 Mac 8030 정면/사선/손목 수신 정상 확인 후 시작했다. canonical leader `5AE6085272`→ACM1, follower `5AE6058306`→ACM0. root `fuser`에서 두 serial 포트의 유일한 점유자는 LeLab 8000 worker PID 394935였고 별도 제어 프로세스는 발견되지 않았다. 사용자는 약통·바구니 제거, 사람의 범위 이탈·즉시 중단 준비·같은 노출 플라스틱 끝·시작 자세 정렬을 현장에서 확인하고 직접 기존 LeLab 텔레옵을 시작·종료했다. Mac은 모터·토크·serial·LeLab 제어 API를 건드리지 않았다.
+- `PASS (local evidence)`: 사용자 접촉·안정 확인 직후 P2, P3, P4, P5를 각각 한 번 8030으로 저장했다. 매 지점 640×480 정면/사선/손목 JPEG 3장과 `/ws/joint-data` 15개, 총 새 JPEG 12장·관절 방송 60개다. 전 JPEG SHA-256이 metadata와 일치하며 최대 영상–관절 수신 시각 차이는 16.8 ms, 최대 관절 표준편차는 0 rad, 네 점 Jaw 평균은 0.06622 rad다. 원본은 Git-ignore `.local/teach-captures/`에만 보존한다.
+- `PARTIAL (visual QA)`: 네 지점 모두 지정 X 근처에 손끝이 보이나 640×480의 가림·원근 때문에 동일 플라스틱 끝 한 점의 실제 접촉과 높이는 `NOT_VERIFIED`다. 새 P2/P4/P5 천장 영상은 ID0–3 모두 검출됐고 기준 P1 영상 대비 marker 중심 이동 최대 0.354 px였다. P3 저장 순간에는 ID3이 가려져 ID0–2만 검출됐으며, 다른 프레임의 마커 안정성이 P3 단독 homography를 대체하지는 않는다.
+- `PASS (safe stop)`: 사용자 종료 보고 후 LeLab health 정상, teleoperation·recording·inference 모두 inactive다. recording 내부 `current_phase=preparing`, `session_ended=false`, follower torque register는 `NOT_VERIFIED`다. Mac 8030 세 프리뷰는 계속 정상이고 종료 후 관절 방송은 stale다.
+- `NOT_RUN`: 새 6점 robot-world 적합/독립 holdout 및 실제 약통 이동은 실행하지 않았다. P1·P6은 앞선 텔레옵의 2영상 증거, P2–P5는 이번 텔레옵의 3영상 증거라 세션과 가시성이 서로 다르고, 모든 metadata의 `use_for_robot_world_fit=false`, `robot_enabled=false`, `motion_authorized=false`를 유지한다. 기존 변환은 계속 `REJECTED`다.
+
 ## 2026-10-01 P1·P6 웹 접촉 증거 저장
 
 - `PASS (optional wrist evidence, camera-only)`: Mac 8030 캡처 페이지에 LeLab 손목 `/camera-preview/6` 보조 프레임을 추가했다. 정면/사선 필수 게이트와 15개 관절 검사는 유지하고, 손목 프레임이 없거나 오래됐으면 `optional_camera_omitted`로 기록해 필수 저장을 막지 않는다. 실제 640×480 손목 영상에 양 그리퍼와 X가 보였고 최종 8030 상태에서 정면/사선/손목 수신 오류가 모두 null이었다. 단위 테스트 7개 통과, 텔레옵 inactive 저장은 HTTP 400 거부. 실제 텔레옵 중 3영상 동시 저장은 `NOT_RUN`이다.
