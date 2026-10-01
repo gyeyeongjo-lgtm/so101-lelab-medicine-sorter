@@ -8,3 +8,12 @@
 - 텔레옵 비활성 상태에서 `POST /api/capture`는 HTTP 400 `LeLab teleoperation is not active; capture refused`를 반환했고 `.local/teach-captures/`는 비어 있었다. 이 스모크에서 `/move-arm`, 모터, 토크, serial, USB, 녹화, 추론은 실행하지 않았다.
 - 새 캡처 테스트 5개와 기존 읽기 전용 관절 모니터 테스트 3개, 총 8개 통과. 실제 텔레옵 중 두 영상과 관절 방송의 짝 저장은 `NOT_RUN`; 실제 접촉 QA·새 World/TCP 적합도 `NOT_RUN`이다. 기존 변환은 계속 거부하며 `robot_enabled=false`, `motion_authorized=false`다.
 - 코드·테스트·문서 commit `1e5cb91`을 비공개 `origin/fix/usb-recording`에 push했다. 작업 중 원본 영상·관절 방송은 Git에 넣지 않았다.
+
+## P1·P6 사용자 텔레옵 중 접촉 저장
+
+- 사용자가 LeLab 텔레옵을 직접 시작했다. Mac 8030 캡처 앱의 `/api/status`는 정면·사선·관절 수신 오류가 없었고 LeLab `/teleoperation-status`는 active=true였다. Mac에서 SSH 공개키 인증은 실패했으므로 이번 세션에서는 Jetson canonical USB/serial 점유를 직접 재확인하지 못했다. 사용자가 이미 시작한 텔레옵에 대해 Mac은 `/move-arm` 또는 `/stop-teleoperation`을 호출하지 않았다.
+- 사용자가 표시한 플라스틱 끝의 P1 접촉·안정을 확인한 직후 `20261001T093659_729629Z_6e598848`로 저장했다. JPEG 2장·관절 방송 15개, 정면/사선의 마지막 관절 방송과 수신 시각 차이 6.3/7.6 ms, 최대 관절 표준편차 0 rad다.
+- 사용자가 같은 끝의 P6 접촉·안정을 확인한 직후 `20261001T094015_352394Z_957ff8ca`로 저장했다. JPEG 2장·관절 방송 15개, 수신 시각 차이 7.4/0.1 ms, 최대 관절 표준편차 0 rad다. JPEG 4장 모두 파일 SHA-256과 각 metadata 기록이 일치했다.
+- 정면·사선 저장 영상에서 각 X 주변에 그리퍼 손끝은 보인다. 그러나 640×480 해상도와 손끝 가림 때문에 동일한 단일 플라스틱 끝의 정확한 접촉은 영상만으로 `NOT_VERIFIED`다. Mac 수신 시각은 카메라 센서 노출 동기화가 아니다. 원본 이미지·관절값은 Git-ignore `.local/teach-captures/`에만 유지한다.
+- 사용자가 텔레옵 종료를 보고한 뒤 LeLab health 정상, teleoperation·recording·inference active=false를 각각 확인했다. recording 내부 `current_phase=preparing`, `session_ended=false`와 follower torque register는 `NOT_VERIFIED`다.
+- 새 robot-world fit/holdout, 자동 이동, 약통 취급은 `NOT_RUN`이다. 두 metadata의 `use_for_robot_world_fit=false`, `robot_enabled=false`, `motion_authorized=false`를 유지한다. 기존 거부된 변환을 사용하지 않는다.

@@ -2,6 +2,14 @@
 
 업데이트: 2026-10-01
 
+## 2026-10-01 P1·P6 웹 접촉 증거 저장
+
+- `PASS (user-operated teleoperation / evidence save)`: 사용자가 기존 LeLab 텔레옵을 직접 시작·종료했다. Mac `127.0.0.1:8030`은 정면 Astra와 사선 RealSense 프레임 및 관절 방송을 정상 수신했다. 사용자 현장 접촉·정지 확인 직후 P1과 P6을 각각 한 번 저장했다. 이 작업에서 Mac 캡처 앱은 로봇 제어 API를 호출하지 않았다.
+- `PASS (local integrity)`: 두 지점 각각 JPEG 2장과 관절 방송 15개를 Git-ignore `.local/teach-captures/`에 저장했고, JPEG 4장의 SHA-256이 metadata와 일치한다. 수신 시각 기준 영상·마지막 관절 방송 차이는 P1 정면/사선 6.3/7.6 ms, P6 7.4/0.1 ms이며 최대 관절 표준편차는 두 지점 모두 0 rad였다. 이는 센서 노출 시각 동기화 증거는 아니다.
+- `PARTIAL (visual QA)`: 두 영상에서 손끝이 각각 지정 X 주변에 있지만 640×480 영상으로 동일한 플라스틱 끝의 정확한 단일점 접촉을 확정할 수 없다. 사용자 확인은 metadata의 주장으로 유지하고 접촉 영상 QA는 `NOT_VERIFIED`다. 기존 robot-world fit은 계속 `REJECTED`이며 새 적합과 holdout 검증은 `NOT_RUN`, `robot_enabled=false`, `motion_authorized=false`다.
+- `PASS (safe post-check)`: 사용자 종료 보고 뒤 LeLab health 정상, teleoperation·recording·inference 모두 active=false였다. recording status에는 `current_phase=preparing`, `session_ended=false`가 남아 내부 세션 정리는 `NOT_VERIFIED`다. follower torque register는 `NOT_VERIFIED`다.
+- `NEXT`: 저장 증거와 기존 P2–P5의 동일 조건 여부를 검토하고, 필요한 경우 독립 접촉/holdout 계획을 세운다. 이번 두 점만으로 robot-world 변환을 승인하거나 실제 약통 이동을 하지 않는다.
+
 ## 2026-10-01 접촉 증거 웹 캡처 준비
 
 - `PASS (read-only web implementation)`: Mac loopback `127.0.0.1:8030`에 새 `scripts/teach_capture_web.py`를 구현했다. LeLab 8000의 정면 `/camera-preview/8`, 사선 `/camera-preview/4`, `/ws/joint-data`만 구독하며 로봇 제어·serial 접근 API가 없다. 프레임·관절 15개를 수신 시각 기준으로 묶되 센서 노출 시각 동기화는 `NOT_VERIFIED`다. 원본은 Git-ignore `.local/teach-captures/`에만 저장하고 metadata에 motion 차단 플래그를 기록한다.
