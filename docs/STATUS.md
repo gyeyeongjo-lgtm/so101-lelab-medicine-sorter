@@ -4,11 +4,15 @@
 
 ## 2026-10-01 P6 재측정 재개 사전 점검
 
+- `PASS (P6-only teleoperation / safe stop)`: 사용자가 남은 컵·분홍 조각 제거, 동일 표시 손가락의 노출 플라스틱 끝, 사람의 팔로워 범위 이탈·즉시 중단 준비·시작 자세 정렬, P6 1점 저속 텔레옵을 현재 시점에 확인·승인했다. 새 정면 프레임에 X 6개와 ID0–3이 보이고 두 serial 장치의 root `fuser` 점유 PID가 없었다. 저장된 leader ACM1/follower ACM0로 `/move-arm` 1회 HTTP 200을 받아 사용자 P6 안정 접촉 보고 후 `/ws/joint-data` 15개를 읽고 `/stop-teleoperation` HTTP 200으로 즉시 종료했다. 종료 후 health 정상, 세 작업 active=false. 토크 register와 접촉 순간의 영상 증거는 `NOT_VERIFIED`다.
+- `REJECTED (mixed-session P6 diagnostic)`: 새 P6 방송 15개의 관절별 표준편차는 0 rad였다. 이전 P1–P5·X 좌표와 결합한 보정 ArUco 기준의 *오프라인 진단*은 6점 RMSE 3.988 mm, 최대 5.907 mm이나 조건수 5555.7(허용 ≤1000)로 거부된다. P1–P5로만 적합한 변환의 독립 새 P6 holdout 오차는 9.932 mm(최대 허용 8 mm 초과)다. 접촉점의 영상 QA와 촬영일 간 X 위치 동일성도 검증되지 않았다. `robot_enabled=false`, `motion_authorized=false` 유지; 약통 이동 `NOT_RUN`이다. 원본 관절 방송과 임시 결과는 Git 제외 로컬 파일에만 보존한다.
+- `PARTIAL (follow-up scene)`: 사용자가 약통·바구니를 치운 뒤 새 Astra 정면 프레임에서 P6 포함 X 6개와 ID0–3이 다시 보였다. 다만 왼쪽에 흰 컵과 분홍 조각이 남아 있고 손가락 표식은 영상으로 식별되지 않는다. 사용자에게 두 물체 제거, 동일 손가락·노출된 플라스틱 끝 확인, 현재 현장 안전 및 P6 1점 승인을 요청했다. 답변 전 `/move-arm`은 `NOT_RUN`이다.
+- `PASS (read-only LeLab recheck)`: 8000 health 정상, teleoperation·recording·inference active=false. 저장된 `so-101` record는 leader ACM1/follower ACM0, 두 config `so-101.json`, camera index 8/4/6이며 오늘 확인한 canonical USB 역할과 일치한다.
 - `PASS (service-only recovery)`: Jetson `192.168.50.20`은 ping·SSH에 응답했으나 LeLab 8000은 inactive였다. 기존 `lelab.service`는 2026-09-30 22:20 KST에 `Result=success`, `ExecMainStatus=15`로 종료된 상태였다. 기존 설정을 바꾸지 않고 user service를 한 번 시작했으며 8000 health가 정상이다. 8002·8022와 복구된 8000의 teleoperation·recording·inference는 모두 inactive였다. follower torque register는 `NOT_VERIFIED`다.
 - `PASS (canonical USB metadata)`: Leader `5AE6085272`→`/dev/ttyACM1`, Follower `5AE6058306`→`/dev/ttyACM0`가 유지됐다. serial bus는 열지 않았다.
 - `BLOCKED (physical P6 scene)`: 새 천장 정면 프레임에 약통 3개와 바구니 3개가 다시 놓여 P6 X가 가려진다. 손목 프레임에는 두 그리퍼 안쪽이 보이지만 같은 표시 손가락의 표식·노출 플라스틱 접촉점은 확인되지 않는다. 정면 화면 왼쪽 작업대에는 분홍색 조각이 여전히 보인다. 2026-09-30의 빈 작업대 안전 확인을 현재 배치에 적용하지 않고 P6 텔레옵·joint sample 수집은 `NOT_RUN`이다.
 - `SAFETY`: `robot_enabled=false`, `motion_authorized=false`와 기존 robot-world fit `REJECTED`를 유지한다. 약통·바구니를 치워 P6과 ID0–3을 노출하고 표식/접촉점 및 현장 안전을 다시 확인하기 전 로봇을 움직이지 않는다.
-- `GIT`: 이번 사전 점검의 commit·push 결과는 작업 종료 시 별도로 검증한다. 상세 기록은 `docs/sessions/2026-10-01-p6-reteach-preflight.md`를 참조한다.
+- `PASS (prior preflight GitHub)`: 8000 복구와 안전 중단 기록을 commit `afeb6fc`로 비공개 `origin/fix/usb-recording`에 push했다. 이번 P6 재측정 결과의 commit·push는 종료 시 별도로 검증한다. 상세 기록은 `docs/sessions/2026-10-01-p6-reteach-preflight.md`를 참조한다.
 
 ## 2026-09-30 Jetson 재연결·현장 배치 재점검
 
