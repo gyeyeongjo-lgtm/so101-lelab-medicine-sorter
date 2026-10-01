@@ -11,7 +11,7 @@
 - `PASS (local integrity)`: 두 지점 각각 JPEG 2장과 관절 방송 15개를 Git-ignore `.local/teach-captures/`에 저장했고, JPEG 4장의 SHA-256이 metadata와 일치한다. 수신 시각 기준 영상·마지막 관절 방송 차이는 P1 정면/사선 6.3/7.6 ms, P6 7.4/0.1 ms이며 최대 관절 표준편차는 두 지점 모두 0 rad였다. 이는 센서 노출 시각 동기화 증거는 아니다.
 - `PARTIAL (visual QA)`: 두 영상에서 손끝이 각각 지정 X 주변에 있지만 640×480 영상으로 동일한 플라스틱 끝의 정확한 단일점 접촉을 확정할 수 없다. 사용자 확인은 metadata의 주장으로 유지하고 접촉 영상 QA는 `NOT_VERIFIED`다. 기존 robot-world fit은 계속 `REJECTED`이며 새 적합과 holdout 검증은 `NOT_RUN`, `robot_enabled=false`, `motion_authorized=false`다.
 - `PASS (safe post-check)`: 사용자 종료 보고 뒤 LeLab health 정상, teleoperation·recording·inference 모두 active=false였다. recording status에는 `current_phase=preparing`, `session_ended=false`가 남아 내부 세션 정리는 `NOT_VERIFIED`다. follower torque register는 `NOT_VERIFIED`다.
-- `NEXT (physical help required)`: P2–P5에는 이번과 같은 두 카메라 접촉 증거가 없어, 새 P1·P6만으로 다점 fit/holdout을 승인할 수 없다. 사용자가 현장 안전·별도 텔레옵 승인을 확인한 뒤 동일 프로토콜로 나머지 지점과 독립 holdout을 촬영한다. 이번 두 점만으로 robot-world 변환을 승인하거나 실제 약통 이동을 하지 않는다.
+- `DEFERRED_BY_USER (physical help required)`: P2–P5에는 이번과 같은 동시 접촉 증거가 없어, 새 P1·P6만으로 다점 fit/holdout을 승인할 수 없다. 사용자는 이번 P2–P5 텔레옵 진행을 원하지 않는다고 답했다. 새 모터 동작·캡처는 `NOT_RUN`이며 추후 현장 안전 확인과 별도 명시 승인 뒤에만 재개한다. 이번 두 점만으로 robot-world 변환을 승인하거나 실제 약통 이동을 하지 않는다.
 
 ## 2026-10-01 접촉 증거 웹 캡처 준비
 
