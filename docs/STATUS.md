@@ -2,6 +2,13 @@
 
 업데이트: 2026-10-02
 
+## 2026-10-02 고정 슬롯 waypoint 증거 수집 준비 — 로봇 미구동
+
+- `PASS (offline implementation)`: Mac 8030 캡처 코드에 P1–P6 접촉 자료와 분리된 4개 고정 슬롯 경유 자세 증거 저장 모드를 추가했다. 기존 LeLab 텔레옵을 사용자가 직접 켜고 안정된 관절 방송·정면/사선 영상을 확보한 경우에만 `.local/fixed-slot-waypoints/`에 기록한다. P1–P6 접촉 API/버튼은 기본 차단했다. `capture_kind=waypoint`, `use_for_replay=false`, `robot_enabled=false`, `motion_authorized=false`; 로봇 제어·재생 API는 추가하지 않았다. 설계/진입 게이트는 [고정 슬롯 waypoint](FIXED_SLOT_WAYPOINTS.md)에 있다.
+- `PASS (Mac 8030 live)`: LeLab의 teleoperation·recording·inference active=false와 Mac 8030 기존 PID·명령·작업 디렉터리를 확인한 뒤 그 Mac 서버만 SIGTERM 정상 종료하고 동일 포트에서 새 코드로 시작했다. 새 페이지의 waypoint 섹션·접촉 캡처 중지 문구를 HTTP로 확인했다. 정면/사선/손목 프레임 수신 오류 null, 관절 방송은 텔레옵 inactive라 stale/null이었다. 종료 후 LeLab 세 작업 active=false를 재확인했다. recording 내부 `current_phase=preparing`, `session_ended=false`는 그대로다.
+- `NOT_RUN`: Jetson/LeLab 변경, 실제 waypoint 텔레옵·캡처·경로 이동은 하지 않았다. 정지 자세 몇 개의 저장만으로 연결 경로의 충돌 안전이나 물체 집기를 증명하지 않는다. 새 현장 안전 확인·명시 승인 전까지 모션 차단 플래그 유지.
+- `TEST`: 캡처 웹 단위 테스트 11개와 기존 TCP/FK 테스트 9개, 총 20개 통과. 첫 sandbox 실행은 loopback bind 권한 부족으로 기존·신규 HTTP 테스트 각 1개가 실패했고, 네트워크 권한이 허용된 같은 코드 재실행에서 당시 10개 모두 통과했다. 이후 기본 접촉 차단 테스트를 추가해 최종 20개를 재실행·통과했다.
+
 ## 2026-10-02 오픈그리퍼 양손가락 동시 이동 정정
 
 - `PHOTO REVIEW (no motion)`: 사용자 측면·정면·후면 사진 3장에서 검은 패드가 달린 좌우 손가락은 각각 링크로 본체에 연결돼 있고, 그 뒤의 넓은 보라색 하우징은 손목에 부착된 비구동 기준 **후보**로 보인다. 사진만으로 하우징의 강성·URDF 프레임 대응을 실측 확인할 수 없고, 전방 X에 안전하게 접촉할 돌출 끝점은 확인되지 않는다. 손가락·카메라 렌즈·배선·나사를 새 접촉 기준점으로 임의 지정하지 않는다. 추가 P5 접촉 촬영은 중단한다. 고정 슬롯 시연용 사용자 teach 관절 waypoint 경로는 TCP/World→Base 적합과 별도인 설계 대안으로 검토하되 자동 재생·모션은 `NOT_RUN`이다.

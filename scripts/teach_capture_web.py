@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only, receive-time paired camera/joint capture for SO-101 touch QA.
+"""Read-only, receive-time paired camera/joint capture for SO-101 QA.
 
 This process never opens robot serial devices, starts teleoperation, or changes
 camera configuration. JPEGs and joint broadcasts are stored only under an
@@ -29,6 +29,8 @@ from urllib.parse import urlsplit
 
 JOINT_NAMES = ("Rotation", "Pitch", "Elbow", "Wrist_Pitch", "Wrist_Roll", "Jaw")
 POINT_NAMES = frozenset({"P1", "P2", "P3", "P4", "P5", "P6", "H1", "H2"})
+WAYPOINT_ORDER = ("PARK", "SOURCE1_HOVER", "TRANSFER_HOVER", "BASKET4_HOVER")
+WAYPOINT_NAMES = frozenset(WAYPOINT_ORDER)
 CAMERAS = {"ceiling": 8, "oblique": 4, "wrist": 6}
 REQUIRED_CAMERAS = frozenset({"ceiling", "oblique"})
 MAX_JPEG_BYTES = 2_000_000
@@ -161,9 +163,17 @@ class CaptureState:
             "synchronization": "receive-time approximation; not camera exposure synchronization",
         }
 
-    def select(self, point: str, now_ns: int | None = None) -> dict:
-        if not isinstance(point, str) or point not in POINT_NAMES:
-            raise ValueError("point must be P1–P6 or H1–H2")
+    def select(self, point: str, now_ns: int | None = None, *, capture_kind: str = "touch") -> dict:
+        if capture_kind == "touch":
+            allowed_names = POINT_NAMES
+            error_message = "point must be P1–P6 or H1–H2"
+        elif capture_kind == "waypoint":
+            allowed_names = WAYPOINT_NAMES
+            error_message = "waypoint must be one of the fixed-slot hover labels"
+        else:
+            raise ValueError("capture kind is invalid")
+        if not isinstance(point, str) or point not in allowed_names:
+            raise ValueError(error_message)
         now_ns = now_ns or time.monotonic_ns()
         with self.lock:
             recent = [joint for joint in self.joints if now_ns - joint.received_ns <= 1_500_000_000]
@@ -215,7 +225,9 @@ def lelab_teleop_active(base_url: str) -> bool:
     return result.get("teleoperation_active") is True
 
 
-def save_capture(root: Path, selected: dict) -> dict:
+def save_capture(root: Path, selected: dict, *, capture_kind: str = "touch") -> dict:
+    if capture_kind not in ("touch", "waypoint"):
+        raise ValueError("capture kind is invalid")
     stem = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S_%fZ") + "_" + uuid.uuid4().hex[:8]
     folder = root / stem
     folder.mkdir(parents=True, exist_ok=False)
@@ -230,6 +242,7 @@ def save_capture(root: Path, selected: dict) -> dict:
         }
     metadata = {
         "schema_version": 1,
+        "capture_kind": capture_kind,
         "point": selected["point"],
         "images": images,
         "joint_samples": [
@@ -241,14 +254,18 @@ def save_capture(root: Path, selected: dict) -> dict:
         "joint_max_std_rad": selected["joint_max_std_rad"],
         "frame_joint_receive_gap_ms": selected["frame_joint_receive_gap_ms"],
         "optional_camera_omitted": selected["optional_camera_omitted"],
-        "contact": "user asserted; visual review pending",
+        "contact": "user asserted; visual review pending" if capture_kind == "touch" else "not claimed",
+        "scene_confirmation": ("user asserted stationary and clear; visual review pending"
+                               if capture_kind == "waypoint" else "not applicable"),
         "synchronization": "server receive-time approximation; exposure timestamps unavailable",
         "use_for_robot_world_fit": False,
+        "use_for_replay": False,
         "robot_enabled": False,
         "motion_authorized": False,
     }
     (folder / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n")
-    return {"stem": stem, "point": selected["point"], "folder": str(folder),
+    return {"stem": stem, "point": selected["point"], "capture_kind": capture_kind,
+            "folder": str(folder), "use_for_replay": False,
             "frame_joint_receive_gap_ms": selected["frame_joint_receive_gap_ms"],
             "optional_camera_omitted": selected["optional_camera_omitted"],
             "joint_max_std_rad": selected["joint_max_std_rad"]}
@@ -257,13 +274,15 @@ def save_capture(root: Path, selected: dict) -> dict:
 PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>SO-101 접촉 증거 캡처</title>
 <style>body{margin:0;background:#101820;color:#eef5fb;font-family:system-ui,sans-serif}main{max-width:1300px;margin:auto;padding:20px}h1{margin:0 0 8px;font-size:24px}.warn{background:#4b2a20;padding:12px;border-radius:8px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(350px,1fr));gap:12px}figure{margin:0}img{width:100%;background:#000;aspect-ratio:4/3;object-fit:contain;border:1px solid #425466;border-radius:8px}figcaption{margin:8px 0}section{background:#1b2936;border-radius:8px;padding:16px;margin-top:16px}button,select{padding:10px;font-size:16px;border-radius:6px}button{background:#36b37e;color:#081b13;border:0;font-weight:700}button:disabled{opacity:.4}pre{white-space:pre-wrap}label{display:block;margin:12px 0}</style></head><body><main>
-<h1>SO-101 접촉 증거 캡처 · 읽기 전용</h1>
+<h1>SO-101 영상·관절 증거 캡처 · 로봇 제어 없음</h1>
 <p class="warn">로봇 시작·정지 기능은 없습니다. 현장 안전 확인과 별도 승인 후 기존 LeLab에서만 텔레옵을 조작하세요. 이 페이지의 사진·관절값은 검수 전 로봇 좌표에 사용하지 않습니다.</p>
 <div class="grid"><figure><figcaption>천장 정면 · 필수</figcaption><img id="ceiling" alt="ceiling"></figure><figure><figcaption>천장 사선 · 필수</figcaption><img id="oblique" alt="oblique"></figure><figure><figcaption>손목 · 보조</figcaption><img id="wrist" alt="wrist"></figure></div>
-<section><h2>접촉 시점 저장</h2><p>표시한 손가락의 단단한 끝이 X 중심에 가볍게 닿고 완전히 멈춘 뒤 선택하세요. 정면·사선 영상과 최근 관절 방송 15개를 반드시 저장하며, 손목 영상은 신선할 때만 함께 보존합니다.</p><label>지점 <select id="point"><option>P1</option><option>P2</option><option>P3</option><option>P4</option><option>P5</option><option>P6</option><option>H1</option><option>H2</option></select></label><label><input id="confirmed" type="checkbox"> 현장에서 같은 플라스틱 끝의 실제 접촉과 안정 상태를 확인했습니다</label><button id="capture" onclick="capturePoint()">영상 + 관절값 저장</button><pre id="result"></pre></section>
+<section><h2>과거 접촉 캡처 · 현재 중지</h2><p>병렬 그리퍼의 P5 반복 접촉 실험은 중단됐습니다. 다른 손가락이나 하우징으로 X에 다시 접촉하지 마세요. 이 모드는 기본적으로 서버에서도 차단됩니다.</p><label>지점 <select id="point"><option>P1</option><option>P2</option><option>P3</option><option>P4</option><option>P5</option><option>P6</option><option>H1</option><option>H2</option></select></label><label><input id="confirmed" type="checkbox"> 현장에서 같은 플라스틱 끝의 실제 접촉과 안정 상태를 확인했습니다</label><button id="capture" onclick="capturePoint()" disabled>접촉 캡처 중지</button><pre id="result"></pre></section>
+<section><h2>고정 슬롯 경유 자세 증거 · 재생 불가</h2><p>이 라벨은 이동 명령이나 안전 높이의 보증이 아닙니다. 별도 현장 안전 승인 후 사용자가 LeLab 텔레옵을 직접 켠 경우에만, 빈 약통 없이 정지한 자세를 저장합니다. 영상·관절값은 검수 전 재생에 사용할 수 없습니다.</p><label>자세 <select id="waypoint"><option>PARK</option><option>SOURCE1_HOVER</option><option>TRANSFER_HOVER</option><option>BASKET4_HOVER</option></select></label><label><input id="waypoint-scene" type="checkbox"> 현장에서 경로의 장애물·사람 위치와 즉시 중단 준비를 확인했습니다</label><label><input id="waypoint-stopped" type="checkbox"> 팔과 그리퍼가 완전히 멈췄습니다</label><button onclick="captureWaypoint()">경유 자세 증거 저장</button><pre id="waypoint-result"></pre></section>
 <section><h2>수신 상태</h2><pre id="status">연결 중…</pre></section></main><script>
 async function refresh(){for(const name of ['ceiling','oblique','wrist']){const image=document.getElementById(name);if(image.complete)image.src='/frame/'+name+'.jpg?t='+Date.now()}try{const r=await fetch('/api/status',{cache:'no-store'});document.getElementById('status').textContent=JSON.stringify(await r.json(),null,2)}catch(e){document.getElementById('status').textContent=String(e)}}
 async function capturePoint(){const result=document.getElementById('result');if(!document.getElementById('confirmed').checked){result.textContent='현장 접촉 확인 체크가 필요합니다.';return}result.textContent='동시 자료 확인 중…';try{const r=await fetch('/api/capture',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({point:document.getElementById('point').value,contact_confirmed:true})});const d=await r.json();result.textContent=JSON.stringify(d,null,2)}catch(e){result.textContent=String(e)}}
+async function captureWaypoint(){const result=document.getElementById('waypoint-result');if(!document.getElementById('waypoint-scene').checked||!document.getElementById('waypoint-stopped').checked){result.textContent='현장 안전·완전 정지 확인이 필요합니다.';return}result.textContent='관절·영상 자료 확인 중…';try{const r=await fetch('/api/waypoint-capture',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({waypoint:document.getElementById('waypoint').value,scene_confirmed:true,stopped_confirmed:true})});const d=await r.json();result.textContent=JSON.stringify(d,null,2)}catch(e){result.textContent=String(e)}}
 refresh();setInterval(refresh,250);
 </script></body></html>""".encode("utf-8")
 
@@ -272,11 +291,14 @@ class CaptureServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, address, state: CaptureState, output_root: Path, lelab_url: str):
+    def __init__(self, address, state: CaptureState, output_root: Path, lelab_url: str,
+                 waypoint_root: Path | None = None, *, allow_touch_capture: bool = False):
         super().__init__(address, CaptureHandler)
         self.state = state
         self.output_root = output_root
+        self.waypoint_root = waypoint_root or output_root.parent / "fixed-slot-waypoints"
         self.lelab_url = lelab_url
+        self.allow_touch_capture = allow_touch_capture
 
 
 class CaptureHandler(BaseHTTPRequestHandler):
@@ -312,7 +334,8 @@ class CaptureHandler(BaseHTTPRequestHandler):
             self.send_error(HTTPStatus.NOT_FOUND)
 
     def do_POST(self) -> None:
-        if urlsplit(self.path).path != "/api/capture":
+        path = urlsplit(self.path).path
+        if path not in ("/api/capture", "/api/waypoint-capture"):
             self.send_error(HTTPStatus.NOT_FOUND)
             return
         try:
@@ -322,12 +345,26 @@ class CaptureHandler(BaseHTTPRequestHandler):
             if not 0 < length <= 1024:
                 raise ValueError("request body size is invalid")
             payload = json.loads(self.rfile.read(length))
-            if not isinstance(payload, dict) or payload.get("contact_confirmed") is not True:
-                raise ValueError("user contact confirmation is required")
+            if not isinstance(payload, dict):
+                raise ValueError("JSON object is required")
+            if path == "/api/capture":
+                if not self.server.allow_touch_capture:
+                    raise ValueError("touch capture is paused")
+                if payload.get("contact_confirmed") is not True:
+                    raise ValueError("user contact confirmation is required")
+                selected_label = payload.get("point")
+                capture_kind = "touch"
+                root = self.server.output_root
+            else:
+                if payload.get("scene_confirmed") is not True or payload.get("stopped_confirmed") is not True:
+                    raise ValueError("user scene and stationary confirmations are required")
+                selected_label = payload.get("waypoint")
+                capture_kind = "waypoint"
+                root = self.server.waypoint_root
             if not lelab_teleop_active(self.server.lelab_url):
                 raise ValueError("LeLab teleoperation is not active; capture refused")
-            selected = self.server.state.select(payload.get("point"))
-            self.send_json(save_capture(self.server.output_root, selected))
+            selected = self.server.state.select(selected_label, capture_kind=capture_kind)
+            self.send_json(save_capture(root, selected, capture_kind=capture_kind))
         except (ValueError, OSError, urllib.error.URLError, json.JSONDecodeError) as error:
             self.send_json({"error": str(error)}, HTTPStatus.BAD_REQUEST)
 
@@ -380,6 +417,10 @@ def main() -> int:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8030)
     parser.add_argument("--output-root", type=Path, default=Path(".local/teach-captures"))
+    parser.add_argument("--waypoint-output-root", type=Path,
+                        default=Path(".local/fixed-slot-waypoints"))
+    parser.add_argument("--allow-touch-capture", action="store_true",
+                        help="legacy contact API only; requires a separate approved experiment")
     args = parser.parse_args()
     if args.host not in ("127.0.0.1", "::1"):
         parser.error("camera/joint evidence page must bind to loopback only")
@@ -399,7 +440,8 @@ def main() -> int:
         for name in CAMERAS
     ]
     workers.append(threading.Thread(target=joint_worker, args=(state, args.lelab_url, stop), daemon=True))
-    server = CaptureServer((args.host, args.port), state, args.output_root, args.lelab_url)
+    server = CaptureServer((args.host, args.port), state, args.output_root, args.lelab_url,
+                           args.waypoint_output_root, allow_touch_capture=args.allow_touch_capture)
     for worker in workers:
         worker.start()
     try:

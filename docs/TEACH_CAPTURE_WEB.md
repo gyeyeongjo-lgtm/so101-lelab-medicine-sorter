@@ -1,5 +1,7 @@
 # 접촉 증거 캡처 페이지 (로봇 제어 없음)
 
+> 2026-10-02 갱신: 아래 P1–P6 접촉 실험 절차는 과거 기록이며, 병렬 그리퍼 양손가락 동시 이동과 P5 검증 실패 후 **추가 반복 촬영을 중지**했다. 고정 슬롯 연구 시연의 별도 무구동 waypoint 증거 수집 설계는 [FIXED_SLOT_WAYPOINTS.md](FIXED_SLOT_WAYPOINTS.md)를 따른다. 기존 접촉 자료를 waypoint로 재라벨링하거나 자동 재생하지 않는다.
+
 ## 목적과 경계
 
 `scripts/teach_capture_web.py`는 Mac에서 LeLab 8000의 기존 정면 Astra `/camera-preview/8`, 사선 RealSense `/camera-preview/4`, 손목 카메라 `/camera-preview/6`, `/ws/joint-data` 방송만 구독한다. 정면·사선은 저장 필수이고 손목 영상은 신선할 때만 함께 저장하는 보조 증거다. 로봇 serial, `/joint-positions`, 텔레옵 시작·정지, 토크, 캘리브레이션, USB 설정을 건드리지 않는다. 기존 8010 카메라 서버는 실제 장치를 직접 열어 Astra bridge/LeLab과 충돌할 수 있으므로 이 절차에 사용하지 않는다.

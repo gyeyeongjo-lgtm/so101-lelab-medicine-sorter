@@ -12,6 +12,7 @@ from scripts.teach_capture_web import (
     CaptureServer,
     CaptureState,
     JOINT_NAMES,
+    WAYPOINT_NAMES,
     iter_jpegs,
     save_capture,
 )
@@ -54,6 +55,8 @@ class TeachCaptureTests(unittest.TestCase):
             self.assertFalse(metadata["robot_enabled"])
             self.assertFalse(metadata["motion_authorized"])
             self.assertFalse(metadata["use_for_robot_world_fit"])
+            self.assertFalse(metadata["use_for_replay"])
+            self.assertEqual(metadata["capture_kind"], "touch")
             self.assertEqual(len(metadata["joint_samples"]), 15)
             self.assertTrue((folder / "ceiling.jpg").is_file())
             self.assertTrue((folder / "oblique.jpg").is_file())
@@ -80,6 +83,62 @@ class TeachCaptureTests(unittest.TestCase):
         self.assertEqual(set(selected["frames"]), {"ceiling", "oblique"})
         self.assertEqual(selected["optional_camera_omitted"], ["wrist"])
 
+    def test_fixed_slot_waypoint_is_separate_and_never_replay_authorized(self):
+        state, now = ready_state()
+        self.assertEqual(WAYPOINT_NAMES,
+                         {"PARK", "SOURCE1_HOVER", "TRANSFER_HOVER", "BASKET4_HOVER"})
+        selected = state.select("SOURCE1_HOVER", now_ns=now, capture_kind="waypoint")
+        with self.assertRaisesRegex(ValueError, "waypoint must"):
+            state.select("P5", now_ns=now, capture_kind="waypoint")
+        with self.assertRaisesRegex(ValueError, "point must"):
+            state.select("SOURCE1_HOVER", now_ns=now)
+        with tempfile.TemporaryDirectory() as temporary:
+            saved = save_capture(Path(temporary), selected, capture_kind="waypoint")
+            metadata = json.loads((Path(saved["folder"]) / "metadata.json").read_text())
+            self.assertEqual(metadata["capture_kind"], "waypoint")
+            self.assertEqual(metadata["point"], "SOURCE1_HOVER")
+            self.assertEqual(metadata["contact"], "not claimed")
+            self.assertFalse(metadata["use_for_replay"])
+            self.assertFalse(metadata["robot_enabled"])
+            self.assertFalse(metadata["motion_authorized"])
+
+    def test_waypoint_http_requires_teleop_and_two_user_confirmations(self):
+        state, _ = ready_state()
+        with tempfile.TemporaryDirectory() as temporary:
+            touch_root = Path(temporary) / "touch"
+            waypoint_root = Path(temporary) / "waypoints"
+            server = CaptureServer(("127.0.0.1", 0), state, touch_root,
+                                   "http://invalid.local", waypoint_root)
+            worker = threading.Thread(target=server.serve_forever, daemon=True)
+            worker.start()
+            try:
+                url = f"http://127.0.0.1:{server.server_port}/api/waypoint-capture"
+
+                def request(payload):
+                    return urllib.request.Request(url, data=json.dumps(payload).encode(),
+                                                  headers={"Content-Type": "application/json"})
+
+                valid = {"waypoint": "SOURCE1_HOVER", "scene_confirmed": True,
+                         "stopped_confirmed": True}
+                with patch("scripts.teach_capture_web.lelab_teleop_active", return_value=False):
+                    with self.assertRaises(urllib.error.HTTPError) as error:
+                        urllib.request.urlopen(request(valid), timeout=2)
+                    self.assertEqual(error.exception.code, 400)
+                with patch("scripts.teach_capture_web.lelab_teleop_active", return_value=True):
+                    with self.assertRaises(urllib.error.HTTPError) as error:
+                        urllib.request.urlopen(request({**valid, "scene_confirmed": False}), timeout=2)
+                    self.assertEqual(error.exception.code, 400)
+                    with urllib.request.urlopen(request(valid), timeout=2) as response:
+                        saved = json.load(response)
+                self.assertEqual(saved["capture_kind"], "waypoint")
+                self.assertFalse(saved["use_for_replay"])
+                self.assertTrue((Path(saved["folder"]) / "metadata.json").is_file())
+                self.assertFalse(touch_root.exists())
+            finally:
+                server.shutdown()
+                server.server_close()
+                worker.join(timeout=2)
+
     def test_status_shows_only_fresh_read_only_jaw_broadcast(self):
         state, now = ready_state()
         self.assertAlmostEqual(state.status(now)["joint_jaw_rad"], 0.5)
@@ -102,7 +161,8 @@ class TeachCaptureTests(unittest.TestCase):
     def test_http_capture_refuses_inactive_teleoperation(self):
         state, _ = ready_state()
         with tempfile.TemporaryDirectory() as temporary:
-            server = CaptureServer(("127.0.0.1", 0), state, Path(temporary), "http://invalid.local")
+            server = CaptureServer(("127.0.0.1", 0), state, Path(temporary),
+                                   "http://invalid.local", allow_touch_capture=True)
             worker = threading.Thread(target=server.serve_forever, daemon=True)
             worker.start()
             try:
@@ -120,6 +180,28 @@ class TeachCaptureTests(unittest.TestCase):
                         saved = json.load(response)
                 self.assertEqual(saved["point"], "P6")
                 self.assertTrue((Path(saved["folder"]) / "metadata.json").is_file())
+            finally:
+                server.shutdown()
+                server.server_close()
+                worker.join(timeout=2)
+
+    def test_legacy_touch_capture_is_blocked_by_default(self):
+        state, _ = ready_state()
+        with tempfile.TemporaryDirectory() as temporary:
+            server = CaptureServer(("127.0.0.1", 0), state, Path(temporary), "http://invalid.local")
+            worker = threading.Thread(target=server.serve_forever, daemon=True)
+            worker.start()
+            try:
+                url = f"http://127.0.0.1:{server.server_port}/api/capture"
+                payload = json.dumps({"point": "P5", "contact_confirmed": True}).encode()
+                request = urllib.request.Request(url, data=payload,
+                                                 headers={"Content-Type": "application/json"})
+                with patch("scripts.teach_capture_web.lelab_teleop_active", return_value=True):
+                    with self.assertRaises(urllib.error.HTTPError) as error:
+                        urllib.request.urlopen(request, timeout=2)
+                self.assertEqual(error.exception.code, 400)
+                self.assertIn(b"touch capture is paused", error.exception.read())
+                self.assertEqual(list(Path(temporary).iterdir()), [])
             finally:
                 server.shutdown()
                 server.server_close()
