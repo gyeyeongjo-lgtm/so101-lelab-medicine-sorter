@@ -3,8 +3,9 @@
 
 Fit the first N-1 captures of one physical X, reserving the last capture as an
 independent posture holdout. All captures must use the same rigid fingertip.
-The selected link must be the fixed finger (gripper) or moving finger (jaw);
-that physical mapping and contact still require human review.
+The selected link is a URDF gripper or jaw frame, not a proven physical
+fingertip. On the user's parallel gripper both fingers move; neither link may
+be assumed to represent a rigid fingertip without physical validation.
 """
 
 from __future__ import annotations
@@ -149,6 +150,7 @@ def fit_fixed_point(
         "rejection_reasons": reasons,
         "contact_visual_qa": "NOT_VERIFIED",
         "physical_finger_link_validation": "NOT_VERIFIED",
+        "physical_contact_model": "URDF link frame is not a verified rigid fingertip; both physical fingers may move",
         "use_for_robot_world_fit": False,
         "robot_enabled": False,
         "motion_authorized": False,
@@ -160,7 +162,7 @@ def main() -> int:
     parser.add_argument("--urdf", required=True, type=Path)
     parser.add_argument("--expected-urdf-sha256", required=True)
     parser.add_argument("--tip-link", required=True, choices=("gripper", "jaw"),
-                        help="gripper=fixed finger; jaw=moving finger")
+                        help="URDF link frame only; neither choice proves a fixed physical finger")
     parser.add_argument("--captures", required=True, nargs="+", type=Path,
                         help="ordered capture folders; last is the holdout")
     args = parser.parse_args()

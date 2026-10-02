@@ -31,6 +31,8 @@ class FixedPointTcpTests(unittest.TestCase):
         self.assertAlmostEqual(result["holdout_error_mm"], 0.0, places=8)
         self.assertFalse(result["robot_enabled"])
         self.assertFalse(result["motion_authorized"])
+        self.assertEqual(result["physical_finger_link_validation"], "NOT_VERIFIED")
+        self.assertIn("not a verified rigid fingertip", result["physical_contact_model"])
 
     def test_jaw_change_is_reported_but_link_fk_must_model_it(self):
         result = fit_fixed_point(samples(holdout_jaw=0.05))
