@@ -80,6 +80,7 @@ def fit_fixed_point(
     max_error_mm: float = 8.0,
     max_condition_number: float = 1000.0,
     max_tcp_offset_mm: float = 200.0,
+    min_holdout_rotation_deg: float = 10.0,
 ) -> dict:
     if len(captures) < 5:
         raise ValueError("at least four fit postures and one holdout are required")
@@ -104,6 +105,14 @@ def fit_fixed_point(
     fit_jaws = [capture["jaw_rad"] for capture in fit]
     fit_jaw_span = max(fit_jaws) - min(fit_jaws)
     holdout_jaw_delta = abs(holdout["jaw_rad"] - float(np.mean(fit_jaws)))
+    holdout_rotation_angles = [
+        math.degrees(math.acos(float(np.clip(
+            (np.trace(capture["rotation"].T @ holdout["rotation"]) - 1.0) / 2.0,
+            -1.0, 1.0,
+        ))))
+        for capture in fit
+    ]
+    holdout_min_rotation = min(holdout_rotation_angles)
     reasons = []
     if rank < 6:
         reasons.append("pivot_rank_below_6")
@@ -117,6 +126,8 @@ def fit_fixed_point(
         reasons.append("holdout_error_above_limit")
     if float(np.linalg.norm(tip)) > max_tcp_offset_mm:
         reasons.append("tcp_offset_above_limit")
+    if holdout_min_rotation < min_holdout_rotation_deg:
+        reasons.append("holdout_orientation_too_close_to_fit")
     return {
         "status": "REJECTED_DIAGNOSTIC" if reasons else "NUMERIC_PASS_PHYSICAL_QA_PENDING",
         "point": fit[0]["point"],
@@ -129,6 +140,9 @@ def fit_fixed_point(
         "holdout_error_mm": errors[-1],
         "fit_jaw_span_rad": fit_jaw_span,
         "holdout_jaw_delta_rad": holdout_jaw_delta,
+        "holdout_rotation_from_fit_deg": holdout_rotation_angles,
+        "holdout_min_rotation_deg": holdout_min_rotation,
+        "minimum_required_holdout_rotation_deg": min_holdout_rotation_deg,
         "tcp_offset_link_mm": tip.tolist(),
         "tcp_offset_norm_mm": float(np.linalg.norm(tip)),
         "fixed_contact_base_mm": fixed_point.tolist(),

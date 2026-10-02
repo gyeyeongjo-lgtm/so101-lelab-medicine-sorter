@@ -41,6 +41,14 @@ class FixedPointTcpTests(unittest.TestCase):
         result = fit_fixed_point(samples(holdout_shift=[12, 0, 0]))
         self.assertIn("holdout_error_above_limit", result["rejection_reasons"])
 
+    def test_near_duplicate_holdout_is_rejected_even_with_zero_error(self):
+        data = samples()
+        data[-1]["rotation"] = data[0]["rotation"].copy()
+        data[-1]["origin_mm"] = data[0]["origin_mm"].copy()
+        result = fit_fixed_point(data)
+        self.assertAlmostEqual(result["holdout_error_mm"], 0.0, places=8)
+        self.assertIn("holdout_orientation_too_close_to_fit", result["rejection_reasons"])
+
     def test_identical_orientations_are_unobservable(self):
         data = samples()
         for sample in data:
