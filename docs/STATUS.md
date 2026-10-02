@@ -4,6 +4,7 @@
 
 ## 2026-10-02 오픈그리퍼 양손가락 동시 이동 정정
 
+- `PHOTO REVIEW (no motion)`: 사용자 측면·정면·후면 사진 3장에서 검은 패드가 달린 좌우 손가락은 각각 링크로 본체에 연결돼 있고, 그 뒤의 넓은 보라색 하우징은 손목에 부착된 비구동 기준 **후보**로 보인다. 사진만으로 하우징의 강성·URDF 프레임 대응을 실측 확인할 수 없고, 전방 X에 안전하게 접촉할 돌출 끝점은 확인되지 않는다. 손가락·카메라 렌즈·배선·나사를 새 접촉 기준점으로 임의 지정하지 않는다. 추가 P5 접촉 촬영은 중단한다. 고정 슬롯 시연용 사용자 teach 관절 waypoint 경로는 TCP/World→Base 적합과 별도인 설계 대안으로 검토하되 자동 재생·모션은 `NOT_RUN`이다.
 - `CORRECTION (physical mechanism)`: 사용자는 오픈그리퍼의 두 손가락이 함께 움직이며 기존 촬영에서는 벌림을 최대한 유지했다고 설명했다. 앞서 “표시 반대편은 고정 손가락이므로 그 끝을 새 TCP로 사용”하라고 안내한 가정은 잘못됐다. 그 제안은 철회하고, 양손가락 어느 쪽도 실제로 고정된 접촉점이라고 가정하지 않는다. 기존 P5 수치는 URDF `jaw` 링크 기반 **오프라인 진단**일 뿐 실제 손끝 FK 검증이 아니다. 새 `gripper` 링크 재촬영·자동 모션은 `NOT_RUN`; 기존 모든 motion 차단 플래그 유지.
 - `NEXT (no motion)`: 추가 P5 반복 촬영을 멈춘다. 다음은 별도 현장 승인 전에 손가락 구동부가 아닌 **비구동·강체 기준점**을 안전하게 정의할 수 있는지 또는 영상 기반 hand-eye 보정으로 전환할지 읽기 전용 설계 검토다. 임의 포인터를 붙이거나 로봇을 움직이지 않는다. `scripts/fit_fixed_point_tcp.py`의 CLI/출력도 `gripper=고정 손가락`이라는 잘못된 물리 매핑을 제거했다.
 - `BLOCKED (wrist hand-eye feasibility)`: 기존 로컬 손목 JPEG 25장을 DICT_4X4_50으로 재검사했으나 25장 모두 ArUco 검출 0개였다. 저장소·로컬 캡처 범위에서 손목 카메라 intrinsic 보정값도 확인하지 못했다. 프로젝트 `.venv`의 OpenCV 5.0.0에는 `calibrateHandEye`/`calibrateRobotWorldHandEye`가 없다. 기존 자료만으로 hand-eye를 완료할 수 없고, 손목 마커 가시성·intrinsic·지원 런타임을 별도로 준비해야 한다. 또한 hand-eye는 손목 카메라 외부 파라미터를 주는 과정이지 양손가락의 접촉 TCP를 자동 검증하지 않는다. 로봇 동작 없이 수행한 예비 검토이며 TCP/World→Base `REJECTED`, `robot_enabled=false`, `motion_authorized=false` 유지.
