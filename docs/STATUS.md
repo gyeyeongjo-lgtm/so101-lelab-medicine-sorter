@@ -2,6 +2,15 @@
 
 업데이트: 2026-10-02
 
+## 2026-10-02 P5 단일점 다자세 TCP 진단 — 거부
+
+- `PASS (user-operated teleoperation / safe stop)`: 사용자가 약통·바구니를 치운 뒤 정면 화면의 X 6개·ID0–3, 표시한 플라스틱 손끝, 사람의 범위 이탈·즉시 중단 준비, 시작 자세를 확인하고 P5 다자세 텔레옵을 승인·직접 시작했다. 8000의 다른 제어 작업 inactive, canonical leader ACM1/follower ACM0, 두 serial의 유일한 점유자 LeLab worker, Mac 8030 세 영상·관절 수신 정상 확인 후 진행했다. 사용자가 직접 종료했고 8000 health 정상, teleoperation/recording/inference 모두 inactive를 재확인했다. Mac은 모터·토크·serial 제어 API를 호출하지 않았다.
+- `PASS (local evidence)`: 같은 P5 X에 대해 다른 손목 자세 5개를 순서대로 확인·저장했다. 매 자세 정면/사선/손목 JPEG 3장과 관절 방송 15개, 총 JPEG 15장·관절 방송 75개다. 모든 JPEG SHA-256이 metadata와 일치하고, 최대 영상–관절 수신 시각 차이 25.2 ms, 최대 관절 표준편차 0.00397 rad였다. 원본은 Git-ignore `.local/teach-captures/`에만 보존했다. 영상에서 손끝은 P5 부근이나 실제 한 플라스틱 끝의 접촉 높이·점은 영상만으로 `NOT_VERIFIED`다.
+- `CORRECTION (finger link)`: 사용자에 따르면 표시한 손가락은 움직이는 쪽이다. 따라서 `base→gripper`가 아니라 `base→jaw` FK를 써야 한다. 초기 gripper-link 가정에서 Jaw 변화가 고정 손끝을 깬다고 본 설명은 철회했다. URDF의 `Jaw`는 `gripper→jaw` 관절이며 관절값을 포함해 다시 계산했다.
+- `REJECTED (offline pivot)`: 자세 1–4를 적합하고 자세 5를 독립 holdout으로 남긴 jaw-link 진단은 rank 6, 조건수 23.11, fit RMSE 4.310 mm, 최대 fit 6.576 mm였다. holdout 오차 9.537 mm는 허용 8 mm를 넘어 거부된다. 자세 5 Jaw는 0.05875 rad로 fit 네 자세 평균과 0.02617 rad 달랐지만, 움직이는 jaw 링크 FK에서는 변화 자체가 자동 거부 사유는 아니다. 물리 jaw 기구학·단일 끝점 접촉도 `NOT_VERIFIED`다. 기존 robot-world 변환 `REJECTED`, `use_for_robot_world_fit=false`, `robot_enabled=false`, `motion_authorized=false`; 약통 이동 `NOT_RUN` 유지.
+- `PASS (tooling)`: 원본을 수정하지 않는 `scripts/fit_fixed_point_tcp.py`와 5개 단위 테스트를 추가했다. 설치 URDF SHA-256을 강제하고, 캡처 JPEG hash·관절 안정성·수신 시각·motion 차단 플래그를 확인하며 마지막 자세를 holdout으로 쓴다. 관련 fit 테스트 16개가 통과했다. 숫자 기준을 통과해도 물리 QA 전 모션을 허가하지 않는다.
+- 세부 기록: `docs/sessions/2026-10-02-tcp-preflight.md`. 다음 현장 선택은 같은 손가락·P5에서 **새로운 검증용 자세 1개**를 Jaw 벌림을 처음 4개와 비슷하게 유지해 재촬영하는 것이다. 새 모터 동작은 현장 안전 재확인·별도 승인 전 `NOT_RUN`.
+
 ## 2026-10-02 TCP 단일점 재실험 사전 점검
 
 - `PASS (read-only/recovery)`: Jetson `192.168.50.20` SSH 접속을 확인했다. 기존 `lelab.service` 8000은 inactive였고, canonical leader `5AE6085272`→`/dev/ttyACM1`, follower `5AE6058306`→`/dev/ttyACM0`였다. root `fuser`에서 두 serial 포트 점유자는 없었고, 8002·8022의 teleoperation/recording/inference는 모두 inactive였다. 기존 설정을 변경하지 않고 8000 user service만 시작했으며 health 정상, 세 제어 작업 inactive를 확인했다.

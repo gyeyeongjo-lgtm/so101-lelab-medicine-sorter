@@ -33,4 +33,6 @@ python3 scripts/teach_capture_web.py --lelab-url http://192.168.50.20:8000 --hos
 3. 영상에서 같은 끝점의 접촉을 한 건씩 검수하고, 사용하지 않은 별도 자세를 holdout으로 남긴다. 고정점의 로봇-base 좌표와 손끝의 gripper-link 오프셋을 먼저 오프라인으로 추정해 holdout 오차를 확인한다. 이 단계는 카메라 World 좌표나 약통 이동을 요구하지 않는다. 검수 불가·자세 다양성 부족·holdout 실패라면 결과를 거부한다.
 4. 고정 손끝점이 독립 검증된 뒤에만 그 오프셋을 고정해 작업대 World→Robot Base를 다시 적합한다. 이때 보정된 ArUco **마커 중심** 좌표와 새로운 접촉 증거를 사용하고, 적합에 쓰지 않은 X로 독립 검증한다. 위치 잔차만 낮다고 승인하지 않으며 조건수와 holdout도 검사한다. 그 전에는 `use_for_robot_world_fit=false`, `robot_enabled=false`, `motion_authorized=false`를 유지한다.
 
+2026-10-02에 사용자 텔레옵으로 P5 다자세 5개를 저장했다. 표시한 손가락은 **움직이는 쪽**이므로 URDF의 `base→jaw`를 사용한다(`base→gripper`가 아님). `scripts/fit_fixed_point_tcp.py`는 설치 URDF SHA-256, 원본 이미지 무결성, 네 자세 적합과 마지막 독립 자세의 오차를 오프라인으로 확인한다. 현재 holdout 9.537 mm > 8 mm라 거부되며 단일 손끝 접촉의 영상 QA도 미완료다. 첫 네 자세와 비슷한 그리퍼 벌림을 유지한 새 holdout 1개가 다음 비교군이다. 해당 재촬영에는 새 현장 안전 확인과 명시 승인이 필요하다.
+
 이는 다음 현장 실험 설계이며 자동 텔레옵 명령이 아니다. LeLab 시작 API에는 속도 제한 인자가 없으므로 사용자가 직접 리더를 천천히 움직이고 즉시 중단할 준비를 해야 한다.
