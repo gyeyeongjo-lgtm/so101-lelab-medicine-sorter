@@ -1,6 +1,13 @@
 # 현재 상태
 
-업데이트: 2026-10-01
+업데이트: 2026-10-02
+
+## 2026-10-02 TCP 단일점 재실험 사전 점검
+
+- `PASS (read-only/recovery)`: Jetson `192.168.50.20` SSH 접속을 확인했다. 기존 `lelab.service` 8000은 inactive였고, canonical leader `5AE6085272`→`/dev/ttyACM1`, follower `5AE6058306`→`/dev/ttyACM0`였다. root `fuser`에서 두 serial 포트 점유자는 없었고, 8002·8022의 teleoperation/recording/inference는 모두 inactive였다. 기존 설정을 변경하지 않고 8000 user service만 시작했으며 health 정상, 세 제어 작업 inactive를 확인했다.
+- `PASS (camera-only)`: 기존 Mac `127.0.0.1:8030` 캡처 페이지가 살아 있고 정면 Astra, 사선 RealSense, 손목 카메라의 프레임 수신 오류가 모두 null인 것을 확인했다. 관절값은 텔레옵 inactive라 새 방송이 없다. 로봇 제어·토크·USB 변경은 실행하지 않았다.
+- `BLOCKED (physical scene)`: 정면 화면에 약통 3개와 바구니 3개가 X 접촉 영역에 놓여 있다. 고정된 X 한 점에 같은 플라스틱 손끝을 다양한 손목 자세로 접촉하는 TCP 실험 전에 이 물체들을 작업 범위 밖으로 치우고, X·ID0–3 가시성 및 사람의 범위 이탈·즉시 중단 준비를 다시 확인해야 한다. 사용자의 일반 안전 보고만으로 이번 특정 모션을 시작하지 않았다. 텔레옵/접촉 저장 `NOT_RUN`, 기존 변환 `REJECTED`, `robot_enabled=false`, `motion_authorized=false` 유지.
+- 자세한 근거: `docs/sessions/2026-10-02-tcp-preflight.md`.
 
 ## 2026-10-01 P1 오지정 발견·재촬영·변환 재진단
 
