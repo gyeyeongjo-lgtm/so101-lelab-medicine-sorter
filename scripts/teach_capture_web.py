@@ -146,11 +146,16 @@ class CaptureState:
                 name: None if not frames else round((now_ns - frames[-1].received_ns) / 1e6, 1)
                 for name, frames in self.frames.items()
             }
-            joint_age = None if not self.joints else round((now_ns - self.joints[-1].received_ns) / 1e6, 1)
+            latest_joint = self.joints[-1] if self.joints else None
+            joint_age = None if latest_joint is None else round((now_ns - latest_joint.received_ns) / 1e6, 1)
+            jaw = (None if latest_joint is None or
+                   now_ns - latest_joint.received_ns > MAX_JOINT_AGE_NS
+                   else round(latest_joint.joints["Jaw"], 6))
             errors = dict(self.errors)
         return {
             "camera_age_ms": frame_ages,
             "joint_age_ms": joint_age,
+            "joint_jaw_rad": jaw,
             "errors": errors,
             "robot_control": False,
             "synchronization": "receive-time approximation; not camera exposure synchronization",

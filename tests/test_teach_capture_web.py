@@ -80,6 +80,11 @@ class TeachCaptureTests(unittest.TestCase):
         self.assertEqual(set(selected["frames"]), {"ceiling", "oblique"})
         self.assertEqual(selected["optional_camera_omitted"], ["wrist"])
 
+    def test_status_shows_only_fresh_read_only_jaw_broadcast(self):
+        state, now = ready_state()
+        self.assertAlmostEqual(state.status(now)["joint_jaw_rad"], 0.5)
+        self.assertIsNone(state.status(now + 600_000_000)["joint_jaw_rad"])
+
     def test_rejects_stale_or_moving_data(self):
         state, now = ready_state()
         with self.assertRaisesRegex(ValueError, "point must"):
