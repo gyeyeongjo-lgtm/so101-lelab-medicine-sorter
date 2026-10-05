@@ -1,5 +1,9 @@
 # 2026-10-05 고정 슬롯 waypoint 저장본 검수
 
+## 8030 라벨 보완 (후속)
+
+수동 투입 성공 뒤 낮은 놓기 자세와 상공 대기 자세를 구별하도록 Mac 캡처 UI·서버 허용 목록에 `BASKET4_RELEASE`를 추가했다. 이전 `BASKET4_HOVER` 원본은 수정하지 않았다. 적재·접촉은 라벨로 자동 증명되지 않으며 저장 자료는 계속 `use_for_replay=false`, `robot_enabled=false`, `motion_authorized=false`다. 로컬 HTTP 포함 단위 테스트 11개 통과. 8030 loopback은 현재 접속 거부여서 실행 서버 반영은 `NOT_VERIFIED`; 재시작·로봇 동작·자동 재생 `NOT_RUN`.
+
 사용자가 `BASKET4_HOVER` 여러 건을 저장했다고 보고했다. 로봇 제어 없이 `.local/fixed-slot-waypoints/`의 metadata와 정면·사선·손목 JPEG를 읽기 전용으로 확인했다.
 
 ## 저장본 및 검증

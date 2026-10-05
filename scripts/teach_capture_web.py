@@ -29,7 +29,7 @@ from urllib.parse import urlsplit
 
 JOINT_NAMES = ("Rotation", "Pitch", "Elbow", "Wrist_Pitch", "Wrist_Roll", "Jaw")
 POINT_NAMES = frozenset({"P1", "P2", "P3", "P4", "P5", "P6", "H1", "H2"})
-WAYPOINT_ORDER = ("PARK", "SOURCE1_HOVER", "TRANSFER_HOVER", "BASKET4_HOVER")
+WAYPOINT_ORDER = ("PARK", "SOURCE1_HOVER", "TRANSFER_HOVER", "BASKET4_HOVER", "BASKET4_RELEASE")
 WAYPOINT_NAMES = frozenset(WAYPOINT_ORDER)
 CAMERAS = {"ceiling": 8, "oblique": 4, "wrist": 6}
 REQUIRED_CAMERAS = frozenset({"ceiling", "oblique"})
@@ -169,7 +169,7 @@ class CaptureState:
             error_message = "point must be P1–P6 or H1–H2"
         elif capture_kind == "waypoint":
             allowed_names = WAYPOINT_NAMES
-            error_message = "waypoint must be one of the fixed-slot hover labels"
+            error_message = "waypoint must be one of the fixed-slot labels"
         else:
             raise ValueError("capture kind is invalid")
         if not isinstance(point, str) or point not in allowed_names:
@@ -278,7 +278,7 @@ PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <p class="warn">로봇 시작·정지 기능은 없습니다. 현장 안전 확인과 별도 승인 후 기존 LeLab에서만 텔레옵을 조작하세요. 이 페이지의 사진·관절값은 검수 전 로봇 좌표에 사용하지 않습니다.</p>
 <div class="grid"><figure><figcaption>천장 정면 · 필수</figcaption><img id="ceiling" alt="ceiling"></figure><figure><figcaption>천장 사선 · 필수</figcaption><img id="oblique" alt="oblique"></figure><figure><figcaption>손목 · 보조</figcaption><img id="wrist" alt="wrist"></figure></div>
 <section><h2>과거 접촉 캡처 · 현재 중지</h2><p>병렬 그리퍼의 P5 반복 접촉 실험은 중단됐습니다. 다른 손가락이나 하우징으로 X에 다시 접촉하지 마세요. 이 모드는 기본적으로 서버에서도 차단됩니다.</p><label>지점 <select id="point"><option>P1</option><option>P2</option><option>P3</option><option>P4</option><option>P5</option><option>P6</option><option>H1</option><option>H2</option></select></label><label><input id="confirmed" type="checkbox"> 현장에서 같은 플라스틱 끝의 실제 접촉과 안정 상태를 확인했습니다</label><button id="capture" onclick="capturePoint()" disabled>접촉 캡처 중지</button><pre id="result"></pre></section>
-<section><h2>고정 슬롯 경유 자세 증거 · 재생 불가</h2><p>이 라벨은 이동 명령이나 안전 높이의 보증이 아닙니다. 별도 현장 안전 승인 후 사용자가 LeLab 텔레옵을 직접 켠 경우에만, 빈 약통 없이 정지한 자세를 저장합니다. 영상·관절값은 검수 전 재생에 사용할 수 없습니다.</p><label>자세 <select id="waypoint"><option>PARK</option><option>SOURCE1_HOVER</option><option>TRANSFER_HOVER</option><option>BASKET4_HOVER</option></select></label><label><input id="waypoint-scene" type="checkbox"> 현장에서 경로의 장애물·사람 위치와 즉시 중단 준비를 확인했습니다</label><label><input id="waypoint-stopped" type="checkbox"> 팔과 그리퍼가 완전히 멈췄습니다</label><button onclick="captureWaypoint()">경유 자세 증거 저장</button><pre id="waypoint-result"></pre></section>
+<section><h2>고정 슬롯 경유 자세 증거 · 재생 불가</h2><p>이 라벨은 이동 명령이나 안전 높이의 보증이 아닙니다. 별도 현장 안전 승인 후 사용자가 LeLab 텔레옵을 직접 켠 경우에만 정지한 자세를 저장합니다. 약통 모형 유무와 접촉 여부는 캡처 파일에 자동 판정되지 않으므로 별도로 기록해야 합니다. 영상·관절값은 검수 전 재생에 사용할 수 없습니다.</p><label>자세 <select id="waypoint"><option>PARK</option><option>SOURCE1_HOVER</option><option>TRANSFER_HOVER</option><option>BASKET4_HOVER</option><option>BASKET4_RELEASE</option></select></label><label><input id="waypoint-scene" type="checkbox"> 현장에서 경로의 장애물·사람 위치와 즉시 중단 준비를 확인했습니다</label><label><input id="waypoint-stopped" type="checkbox"> 팔과 그리퍼가 완전히 멈췄습니다</label><button onclick="captureWaypoint()">경유 자세 증거 저장</button><pre id="waypoint-result"></pre></section>
 <section><h2>수신 상태</h2><pre id="status">연결 중…</pre></section></main><script>
 async function refresh(){for(const name of ['ceiling','oblique','wrist']){const image=document.getElementById(name);if(image.complete)image.src='/frame/'+name+'.jpg?t='+Date.now()}try{const r=await fetch('/api/status',{cache:'no-store'});document.getElementById('status').textContent=JSON.stringify(await r.json(),null,2)}catch(e){document.getElementById('status').textContent=String(e)}}
 async function capturePoint(){const result=document.getElementById('result');if(!document.getElementById('confirmed').checked){result.textContent='현장 접촉 확인 체크가 필요합니다.';return}result.textContent='동시 자료 확인 중…';try{const r=await fetch('/api/capture',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({point:document.getElementById('point').value,contact_confirmed:true})});const d=await r.json();result.textContent=JSON.stringify(d,null,2)}catch(e){result.textContent=String(e)}}

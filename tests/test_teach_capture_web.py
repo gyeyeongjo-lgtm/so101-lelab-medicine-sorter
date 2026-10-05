@@ -86,8 +86,10 @@ class TeachCaptureTests(unittest.TestCase):
     def test_fixed_slot_waypoint_is_separate_and_never_replay_authorized(self):
         state, now = ready_state()
         self.assertEqual(WAYPOINT_NAMES,
-                         {"PARK", "SOURCE1_HOVER", "TRANSFER_HOVER", "BASKET4_HOVER"})
+                         {"PARK", "SOURCE1_HOVER", "TRANSFER_HOVER", "BASKET4_HOVER", "BASKET4_RELEASE"})
         selected = state.select("SOURCE1_HOVER", now_ns=now, capture_kind="waypoint")
+        release = state.select("BASKET4_RELEASE", now_ns=now, capture_kind="waypoint")
+        self.assertEqual(release["point"], "BASKET4_RELEASE")
         with self.assertRaisesRegex(ValueError, "waypoint must"):
             state.select("P5", now_ns=now, capture_kind="waypoint")
         with self.assertRaisesRegex(ValueError, "point must"):
