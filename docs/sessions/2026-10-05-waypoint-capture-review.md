@@ -1,5 +1,15 @@
 # 2026-10-05 고정 슬롯 waypoint 저장본 검수
 
+## 20:56 KST — 사용자 복구 후 3영상 동시 수신 회복
+
+사용자가 이제 동작할 것이라고 알렸다. LeLab 8000 읽기 전용 API에서 health ok, teleoperation·recording·inference inactive를 확인했다. Mac 8030 listener가 없어 기존 loopback 증거 서버만 실행했다. 8030 `/api/status` 두 차례 조회의 정면/사선/손목 frame age는 6.5/14.3/20.9 ms와 23.2/4.4/17.9 ms, 세 카메라 오류는 모두 null, `robot_control=false`였다. 사용자가 무엇을 복구했는지와 LeLab/카메라 점유 변경 내역은 독립 확인하지 못했다. 새 모터 동작·토크·USB·Jetson 서비스 변경은 하지 않았다.
+
+8030 live 화면을 읽기 전용으로 보니 정면·사선·손목 영상이 표시됐다. 인쇄된 ArUco 마커 여러 장, 약통 모형 여러 개, 빨강/초록/회색 계열 바구니 세 개가 보인다. ID 숫자와 개별 물체 좌표는 육안 화면만으로 확정하지 않았다. 이는 앞선 단일 약통·빨강 바구니 수동 경로 장면과 다르므로 그 waypoint를 현 장면의 자동 경로로 재사용하지 않는다. 화면 이미지는 Git에 저장하지 않았다.
+
+이 성공은 카메라 스트림 동시 수신에 한정한다. 텔레옵 중 유지, ArUco ID4 일반 성능, 약통 검출 정확도, 좌표 변환·관절 한계·경로 안전은 여전히 `NOT_VERIFIED/REJECTED`이며 자동 이동은 `NOT_RUN`이다.
+
+현재 장면의 Jetson 설치 비전 코드로 검출을 재검증하려고 무비밀번호 SSH 접속 가능 여부만 확인했으나 `Permission denied (publickey,password)`였다. 사용자의 터미널 세션은 공유되지 않는다. 비밀번호를 명령줄이나 Git에 넣지 않았고 Jetson 코드·서비스·설정은 바꾸지 않았다. 현 장면의 실제 ArUco/YOLO 검출 시험은 `NOT_RUN`이다.
+
 ## 20:50 KST — 사용자 텔레옵 종료 후 상태·카메라 점검
 
 사용자 종료 보고 뒤 LeLab 8000 `/health`는 ok, `/teleoperation-status`·`/recording-status`·`/inference-status`는 모두 inactive였다. recording 내부 `current_phase=preparing`, `session_ended=false`는 여전히 남아 있다. 기존 사선 `/camera-preview/4`와 정면 `/camera-preview/8`은 종료 직후 각각 HTTP 200으로 MJPEG 데이터를 보냈다(3초 제한으로 수신을 끊었으므로 curl exit 28은 무한 스트림의 정상적인 제한 종료이지 HTTP 오류가 아니다).

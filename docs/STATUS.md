@@ -2,6 +2,13 @@
 
 업데이트: 2026-10-05
 
+## 2026-10-05 20:56 KST 사선 프리뷰 회복 확인
+
+- `PASS (read-only live)`: 사용자 복구 보고 후 LeLab 8000 health ok, teleoperation·recording·inference active=false를 확인했다. Mac 8030이 미실행인 것을 확인하고 기존 loopback 증거 서버만 재실행했다. 두 차례 상태 조회에서 정면·사선·손목 frame age가 각각 6.5/14.3/20.9 ms 및 23.2/4.4/17.9 ms였고 세 카메라 오류가 모두 null이다. `robot_control=false`; 팔·USB·토크·Jetson 서비스를 변경하지 않았다.
+- `SCENE (visual only)`: 8030 live 화면에는 인쇄된 ArUco 마커 여러 장, 약통 모형 여러 개와 빨강/초록/회색 계열 바구니 세 개가 보인다. 이는 이전 단일 빨강 바구니·약통 한 개 수동 시험 장면과 다르다. 마커 ID, 각 물체 인식 결과·정확한 좌표는 영상 육안으로 판정하지 않았다. 현재 장면에 과거 단일 슬롯 waypoint를 그대로 적용하지 않는다.
+- `LIMIT`: 이번 확인은 영상 수신 신선도이며 마커·약통 인식 정확도, 텔레옵 중 동시 카메라 안정성, World→Base 정합 또는 자동 경로의 안전을 통과시킨 것이 아니다. 자동 집기·투입·관절 재생 `NOT_RUN` 유지.
+- `BLOCKED (Jetson source check)`: Mac의 무비밀번호 SSH는 `Permission denied (publickey,password)`다. 기존 사용자 SSH 세션을 공유하지 않았고 비밀번호를 명령줄·Git에 쓰지 않았다. 이번 장면의 Jetson 설치 비전 코드 실검출은 `NOT_RUN`이다.
+
 ## 2026-10-05 20:50 KST 텔레옵 종료 확인·프리뷰 재점검
 
 - `PASS (read-only stop verification)`: 사용자 종료 보고 후 LeLab 8000 health `ok`, teleoperation·recording·inference active=false를 확인했다. recording 내부 `current_phase=preparing`, `session_ended=false`는 유지돼 세션 정리 완료로 해석하지 않는다. 모터·토크·USB·LeLab 제어 API는 건드리지 않았다.
