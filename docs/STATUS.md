@@ -2,6 +2,13 @@
 
 업데이트: 2026-10-05
 
+## 2026-10-05 고정 슬롯 waypoint 첫 저장본 검수 — 자동 재생 금지
+
+- `PASS (local integrity)`: `.local/fixed-slot-waypoints/`에 완성된 저장본 10개(`PARK` 7, `BASKET4_HOVER` 3)가 있다. `BASKET4_HOVER` 3건(14:52:17/19/28 KST)은 각각 관절 샘플 15개·카메라 JPEG 3장이고, 원본 9장 SHA-256이 metadata와 일치한다. 최대 관절 표준편차는 0.00831 rad 미만이다. 원본은 Git-ignore 로컬에 그대로 보존했다.
+- `REJECTED (hover safety claim)`: 사선 영상에서 첫째·둘째 자세는 그리퍼가 빨강 ID4 바구니 내부까지 낮게 들어가고 반대편 손가락은 인접 초록 바구니 위에 있다. 셋째는 바구니 테두리 부근이나 정지 영상만으로 수직 여유·간섭 안전을 입증할 수 없다. 세 건 모두 안전한 `BASKET4_HOVER` 또는 자동 재생 가능한 waypoint로 승인하지 않는다. `PARK` 7건도 임의로 재라벨링하지 않았다.
+- `NOT_VERIFIED (live state)`: 검수 시 Mac에서 LeLab 8000과 로컬 8030이 모두 연결 거부되어 현재 텔레옵 종료 여부와 live 카메라·관절 상태를 확인하지 못했다. 모터·토크·USB·LeLab 제어 API는 호출하지 않았다. 촬영 종료 시 사용자가 LeLab 텔레옵을 직접 끝내고, 연결 복구 뒤 세 제어 작업 inactive를 재확인해야 한다.
+- `NOT_RUN`: 새 촬영, 경로 이동, 약통 집기, 자동 재생은 하지 않았다. 모든 저장본 `use_for_replay=false`, `robot_enabled=false`, `motion_authorized=false` 유지. 상세: [첫 waypoint 검수](sessions/2026-10-05-waypoint-capture-review.md).
+
 ## 2026-10-05 waypoint 현장 시작 전 연결 점검
 
 - `PASS (approved recovery)`: 사용자가 LeLab 서비스 시작과 현장 안전을 명시 승인했다. SSH에서 `lelab.service`의 정확한 ExecStart가 기존 `uv` LeLab/uvicorn 포트 8000임을 확인하고, 서비스가 inactive/dead인 상태에서 `systemctl --user start lelab.service`를 한 번 실행했다. 이후 active/running, `/health` ok, teleoperation·recording·inference active=false를 확인했다. recording 내부 `current_phase=preparing`, `session_ended=false`는 그대로라 세션 정리 완료로 해석하지 않는다.
