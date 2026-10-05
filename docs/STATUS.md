@@ -2,6 +2,12 @@
 
 업데이트: 2026-10-05
 
+## 2026-10-05 8000 MJPEG 재사용 비전 진단 — 임시 동시 실행 확인
+
+- `PASS (read-only concurrent smoke)`: Jetson 임시 디렉터리의 저장소 비전 코드가 기존 LeLab 8000 정면 `/camera-preview/8`과 사선 `/camera-preview/4`를 MJPEG로 받아 임시 loopback 8021에서 약통 후보 3개·ID0–3 및 바구니 마커를 표시했다. 정면 sequence 115, frame age 0.132 s, 사선 age 0.022 s, `robot_enabled=false`, `robot_target_authorized=false`를 확인했다. 35초 제한 시험 후 8021 listener 없음, 8000 active·세 제어 작업 inactive, 원래 8020 서비스 inactive다. 카메라 장치·USB·모터를 별도로 열지 않았다.
+- `FIRST FAILURE / FIX`: 처음 OpenCV의 HTTP `VideoCapture`를 사용한 시험은 정면 sequence 2에서 멈추고 frame age 26.683 s인데도 health `ok=true`였다. 저장소 코드에 MJPEG JPEG 프레임 파서와 5초 신선도 게이트를 추가한 뒤 위 연속 갱신을 확인했다. 임시 코드만 Jetson에 복사했고 설치 서비스·unit은 변경하지 않았다. 지속 운영과 일반 장면 성능은 `NOT_VERIFIED`다.
+- `NEXT GATE`: ArUco/YOLO 카메라 관찰은 진행됐으나 World→Base 변환 거부, Elbow URDF/캘리브레이션 불일치, 연속 적재 경로 안전 미검증 때문에 자동 집기·투입은 여전히 `NOT_RUN`이다.
+
 ## 2026-10-05 20:09 KST 8000 복구·ID4 비전 보완
 
 - `PASS (approved service start)`: 사용자 승인 뒤 Jetson 8000의 기존 `lelab.service`만 시작했다. 시작 전 canonical USB `5AE6058306`→ACM0 follower, `5AE6085272`→ACM1 leader와 root `fuser` 두 포트 무점유, 다른 8002·8022 LeLab 인스턴스의 텔레옵·녹화·추론 비활성을 확인했다. 시작 후 8000 health 정상, 세 제어 작업 active=false, 기존 robot config·카메라 8/4/6 유지. 서비스 시작은 로봇 동작 시험이 아니다.

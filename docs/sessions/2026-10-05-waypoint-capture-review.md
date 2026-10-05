@@ -1,5 +1,11 @@
 # 2026-10-05 고정 슬롯 waypoint 저장본 검수
 
+## 8000 프리뷰 재사용 임시 비전 시험
+
+8020 기존 unit은 Astra 브리지와 충돌하므로 시작하지 않았다. 설치 Jetson OpenCV가 LeLab 8000 정면 MJPEG 한 프레임을 HTTP로 열 수 있음을 확인하고, 저장소 비전 코드에 정면·사선 `http://` MJPEG 입력을 추가했다. 처음 `cv2.VideoCapture(URL)` 임시 시험은 정면 sequence 2에서 갱신이 멈췄는데 26.683초 지난 프레임을 health `ok=true`로 반환하는 오류가 있었다. 이 실패를 기록하고 JPEG 경계 파서와 5초 frame age 게이트로 수정했다.
+
+수정본 두 스크립트만 Jetson `/tmp/so101-mjpeg-smoke-20261005-2010/`에 복사해 loopback 8021에서 35초 제한으로 시험했다. 정면 sequence 115, frame age 0.132초, 사선 age 0.022초에서 `ok=true`, YOLO 약통 후보 3개, ID0–3과 바구니 ID5/6을 확인했다. 이전 프레임에서는 ID4도 밝기 균등화 fallback으로 검출됐다. 저장된 테이블 투영은 높이 보정 전이고 `robot_enabled=false`, `robot_target_authorized=false`다. Mac의 새 웹/파서 단위 테스트 9개가 통과했다. 별도 `test_detect_medicine_onnx`는 Mac에 `cv2`가 없어 `NOT_RUN`이며, Jetson 임시 실행에서 설치 ONNX 모델의 실제 추론을 확인했다. 시험 종료 후 8021 listener는 없고 기존 8000 active·텔레옵/녹화/추론 inactive, 8020 inactive를 확인했다. 임시 복사본은 남아 있으나 기존 Jetson 설치 파일·service unit·카메라 장치·USB·모터·토크는 변경하지 않았다. 이 시험은 자동 투입 경로 승인이나 장시간 안정성 검증이 아니다.
+
 ## 20:09 KST LeLab 복구와 마커 ID4 안정성 검사
 
 사용자 승인 후 기존 8000 user `lelab.service`를 시작했다. 시작 전 canonical ACM0 follower/ACM1 leader serial이 기존 설정과 일치하고 root `fuser`에 두 포트 점유가 없으며 8002·8022 제어 작업이 모두 inactive였다. 시작 후 8000 health와 기존 robot config·카메라 8/4/6을 확인했고 텔레옵·녹화·추론은 모두 inactive다. 토크 레지스터는 읽지 않았고 팔을 움직이지 않았다.

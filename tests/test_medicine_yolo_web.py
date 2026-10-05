@@ -1,10 +1,15 @@
 import sys
+import threading
+import time
 import unittest
 from pathlib import Path
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from medicine_yolo_web import INDEX_HTML, detect_table_markers, inside_roi, project_table_xy, read_exact, video_index
+from medicine_yolo_web import (
+    DetectionWorker, INDEX_HTML, detect_table_markers, inside_roi, is_http_stream,
+    mjpeg_jpegs, project_table_xy, read_exact, video_index,
+)
 
 import numpy as np
 
@@ -41,8 +46,41 @@ class MedicineYoloWebTests(unittest.TestCase):
 
         self.assertEqual(read_exact(PartialStream(), 6), b"")
 
+    def test_mjpeg_stream_keeps_last_complete_frame_and_partial_tail(self):
+        class SplitStream:
+            parts = [b"--\xff", b"\xd8A\xff\xd9--\xff\xd8B\xff\xd9--\xff\xd8C", b"\xff\xd9"]
+
+            def read(self, _size):
+                return self.parts.pop(0) if self.parts else b""
+
+        self.assertEqual(
+            list(mjpeg_jpegs(SplitStream(), threading.Event())),
+            [b"\xff\xd8B\xff\xd9", b"\xff\xd8C\xff\xd9"],
+        )
+
+    def test_stale_detection_frame_is_not_healthy(self):
+        worker = DetectionWorker.__new__(DetectionWorker)
+        worker.lock = threading.Lock()
+        worker.jpeg = b"jpeg"
+        worker.error = None
+        worker.updated_monotonic = time.monotonic() - 6
+        worker.raw_rgb_command = None
+        worker.device = "http://127.0.0.1:8000/camera-preview/8"
+        worker.model = "model.onnx"
+        worker.sequence = 2
+        worker.inference_ms = 250.8
+        worker.detections = []
+        worker.table_status = None
+        snapshot = worker.snapshot()
+        self.assertFalse(snapshot["ok"])
+        self.assertGreater(snapshot["frame_age_s"], 5)
+
     def test_video_index_resolves_video_node(self):
         self.assertEqual(video_index("/dev/video4"), 4)
+
+    def test_existing_lelab_preview_is_an_http_stream(self):
+        self.assertTrue(is_http_stream("http://127.0.0.1:8000/camera-preview/8"))
+        self.assertFalse(is_http_stream("/dev/video8"))
 
     def test_table_projection_and_roi_gate(self):
         homography = np.asarray([[2.0, 0.0, -20.0], [0.0, 2.0, -40.0], [0.0, 0.0, 1.0]])

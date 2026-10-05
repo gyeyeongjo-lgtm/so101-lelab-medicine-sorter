@@ -1,6 +1,8 @@
 # 현재 시스템과 ArUco 진행 현황
 
-최신 확인: 2026-09-30 Asia/Seoul
+최신 확인: 2026-10-05 Asia/Seoul
+
+2026-10-05 업데이트: LeLab 8000을 복구해 텔레옵·녹화·추론 비활성을 확인했다. 기존 8000 정면·사선 MJPEG를 재사용하는 임시 읽기 전용 YOLO/ArUco 시험에서 약통 후보 3개와 ID0–3, 바구니 마커를 표시했다. 정면 밝기 균등화는 현 장면의 불안정한 ID4 인식을 개선했다. 기존 8020 서비스는 Astra 브리지와 충돌하므로 시작하지 않았고, 새 입력 코드는 저장소에만 있다. 자세한 최신 게이트는 [상태](STATUS.md)와 [당일 세션](sessions/2026-10-05-waypoint-capture-review.md)에 기록한다. 자동 투입은 World→Base 등록·Elbow 한계 정합·연속 적재 경로 검증 전까지 승인되지 않았다.
 
 2026-09-30 재확인: Jetson은 다시 연결됐다. 현재 바구니는 정면 화면 왼쪽 ID5(초록), 가운데 ID6(파랑), 오른쪽 ID4(빨강)이며 ID↔색상 매핑은 유효하다. 약통·바구니가 teach용 X 6점을 가려 기존 World 점 좌표가 유지됐는지 `UNVERIFIED_TEACH_LAYOUT`이다. 자세한 결과는 `docs/sessions/2026-09-30-jetson-resume-scene-audit.md`에 있다.
 
@@ -69,7 +71,7 @@ ChArUco 보드의 ID10–33은 카메라 intrinsic 보정용 임시 마커이다
 
 raw ACM 번호를 영구 식별자로 사용하지 않는다. teach 중 관절값은 LeLab이 이미 방송하는 `/ws/joint-data`만 읽고, 같은 bus를 다시 여는 `/joint-positions`는 사용하지 않는다.
 
-## 다음 단계
+## 2026-09-30 당시 teach 계획 (현재 적용하지 않음)
 
 1. Jetson 복귀 후 8000/8020과 canonical USB를 읽기 전용으로 재확인한다.
 2. 테레옵·녹화·추론이 모두 inactive인 상태에서 현장 안전을 확인한다.

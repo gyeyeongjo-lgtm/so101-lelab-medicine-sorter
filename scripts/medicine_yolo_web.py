@@ -18,6 +18,7 @@ from io import BufferedReader
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.request import urlopen
 
 from detect_medicine_onnx import decode_detections, letterbox
 
@@ -55,6 +56,38 @@ def read_exact(stream: BufferedReader, size: int) -> bytes:
         chunks.append(chunk)
         remaining -= len(chunk)
     return b"".join(chunks)
+
+
+def mjpeg_jpegs(stream, stop_event, chunk_size: int = 65536):
+    """Yield the newest complete JPEG in each network chunk, retaining partial frames."""
+    buffer = bytearray()
+    start_marker = b"\xff\xd8"
+    end_marker = b"\xff\xd9"
+    while not stop_event.is_set():
+        chunk = stream.read(chunk_size)
+        if not chunk:
+            return
+        buffer.extend(chunk)
+        latest = None
+        while True:
+            start = buffer.find(start_marker)
+            if start < 0:
+                trailing_ff = buffer.endswith(b"\xff")
+                buffer.clear()
+                if trailing_ff:
+                    buffer.extend(b"\xff")
+                break
+            end = buffer.find(end_marker, start + 2)
+            if end < 0:
+                if start:
+                    del buffer[:start]
+                if len(buffer) > 2_000_000:
+                    buffer.clear()
+                break
+            latest = bytes(buffer[start:end + 2])
+            del buffer[:end + 2]
+        if latest is not None:
+            yield latest
 
 
 def project_table_xy(np_module, homography, u: float, v: float) -> tuple[float, float]:
@@ -264,7 +297,7 @@ class DetectionWorker:
         with self.lock:
             age = None if self.updated_monotonic is None else round(time.monotonic() - self.updated_monotonic, 3)
             return {
-                "ok": self.jpeg is not None and self.error is None,
+                "ok": self.jpeg is not None and self.error is None and age is not None and age < 5,
                 "source": str(self.raw_rgb_command) if self.raw_rgb_command else self.device,
                 "model": self.model,
                 "sequence": self.sequence,
@@ -283,6 +316,13 @@ class DetectionWorker:
 
     def _frames(self):
         cv2, np = self.cv2, self.np
+        if is_http_stream(self.device) and self.raw_rgb_command is None:
+            with urlopen(self.device, timeout=5) as stream:
+                for jpeg in mjpeg_jpegs(stream, self.stop_event):
+                    image = cv2.imdecode(np.frombuffer(jpeg, dtype=np.uint8), cv2.IMREAD_COLOR)
+                    if image is not None:
+                        yield image
+            return
         if self.raw_rgb_command is not None:
             process = subprocess.Popen(
                 [str(self.raw_rgb_command)],
@@ -395,6 +435,10 @@ def video_index(device: str) -> int | str:
     return int(match.group(1)) if match else device
 
 
+def is_http_stream(source: str) -> bool:
+    return source.startswith(("http://", "https://"))
+
+
 class PreviewWorker:
     """Read and JPEG-encode a secondary V4L2 camera without inference."""
 
@@ -438,12 +482,33 @@ class PreviewWorker:
 
     def _run(self):
         cv2 = self.cv2
+        if is_http_stream(self.device):
+            while not self.stop_event.is_set():
+                try:
+                    with urlopen(self.device, timeout=5) as stream:
+                        for jpeg in mjpeg_jpegs(stream, self.stop_event):
+                            with self.lock:
+                                self.sequence += 1
+                                self.jpeg = jpeg
+                                self.updated_monotonic = time.monotonic()
+                                self.error = None
+                    if not self.stop_event.is_set():
+                        with self.lock:
+                            self.error = "MJPEG stream ended"
+                except Exception as exc:
+                    with self.lock:
+                        self.error = f"MJPEG stream failed: {exc}"
+                self.stop_event.wait(1)
+            return
         while not self.stop_event.is_set():
-            cap = cv2.VideoCapture(video_index(self.device), cv2.CAP_V4L2)
-            cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*self.fourcc))
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-            cap.set(cv2.CAP_PROP_FPS, 30)
+            if is_http_stream(self.device):
+                cap = cv2.VideoCapture(self.device)
+            else:
+                cap = cv2.VideoCapture(video_index(self.device), cv2.CAP_V4L2)
+                cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*self.fourcc))
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+                cap.set(cv2.CAP_PROP_FPS, 30)
             if not cap.isOpened():
                 with self.lock:
                     self.error = f"failed to open {self.device}"
