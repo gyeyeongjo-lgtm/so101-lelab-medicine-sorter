@@ -2,6 +2,12 @@
 
 업데이트: 2026-10-05
 
+## 2026-10-05 텔레옵 중 수동 관찰 자료 감사 — 자동 이동 계속 차단
+
+- `USER CONFIRMED`: 사용자가 LeLab 8000 텔레옵을 직접 켜고 현장에서 안전하게 조작 중이라고 확인했다. 에이전트는 텔레옵 종료·재시작, 모터/토크/USB 조작 및 관절 재생을 하지 않았다. 이번 Mac shell의 8000 상태 API 연결은 거부되어 이후 live 제어 상태를 독립 재확인하지 못했다. 종료 전 새 제어 작업은 시작하지 않는다.
+- `PARTIAL / REJECTED`: 이전에 읽기 전용으로 수집한 5초 자료 `.local/teleop-traces/20261005T112954_740572Z_c336d33d/`를 새 감사기로 검사했다. 관절 98개와 정면 JPEG 21장의 해시·개수는 맞고 사선은 503으로 0장이다. 98개 모두 설치 URDF Elbow 상한 초과, 최대 0.114689 rad로 `URDF_LIMIT_MISMATCH`(감사 exit 2)다. 사선 영상 없는 부분 자료는 연결 경로·간섭 검증에 사용할 수 없다. 원본은 Git 제외 로컬에만 둔다.
+- `PASS (offline tests)`: 관절·카메라 관찰/감사와 기존 캡처·비전 관련 31개 테스트 통과. 처음 sandbox에서 로컬 테스트 포트 생성이 거부되어 HTTP 테스트 3개가 오류였고, 로컬 테스트 실행 허가 후 31개 전부 통과했다. 영상 수신시각은 노출시각 동기화가 아니며 `use_for_replay=false`, `robot_enabled=false`, `motion_authorized=false` 유지. 자동 투입 `NOT_RUN`.
+
 ## 2026-10-05 8000 MJPEG 재사용 비전 진단 — 임시 동시 실행 확인
 
 - `PASS (read-only concurrent smoke)`: Jetson 임시 디렉터리의 저장소 비전 코드가 기존 LeLab 8000 정면 `/camera-preview/8`과 사선 `/camera-preview/4`를 MJPEG로 받아 임시 loopback 8021에서 약통 후보 3개·ID0–3 및 바구니 마커를 표시했다. 정면 sequence 115, frame age 0.132 s, 사선 age 0.022 s, `robot_enabled=false`, `robot_target_authorized=false`를 확인했다. 35초 제한 시험 후 8021 listener 없음, 8000 active·세 제어 작업 inactive, 원래 8020 서비스 inactive다. 카메라 장치·USB·모터를 별도로 열지 않았다.

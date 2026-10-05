@@ -10,9 +10,37 @@ import argparse
 import hashlib
 import json
 import math
+import re
 from pathlib import Path
 
 JOINT_NAMES = ("Rotation", "Pitch", "Elbow", "Wrist_Pitch", "Wrist_Roll", "Jaw")
+CAMERA_NAMES = frozenset({"ceiling", "oblique", "wrist"})
+
+
+def audit_camera_evidence(trace_dir: Path, manifest: dict) -> dict[str, int]:
+    records = manifest.get("camera_evidence", {})
+    if not isinstance(records, dict) or not set(records).issubset(CAMERA_NAMES):
+        raise ValueError("unknown camera evidence name")
+    counts = {}
+    for name, metadata in records.items():
+        index_file = trace_dir / name / "frames.jsonl"
+        raw_index = index_file.read_bytes()
+        if hashlib.sha256(raw_index).hexdigest() != metadata["index_sha256"]:
+            raise ValueError(f"{name} index SHA-256 does not match manifest")
+        lines = raw_index.splitlines()
+        if len(lines) != metadata["frame_count"]:
+            raise ValueError(f"{name} frame count does not match manifest")
+        for line in lines:
+            frame = json.loads(line)
+            filename = frame["filename"]
+            if not isinstance(filename, str) or re.fullmatch(r"[0-9]+\.jpg", filename) is None:
+                raise ValueError(f"{name} frame filename is invalid")
+            if filename != f"{frame['received_unix_ns']}.jpg":
+                raise ValueError(f"{name} frame receive timestamp disagrees with filename")
+            if hashlib.sha256((trace_dir / name / filename).read_bytes()).hexdigest() != frame["sha256"]:
+                raise ValueError(f"{name} frame SHA-256 mismatch: {filename}")
+        counts[name] = len(lines)
+    return counts
 
 
 def audit(trace_dir: Path, limits_file: Path) -> dict:
@@ -74,6 +102,10 @@ def audit(trace_dir: Path, limits_file: Path) -> dict:
         count += 1
     if count != manifest.get("sample_count") or count == 0:
         raise ValueError("trace sample count is empty or disagrees with manifest")
+    camera_counts = audit_camera_evidence(trace_dir, manifest)
+    camera_complete = bool(camera_counts) and all(count > 0 for count in camera_counts.values())
+    if manifest.get("camera_evidence_complete", False) and not camera_complete:
+        raise ValueError("camera evidence marked complete but a camera has no verified frames")
     for row in violations.values():
         row["max_excess_rad"] = round(row["max_excess_rad"], 6)
     mismatched = any(row["below"] or row["above"] for row in violations.values())
@@ -87,6 +119,8 @@ def audit(trace_dir: Path, limits_file: Path) -> dict:
         "duplicate_or_reverse_source_times": duplicate_or_reverse_source,
         "non_increasing_receive_times": non_increasing_receive,
         "violations": violations,
+        "verified_camera_frames": camera_counts,
+        "camera_evidence_complete": camera_complete and manifest.get("camera_evidence_complete", False),
         "use_for_replay": False,
         "robot_enabled": False,
         "motion_authorized": False,

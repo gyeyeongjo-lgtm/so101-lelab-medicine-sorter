@@ -1,5 +1,13 @@
 # 2026-10-05 고정 슬롯 waypoint 저장본 검수
 
+## 20:29 KST 이후 — 활성 텔레옵 중 읽기 전용 부분 자료 감사
+
+사용자는 LeLab 8000 텔레옵을 직접 켜고 안전하게 조작 중이라고 확인했다. 에이전트는 종료·재시작·USB/토크/모터 변경이나 관절 재생을 하지 않았다. 이번 Mac shell에서 `/teleoperation-status` TCP 연결이 거부됐으므로 그 후의 live 상태는 독립 확인하지 못했다. 사용자 보고를 서비스 상태 판정으로 바꾸지 않는다.
+
+기존 5초 시험 원본 `.local/teleop-traces/20261005T112954_740572Z_c336d33d/`를 수정하지 않고 감사했다. `joints.jsonl` SHA-256은 `809c57f8e710c886bc76698ec8e5ce240e26c0efe10c7ee13fe9f41b493314bf`; 관절 98개, 수신 공백 최대 142.886 ms, source 역순/중복 0건이다. 정면 JPEG 21장과 각 index/파일 해시는 맞지만 사선은 텔레옵 중 프리뷰 HTTP 503으로 0장이다. 감사 결과 `URDF_LIMIT_MISMATCH`, exit 2: Elbow 98/98개가 설치 URDF 상한 초과, 최대 초과 0.114689 rad. 이는 방송값과 정적 URDF의 불일치이지 실제 하드스톱 접촉의 증거가 아니다. 영상·관절 수신시각은 카메라 노출시각/모터 명령 동기 자료가 아니며 경로·간섭 검증은 `NOT_VERIFIED`; 재생과 자동 투입은 `NOT_RUN`이다.
+
+관찰기에 기존 LeLab MJPEG를 읽는 정면·사선 프레임 수집과 해시 index를 추가하고, 감사기가 index/프레임 해시 및 빈 카메라 스트림의 거짓 `complete` 표시를 거부하도록 했다. 저장 위치는 Git 제외 `.local/`이며 원본 영상·관절값은 커밋하지 않는다. 관련 31개 단위/HTTP 테스트 통과. 첫 sandbox 실행에서는 loopback bind 거부로 HTTP 테스트 3개가 실패했으나, 로컬 테스트 서버 실행이 허용된 재실행에서는 31개 전부 통과했다. 실제 영상 2채널이 텔레옵 중 동시에 수집되는지, 약통 적재 경로가 안전한지는 검증되지 않았다. `use_for_replay=false`, `robot_enabled=false`, `motion_authorized=false` 유지.
+
 ## 8000 프리뷰 재사용 임시 비전 시험
 
 8020 기존 unit은 Astra 브리지와 충돌하므로 시작하지 않았다. 설치 Jetson OpenCV가 LeLab 8000 정면 MJPEG 한 프레임을 HTTP로 열 수 있음을 확인하고, 저장소 비전 코드에 정면·사선 `http://` MJPEG 입력을 추가했다. 처음 `cv2.VideoCapture(URL)` 임시 시험은 정면 sequence 2에서 갱신이 멈췄는데 26.683초 지난 프레임을 health `ok=true`로 반환하는 오류가 있었다. 이 실패를 기록하고 JPEG 경계 파서와 5초 frame age 게이트로 수정했다.

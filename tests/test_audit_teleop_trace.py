@@ -56,6 +56,45 @@ class TeleopTraceAuditTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "SHA-256"):
                 audit(trace, limits)
 
+    def test_camera_frame_hash_is_verified_when_present(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            trace, limits = write_fixture(Path(temporary), elbow=0.2)
+            camera = trace / "ceiling"
+            camera.mkdir()
+            jpeg = b"\xff\xd8frame\xff\xd9"
+            (camera / "2000000000.jpg").write_bytes(jpeg)
+            index = (json.dumps({
+                "filename": "2000000000.jpg", "received_unix_ns": 2_000_000_000,
+                "sha256": hashlib.sha256(jpeg).hexdigest(),
+            }) + "\n").encode()
+            (camera / "frames.jsonl").write_bytes(index)
+            manifest_file = trace / "manifest.json"
+            manifest = json.loads(manifest_file.read_text())
+            manifest["camera_evidence"] = {"ceiling": {
+                "frame_count": 1, "index_sha256": hashlib.sha256(index).hexdigest(),
+            }}
+            manifest_file.write_text(json.dumps(manifest))
+            self.assertEqual(audit(trace, limits)["verified_camera_frames"], {"ceiling": 1})
+            (camera / "2000000000.jpg").write_bytes(b"modified")
+            with self.assertRaisesRegex(ValueError, "frame SHA-256 mismatch"):
+                audit(trace, limits)
+
+    def test_camera_completion_cannot_hide_empty_stream(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            trace, limits = write_fixture(Path(temporary), elbow=0.2)
+            camera = trace / "oblique"
+            camera.mkdir()
+            (camera / "frames.jsonl").write_bytes(b"")
+            manifest_file = trace / "manifest.json"
+            manifest = json.loads(manifest_file.read_text())
+            manifest["camera_evidence"] = {"oblique": {
+                "frame_count": 0, "index_sha256": hashlib.sha256(b"").hexdigest(),
+            }}
+            manifest["camera_evidence_complete"] = True
+            manifest_file.write_text(json.dumps(manifest))
+            with self.assertRaisesRegex(ValueError, "marked complete"):
+                audit(trace, limits)
+
     def test_source_has_no_robot_control_routes(self):
         source = (Path(__file__).resolve().parents[1] / "scripts" / "audit_teleop_trace.py").read_text()
         for forbidden in ("/move-arm", "/stop-teleoperation", "/joint-positions", "serial.Serial"):
