@@ -2,6 +2,13 @@
 
 업데이트: 2026-10-05
 
+## 2026-10-05 설치 URDF 한계와 수동 관절 방송 불일치 — 자동 재생 거부
+
+- `REJECTED (offline replay gate)`: Jetson 실제 설치 `so101_new_calib.urdf` SHA-256 `443d38d7...f67236`의 Elbow 상한은 1.5708 rad이다. 2회차 원본 2,704개를 SHA 검증 후 전수 대조하면 1,607개가 상한을 초과하고 최대 1.685489 rad(초과 0.114689 rad)이다. 다른 5관절의 URDF 범위 초과는 0건. `scripts/audit_teleop_trace.py`는 `URDF_LIMIT_MISMATCH`와 exit 2를 반환하며 재생/로봇/모션 승인 false를 유지한다. 19개 관련 단위/HTTP 테스트 통과.
+- `PASS (installed-source read-only)`: 설치 LeLab `teleoperate.py`는 follower `elbow_flex`를 `Elbow`로 매핑하고 관측 도 값을 rad로 변환한다. 설치 LeRobot follower config의 `max_relative_target` 기본값은 None이고 `send_action`은 상대 차이 제한 옵션만 조건부로 적용하며 URDF 절대 상한은 적용하지 않는다. 이 차이는 URDF-방송 불일치의 원인 후보지만 물리적 하드스톱 초과의 증거는 아니다. 설정·캘리브레이션·모터를 변경하지 않았다.
+- `PASS (calibration-file read-only)`: 실제 follower Elbow 캘리브레이션 파일의 raw 범위 880–3087과 설치 STS3215 드라이버의 4096-step·`(val-mid)*360/4095` 변환식으로 계산한 범위는 약 ±97.01°다. 방송 최대 1.685489 rad(약 96.57°)는 이 파일 상한보다 약 0.44° 낮다. **이는 저장된 캘리브레이션 파일 기준일 뿐** 실제 모터 제한 레지스터·하드스톱·동적 안전 여유는 확인하지 못했다. URDF 상한 90°와 파일 범위의 불일치도 미해결이다.
+- `NOT_RUN`: URDF/캘리브레이션 정합 수정, 자동 재생, ArUco 기반 자동 투입, 새 모션. 현재 텔레옵·녹화·추론은 종료 후 inactive로 유지한다.
+
 ## 2026-10-05 빈 약통 수동 투입 2회차 — 연속 관절 관찰 성공
 
 - `PASS (user-operated one-shot)`: 사용자가 기존 LeLab 텔레옵을 직접 켜고 이전 고정 슬롯의 빈 약통 모형 1개를 빨강 ID4 바구니에 놓은 뒤 직접 종료했다. 현장 보고는 투입 성공·간섭/걸림/이상 움직임 없음이다. 종료 후 8030 실시간 사선 화면에는 빨강 바구니 안 약통과 위로 분리된 열린 그리퍼가 보인다. 이후 읽기 전용 API에서 teleoperation·recording·inference active=false를 확인했다. 연속 관절 파일에는 카메라 영상이 없어 이동 중 간섭 여부의 독립 영상 판정은 `NOT_VERIFIED`다.

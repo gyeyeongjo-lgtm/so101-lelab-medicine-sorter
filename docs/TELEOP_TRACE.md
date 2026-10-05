@@ -7,3 +7,9 @@ python3 scripts/observe_teleop_trace.py --lelab-url http://192.168.50.20:8000 --
 ```
 
 새 현장 안전 확인과 해당 수동 시험의 명시 승인을 받은 뒤에만 실행한다. 최대 180초 또는 텔레옵 종료 중 먼저 발생한 때 멈춘다. 상태·연결 오류도 기록하고 중단한다. `joints.jsonl`과 SHA-256을 담은 `manifest.json`은 Git-ignore `.local/`에만 보관한다. Mac 수신 시각이며 실제 모터 명령이나 카메라 노출 시각이 아니다. 영상·물체 위치·충돌 여유가 없어 이 자료만으로 경로 안전 또는 자동 재생을 승인할 수 없다.
+
+관절 기록의 원본 해시·설치 URDF 범위를 오프라인 검사하려면 다음 명령을 사용한다. 기본 한계 파일은 2026-10-05 Jetson 설치 URDF SHA `443d38d7...f67236`에서 읽은 값이다. 이 검사에서 범위 초과가 없더라도 자동 재생을 허가하지 않는다.
+
+```sh
+python3 scripts/audit_teleop_trace.py --trace-dir .local/teleop-traces/기록_폴더
+```

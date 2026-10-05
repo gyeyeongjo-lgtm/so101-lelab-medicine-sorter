@@ -1,5 +1,13 @@
 # 2026-10-05 고정 슬롯 waypoint 저장본 검수
 
+## 설치 URDF-관절 방송 한계 대조 (오프라인)
+
+Jetson의 실제 설치 `frontend/dist/so-101-urdf/urdf/so101_new_calib.urdf` SHA-256 `443d38d756e01bac7d3455b24430047ddc6427105e0d3454b2003116f5f67236`에서 Elbow 허용 범위는 −1.74533~1.5708 rad다. 2회차 원본 JSONL SHA-256을 manifest와 대조한 뒤 2,704개 전수 검사 결과 Elbow 1,607개가 상한을 초과했고 최대 1.685489 rad(초과 0.114689 rad)였다. 나머지 다섯 관절의 범위 초과는 없다. `scripts/audit_teleop_trace.py`와 설치 URDF 해시 기반 한계 JSON을 추가해 이 검사를 재현 가능하게 했다. 실제 기록 audit exit 2, 상태 `URDF_LIMIT_MISMATCH`; 관련 테스트 19개 통과. 감사기는 로봇 제어 기능이 없고 어떤 결과에도 재생을 승인하지 않는다.
+
+설치 LeLab `teleoperate.py` SHA-256 `2a54de45...ab33931e2`의 `get_joint_positions_from_robot`은 follower `elbow_flex`를 `Elbow`로 매핑해 도→rad 변환한다. 설치 LeRobot `so_follower.py`의 `send_action`은 `max_relative_target`이 있을 때만 상대 차이를 제한하며, config 기본값은 None이다. 설치 코드에서 URDF 절대 상한을 적용하는 경로는 확인되지 않았다. 수치 불일치는 정적 URDF와 방송 관절값 사이의 모델 정합 문제이지 실제 기계적 하드스톱/충돌 발생의 증명이 아니다. 캘리브레이션·설정·모터·토크는 변경하지 않았다. 원인과 안전 여유의 현장 검증 전 자동 재생 `NOT_RUN`.
+
+추가 읽기 전용 대조: 실제 follower 캘리브레이션 파일에서 Elbow `range_min=880`, `range_max=3087`; 설치 STS3215 드라이버는 4096-step 분해능과 `(val-mid)*360/4095`의 raw→도 변환을 사용한다. 파일 범위의 양 끝은 약 ±97.01°로 계산된다. 방송 최대 1.685489 rad≈96.57°는 이 파일 상한까지 약 0.44° 남는다. 이는 **캘리브레이션 파일의 수치적 비교**이며 실제 모터 제한 레지스터, 하드스톱, 부하 중 여유를 측정한 결과가 아니다. URDF의 +90° 상한과 캘리브레이션 파일의 약 +97.01°가 어긋나는 원인은 미확인이다. 원본 캘리브레이션은 Git에 넣지 않고 수정하지 않았다.
+
 ## 사용자 수동 2회차와 연속 관절 기록
 
 사용자가 동일 고정 슬롯·현장 안전과 빈 약통 모형 1개 수동 투입 1회를 승인했다. Jetson SSH 대화형 읽기 전용 점검에서 canonical follower `5AE6058306`→`/dev/ttyACM0`, leader `5AE6085272`→`/dev/ttyACM1`; root `fuser` 점유 출력 없음, LeLab 8000 user service active를 확인했다. `/robots/so-101`의 leader ACM1/follower ACM0·양 config `so-101.json`·카메라 8/4/6과 일치했다. LeLab 세 제어 작업 inactive·Mac 8030 세 카메라 fresh 상태에서 사용자가 직접 기존 텔레옵을 켰고 시작 이상 움직임이 없다고 보고했다. 에이전트는 `/ws/joint-data`만 읽었다.
