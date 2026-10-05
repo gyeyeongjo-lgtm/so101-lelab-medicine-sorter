@@ -2,10 +2,10 @@
 
 업데이트: 2026-10-05
 
-## 2026-10-05 8030 저장 라벨 보완 — 배포 미확인
+## 2026-10-05 8030 저장 라벨 보완 — Mac UI 반영 완료
 
 - `PASS (offline tests)`: Mac 캡처 UI와 서버의 허용 목록에 `BASKET4_RELEASE`를 추가했다. 적재 여부·접촉은 자동 판정되지 않으며 모든 저장본의 재생·로봇·모션 승인 플래그는 계속 false다. `python3 -m unittest tests.test_teach_capture_web` 11개 통과.
-- `NOT_VERIFIED (runtime)`: 현재 Mac loopback 8030 접속은 거부됐다. 실행 중 서버에 새 라벨이 반영됐는지는 확인하지 못했고, 서비스 재시작·팔 제어·자동 재생은 `NOT_RUN`이다. 기존 1회 수동 투입 성공의 범위는 아래 기록 그대로다.
+- `PASS (Mac UI runtime)`: 기존 Mac 8030 PID·명령·작업 디렉터리와 LeLab teleoperation·recording·inference 비활성을 확인한 뒤, 해당 Mac 캡처 프로세스만 동일 Python·인자로 재실행했다. 페이지에 `BASKET4_RELEASE`가 표시되고 정면·사선·손목 카메라 frame age 약 7.7/29.6/29.7 ms, 오류 null이다. 재시작 직후 사선·손목의 일시적 503은 다음 조회에서 회복됐다. 텔레옵 비활성·`robot_control=false`; 팔 제어·자동 재생 `NOT_RUN`이다. 기존 1회 수동 투입 성공의 범위는 아래 기록 그대로다.
 
 ## 2026-10-05 빈 약통 모형 1개 수동 집기·투입 — 현장 1회 완료
 
