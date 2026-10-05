@@ -2,6 +2,19 @@
 
 업데이트: 2026-10-05
 
+## 2026-10-05 빈 약통 모형 1개 수동 집기·투입 — 현장 1회 완료
+
+- `PASS (user-operated one-shot)`: 사용자가 현장 안전·시작 자세·즉시 중단 준비를 확인하고 기존 LeLab 텔레옵을 직접 켜서, 고정 슬롯의 빈 약통 모형 1개를 몸통 양쪽에서 잡고 소폭 들어 올린 뒤 빨강 ID4 바구니 상공으로 이동했다. 현장에서 병 바닥·두 손가락의 테두리 여유를 확인하고 병 바닥을 바구니 바닥에 가볍게 댄 후 그리퍼를 열어 놓고 퇴피했다. 사용자는 최종적으로 접촉·걸림 없이 약통이 바구니 안에 남았다고 확인했다. 중간 질문에서 실수로 `걸림·약통 이동` 선택지를 눌렀으나 즉시 “안 걸렸음”이라고 정정했고, 최종 현장 보고·정면/사선 화면의 그리퍼 분리 모습과 일치한다. 걸림 사고로 기록하지 않는다.
+- `PASS (local static evidence)`: `SOURCE1_HOVER` 2건(빈 그리퍼 접근, 약통 적재·소폭 들어올림), `BASKET4_HOVER` 2건(적재 상공, 바구니 바닥 접촉·개방 전)을 저장했다. 4건 모두 관절 샘플 15개·정면/사선/손목 JPEG 각 1장으로 총 JPEG 12장 SHA-256 일치, 최대 관절 표준편차 0.00190 rad, `use_for_replay=false`, `robot_enabled=false`, `motion_authorized=false`다. 웹 메뉴에 `BASKET4_RELEASE`가 없어 마지막 저장본의 원본 라벨은 `BASKET4_HOVER`이나 의미는 **개방 전 RELEASE 후보**다. 원본 영상·관절 파일은 수정하거나 Git에 커밋하지 않았다.
+- `PASS (post-check read-only)`: 사용자 직접 종료 뒤 LeLab teleoperation·recording·inference active=false, `/health` ok를 확인했다. recording 내부 `current_phase=preparing`, `session_ended=false`는 유지된다. 에이전트가 모터·토크·USB·LeLab 제어 버튼/API를 호출하지 않았다.
+- `LIMIT`: 수동 1회 성공은 자동 재생 경로의 안전성, 반복성, 다른 약통/바구니, 실제 약품 취급을 증명하지 않는다. 저장본은 네 정지 순간뿐이며 개방·퇴피의 연속 궤적은 기록되지 않았다. 자동 재생·실제 투약 `NOT_RUN`. 상세: [waypoint 캡처 검수](sessions/2026-10-05-waypoint-capture-review.md).
+
+## 2026-10-05 빈 약통 1개 수동 시험 사전 점검
+
+- `PASS (camera-only)`: 사용자 배치 보고 뒤 Mac 8030 정면·사선 실시간 화면에 흰 뚜껑 원통형 약통 모형 1개가 빨강 바구니 뒤쪽 출발 위치에 서 있고, 작업대 기준 ID0–3과 바구니 마커가 보인다. 정면/사선/손목 frame age는 각각 0.4/8.2/30.9 ms, 수신 오류 null이다. 약통 내용물·정확한 슬롯·바구니 비움은 영상만으로 확정하지 않고 사용자 확인을 요청했다.
+- `PASS (read-only controls)`: LeLab teleoperation·recording·inference 모두 inactive. recording 내부 `current_phase=preparing`, `session_ended=false`는 유지된다. 팔·토크·USB·서비스·재생은 변경하지 않았다.
+- `APPROVED (user-operated trial only)`: 사용자는 빈 모형 1개·고정 출발 슬롯·빈 빨강 바구니를 확인했고, 사람·장애물 이탈, 리더·팔로워 시작 자세, 즉시 중단 준비 및 **수동 집기·투입 1회**를 명시 승인했다. LeLab 텔레옵 시작·조작·종료는 사용자가 직접 수행한다. 에이전트는 UI 시작/제어 버튼이나 모터 API를 누르지 않는다. 현재 시작 보고 대기 중이며 자동 재생은 승인되지 않았다.
+
 ## 2026-10-05 바구니 출입 후보 오프라인 정리 — 텔레옵 종료 확인
 
 - `PASS (read-only stop)`: 사용자 종료 보고 뒤 LeLab teleoperation·recording·inference 모두 inactive를 확인했다. recording 내부 `current_phase=preparing`, `session_ended=false`는 그대로다. 새 제어·재생 `NOT_RUN`.
