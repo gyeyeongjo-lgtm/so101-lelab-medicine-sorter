@@ -2,6 +2,11 @@
 
 업데이트: 2026-10-05
 
+## 2026-10-05 다음 수동 경로 기록 사전 점검 — 현장 확인 대기
+
+- `PASS (read-only)`: LeLab `/health` ok, teleoperation·recording·inference active=false. Mac 8030 정면·사선·손목 frame age 16.4/7.0/17.7 ms, 오류 null; 관절 방송 null은 텔레옵 inactive 상태와 일치한다.
+- `BLOCKED (current USB mapping)`: Mac에서 `jetson3@192.168.50.20` SSH 공개키/비밀번호 인증이 거부돼 이번 시점의 canonical leader/follower USB 매핑·버스 소유권은 `NOT_VERIFIED`다. 현재 사용자 직접 텔레옵의 새 시작·연속 관절 기록·자동 재생은 `NOT_RUN`. 현장 배치·안전 및 연결 확인 뒤 별도 범위 승인 필요.
+
 ## 2026-10-05 연속 관절 관찰기 — 오프라인 준비만 완료
 
 - `PASS (offline)`: 다음 사용자 수동 텔레옵에서 LeLab의 읽기 전용 관절 방송을 기록할 `scripts/observe_teleop_trace.py`를 준비했다. 텔레옵 inactive면 저장하지 않고, 종료 시 기록을 멈춘다. Git-ignore 로컬 기록은 재생·로봇·모션 승인 플래그가 모두 false다. 기존 8030 포함 테스트 15개 통과.
