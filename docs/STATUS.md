@@ -7,7 +7,7 @@
 - `PASS (read-only live)`: 사용자 복구 보고 후 LeLab 8000 health ok, teleoperation·recording·inference active=false를 확인했다. Mac 8030이 미실행인 것을 확인하고 기존 loopback 증거 서버만 재실행했다. 두 차례 상태 조회에서 정면·사선·손목 frame age가 각각 6.5/14.3/20.9 ms 및 23.2/4.4/17.9 ms였고 세 카메라 오류가 모두 null이다. `robot_control=false`; 팔·USB·토크·Jetson 서비스를 변경하지 않았다.
 - `SCENE (visual only)`: 8030 live 화면에는 인쇄된 ArUco 마커 여러 장, 약통 모형 여러 개와 빨강/초록/회색 계열 바구니 세 개가 보인다. 이는 이전 단일 빨강 바구니·약통 한 개 수동 시험 장면과 다르다. 마커 ID, 각 물체 인식 결과·정확한 좌표는 영상 육안으로 판정하지 않았다. 현재 장면에 과거 단일 슬롯 waypoint를 그대로 적용하지 않는다.
 - `LIMIT`: 이번 확인은 영상 수신 신선도이며 마커·약통 인식 정확도, 텔레옵 중 동시 카메라 안정성, World→Base 정합 또는 자동 경로의 안전을 통과시킨 것이 아니다. 자동 집기·투입·관절 재생 `NOT_RUN` 유지.
-- `BLOCKED (Jetson source check)`: Mac의 무비밀번호 SSH는 `Permission denied (publickey,password)`다. 기존 사용자 SSH 세션을 공유하지 않았고 비밀번호를 명령줄·Git에 쓰지 않았다. 이번 장면의 Jetson 설치 비전 코드 실검출은 `NOT_RUN`이다.
+- `PASS (offline current-frame vision)`: 무비밀번호 SSH는 거부됐으나 사용자가 앞서 허용한 대화형 SSH로 Jetson에 접속했다. 비밀번호를 명령줄·파일·Git에 남기지 않았다. Mac 8030의 정면 640×480 JPEG 한 장(SHA-256 `d2aee40f...0e36941`)을 Jetson `/tmp`로 복사해 해시 일치를 확인했다. Jetson OpenCV 4.12, 저장소와 해시가 일치하는 `detect_medicine_onnx.py`, 기존 ONNX 모델로 약통 후보 3개(confidence 0.968862/0.939377/0.918923)를 검출했다. 임시 Jetson 마커 코드와 실제 설치 config(SHA `40845529...ffd0`)로 ID0–6을 모두 검출했고 ID4는 equalized fallback이다. 테이블 평면 투영상 바구니 ID4/5/6과 세 약통 후보가 계산됐지만 설정된 pickup ROI 안은 가운데 후보 1개뿐이다. 단일 프레임·높이 보정 전이며 `robot_target_authorized=false`다.
 
 ## 2026-10-05 20:50 KST 텔레옵 종료 확인·프리뷰 재점검
 
