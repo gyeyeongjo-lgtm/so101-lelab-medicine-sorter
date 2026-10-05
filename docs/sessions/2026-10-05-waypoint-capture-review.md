@@ -1,5 +1,11 @@
 # 2026-10-05 고정 슬롯 waypoint 저장본 검수
 
+## 20:50 KST — 사용자 텔레옵 종료 후 상태·카메라 점검
+
+사용자 종료 보고 뒤 LeLab 8000 `/health`는 ok, `/teleoperation-status`·`/recording-status`·`/inference-status`는 모두 inactive였다. recording 내부 `current_phase=preparing`, `session_ended=false`는 여전히 남아 있다. 기존 사선 `/camera-preview/4`와 정면 `/camera-preview/8`은 종료 직후 각각 HTTP 200으로 MJPEG 데이터를 보냈다(3초 제한으로 수신을 끊었으므로 curl exit 28은 무한 스트림의 정상적인 제한 종료이지 HTTP 오류가 아니다).
+
+Mac 8030 listener가 없어 기존 `scripts/teach_capture_web.py`를 loopback에서 잠시 실행했다. `/api/status`에서 정면·손목 수신은 신선했으나 사선은 HTTP 503이었고, 재조회에도 같았다. LeLab 원본 `/camera-preview/4`도 503이었다. 첫 단독 스트림 조회와 8030 동시 수신 사이 어느 작업이 카메라 점유에 영향을 줬는지는 검증하지 못했다. 8030만 Ctrl-C로 정상 종료하고 listener 없음, LeLab 세 제어 작업 inactive를 재확인했다. LeLab/카메라 서비스·USB·토크·모터는 변경하지 않았다. 사선 동시 증거와 자동 이동의 기존 안전 게이트는 여전히 `BLOCKED/NOT_RUN`이다.
+
 ## 20:29 KST 이후 — 활성 텔레옵 중 읽기 전용 부분 자료 감사
 
 사용자는 LeLab 8000 텔레옵을 직접 켜고 안전하게 조작 중이라고 확인했다. 에이전트는 종료·재시작·USB/토크/모터 변경이나 관절 재생을 하지 않았다. 첫 Mac sandbox의 `/teleoperation-status` TCP 연결은 거부됐으나, 허용된 읽기 전용 재조회에서 `teleoperation_active=true`를 확인했다. 종료 전에는 새 제어 작업을 시작하지 않는다.

@@ -2,6 +2,12 @@
 
 업데이트: 2026-10-05
 
+## 2026-10-05 20:50 KST 텔레옵 종료 확인·프리뷰 재점검
+
+- `PASS (read-only stop verification)`: 사용자 종료 보고 후 LeLab 8000 health `ok`, teleoperation·recording·inference active=false를 확인했다. recording 내부 `current_phase=preparing`, `session_ended=false`는 유지돼 세션 정리 완료로 해석하지 않는다. 모터·토크·USB·LeLab 제어 API는 건드리지 않았다.
+- `PARTIAL (camera preview)`: 종료 직후 기존 사선 `/camera-preview/4`와 정면 `/camera-preview/8`이 각 HTTP 200으로 데이터를 보냈다. Mac 8030 증거 서버가 실행 중이지 않아 기존 읽기 전용 서버만 잠시 띄웠으나 정면·손목은 신선하고 사선은 503이었다. 별도 LeLab 원본 사선 재조회도 503이었다. 단독 조회 이후 503으로 바뀐 정확한 원인과 점유자는 `NOT_VERIFIED`; 점유를 해소하려고 LeLab·카메라 서비스를 재시작하지 않았다. 이번에 띄운 8030만 종료해 listener 없음과 제어 작업 세 가지 inactive를 재확인했다.
+- `BLOCKED`: 정면·사선 동시 증거 및 World→Base/URDF 정합·경로 안전 검증이 없어 자동 투입·재생 `NOT_RUN`이다. 원본 촬영 자료와 개인 정보는 Git에 넣지 않는다.
+
 ## 2026-10-05 텔레옵 중 수동 관찰 자료 감사 — 자동 이동 계속 차단
 
 - `USER CONFIRMED / LIVE READ-ONLY`: 사용자가 LeLab 8000 텔레옵을 직접 켜고 현장에서 안전하게 조작 중이라고 확인했다. 허용된 Mac 읽기 전용 `/teleoperation-status`가 `teleoperation_active=true`를 반환했다. 에이전트는 텔레옵 종료·재시작, 모터/토크/USB 조작 및 관절 재생을 하지 않았다. 종료 전 새 제어 작업은 시작하지 않는다.
