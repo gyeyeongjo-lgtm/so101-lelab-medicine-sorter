@@ -2,6 +2,11 @@
 
 업데이트: 2026-10-05
 
+## 2026-10-05 19:40 KST Jetson 재점검 — LeLab 8000 비활성, 새 모션 없음
+
+- `PASS (read-only SSH)`: Jetson `192.168.50.20:22`는 접속 가능하다. user `lelab.service`는 `inactive/dead`, `Result=success`, `MainPID=0`, `UnitFileState=disabled`이고 이번 부팅의 시작/종료 시각은 `n/a`다. 8000·8020은 listen하지 않고 8002·8022만 listen한다. Mac 8030도 연결되지 않았다. 비활성 원인과 현재 로봇·토크 상태는 `NOT_VERIFIED`다.
+- `BLOCKED (live ArUco/robot validation)`: 저장된 코드·설정에는 작업대 ID0–3과 빨강 바구니 ID4를 읽는 비전 경로가 있지만, 현재 live 카메라/LeLab을 검증할 수 없다. 더 근본적으로 World→Base 변환·Elbow 한계 정합·적재 궤적 안전 검증이 완료되지 않아 ArUco 기반 자동 투입 및 관절 재생은 계속 `NOT_RUN`이다. 서비스·USB·모터·토크·설정을 변경하지 않았다. 새 서비스 시작과 실제 이동은 현재 현장 상태 확인 및 별도 승인 후에만 검토한다.
+
 ## 2026-10-05 설치 URDF 한계와 수동 관절 방송 불일치 — 자동 재생 거부
 
 - `REJECTED (offline replay gate)`: Jetson 실제 설치 `so101_new_calib.urdf` SHA-256 `443d38d7...f67236`의 Elbow 상한은 1.5708 rad이다. 2회차 원본 2,704개를 SHA 검증 후 전수 대조하면 1,607개가 상한을 초과하고 최대 1.685489 rad(초과 0.114689 rad)이다. 다른 5관절의 URDF 범위 초과는 0건. `scripts/audit_teleop_trace.py`는 `URDF_LIMIT_MISMATCH`와 exit 2를 반환하며 재생/로봇/모션 승인 false를 유지한다. 19개 관련 단위/HTTP 테스트 통과.

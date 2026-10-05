@@ -1,5 +1,9 @@
 # 2026-10-05 고정 슬롯 waypoint 저장본 검수
 
+## 19:40 KST 후속 읽기 전용 연결 점검
+
+Mac에서 Jetson 8000과 Mac 8030 TCP 연결이 거부됐다. Jetson SSH 읽기 전용 점검에서 `lelab.service`는 `inactive/dead`, `Result=success`, `MainPID=0`, `UnitFileState=disabled`; 이번 부팅의 시작·종료 시각 `n/a`다. 8002·8022는 listen하지만 8000·8020은 listen하지 않는다. 비활성화 경위·모터 토크는 확인하지 못했다. 과거 종료 후의 teleoperation/recording/inference inactive 확인을 **현재 live 상태 확인**으로 재사용하지 않는다. 서비스 시작/재시작, 카메라 장치 열기, USB·모터·토크 변경, 새 자동 재생은 모두 `NOT_RUN`. ArUco 감지 코드와 표식 설정이 존재해도 World→Base 등록 거부, URDF/캘리브레이션 불일치, 적재 연속 영상·경로 검증 미완료라 자동 투입은 허용하지 않는다.
+
 ## 설치 URDF-관절 방송 한계 대조 (오프라인)
 
 Jetson의 실제 설치 `frontend/dist/so-101-urdf/urdf/so101_new_calib.urdf` SHA-256 `443d38d756e01bac7d3455b24430047ddc6427105e0d3454b2003116f5f67236`에서 Elbow 허용 범위는 −1.74533~1.5708 rad다. 2회차 원본 JSONL SHA-256을 manifest와 대조한 뒤 2,704개 전수 검사 결과 Elbow 1,607개가 상한을 초과했고 최대 1.685489 rad(초과 0.114689 rad)였다. 나머지 다섯 관절의 범위 초과는 없다. `scripts/audit_teleop_trace.py`와 설치 URDF 해시 기반 한계 JSON을 추가해 이 검사를 재현 가능하게 했다. 실제 기록 audit exit 2, 상태 `URDF_LIMIT_MISMATCH`; 관련 테스트 19개 통과. 감사기는 로봇 제어 기능이 없고 어떤 결과에도 재생을 승인하지 않는다.
