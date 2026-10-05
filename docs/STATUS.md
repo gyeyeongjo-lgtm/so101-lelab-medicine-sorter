@@ -2,6 +2,12 @@
 
 업데이트: 2026-10-05
 
+## 2026-10-05 20:09 KST 8000 복구·ID4 비전 보완
+
+- `PASS (approved service start)`: 사용자 승인 뒤 Jetson 8000의 기존 `lelab.service`만 시작했다. 시작 전 canonical USB `5AE6058306`→ACM0 follower, `5AE6085272`→ACM1 leader와 root `fuser` 두 포트 무점유, 다른 8002·8022 LeLab 인스턴스의 텔레옵·녹화·추론 비활성을 확인했다. 시작 후 8000 health 정상, 세 제어 작업 active=false, 기존 robot config·카메라 8/4/6 유지. 서비스 시작은 로봇 동작 시험이 아니다.
+- `PASS (camera-only diagnosis)`: 8000 정면 MJPEG에서 ID0–3 기준 마커는 안정적으로 검출됐다. 빨강 바구니 ID4는 13프레임 중 3회, 별도 17프레임 두 배치에서 원본 2회/0회로 불안정했다. 같은 17프레임에 histogram equalization을 적용하면 ID4가 12회/16회 검출됐다. 두 번째 배치에서 기준 ID0–3은 원본·처리본 모두 17/17이다. 처리본에 비예상 ID17이 1회 나왔으므로 코드에서는 설정된 기대 ID만 보완 대상으로 취한다. 이 수치는 현 장면의 프리뷰 진단이며 일반 성능 검증이 아니다.
+- `IMPLEMENTED (repo only)`: 읽기 전용 `medicine_yolo_web.py`에 원본에서 빠진 기대 마커만 밝기 균등화 결과로 보완하는 경로를 추가했다. 원본 검출 위치는 유지하고 `equalized_fallback_ids`를 상태에 표시한다. 8020 설치·실행은 `NOT_RUN`: 기존 `medicine-yolo-preview.service`는 `astra-v4l2-bridge.service`와 `Conflicts=` 관계여서 현재 8000 카메라 경로를 건드리지 않았다. ArUco 자동 투입, 로봇 좌표 등록, 모션은 계속 차단이다.
+
 ## 2026-10-05 19:40 KST Jetson 재점검 — LeLab 8000 비활성, 새 모션 없음
 
 - `PASS (read-only SSH)`: Jetson `192.168.50.20:22`는 접속 가능하다. user `lelab.service`는 `inactive/dead`, `Result=success`, `MainPID=0`, `UnitFileState=disabled`이고 이번 부팅의 시작/종료 시각은 `n/a`다. 8000·8020은 listen하지 않고 8002·8022만 listen한다. Mac 8030도 연결되지 않았다. 비활성 원인과 현재 로봇·토크 상태는 `NOT_VERIFIED`다.

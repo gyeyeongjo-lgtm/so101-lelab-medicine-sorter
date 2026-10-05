@@ -71,6 +71,28 @@ def inside_roi(point: tuple[float, float], roi: dict) -> bool:
     return roi["x"][0] <= point[0] <= roi["x"][1] and roi["y"][0] <= point[1] <= roi["y"][1]
 
 
+def detect_table_markers(cv2_module, detector, image, expected_ids: set[int]):
+    """Keep original detections and retry only missing IDs after contrast equalization."""
+    gray = cv2_module.cvtColor(image, cv2_module.COLOR_BGR2GRAY)
+    corners, ids, _ = detector.detectMarkers(gray)
+    detected = {} if ids is None else {
+        int(marker_id): marker_corners
+        for marker_corners, marker_id in zip(corners, ids.flatten())
+    }
+    recovered = []
+    missing = expected_ids - detected.keys()
+    if missing:
+        equalized = cv2_module.equalizeHist(gray)
+        retry_corners, retry_ids, _ = detector.detectMarkers(equalized)
+        if retry_ids is not None:
+            for marker_corners, marker_id in zip(retry_corners, retry_ids.flatten()):
+                marker_id = int(marker_id)
+                if marker_id in missing:
+                    detected[marker_id] = marker_corners
+                    recovered.append(marker_id)
+    return detected, sorted(recovered)
+
+
 class TableMapper:
     """Project image centers onto the ArUco-defined table plane for dry-run display."""
 
@@ -100,19 +122,20 @@ class TableMapper:
 
     def analyze(self, image, overlay, detections: list[dict]) -> dict:
         cv2, np = self.cv2, self.np
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        corners, ids, _ = self.detector.detectMarkers(gray)
-        detected_ids = [] if ids is None else [int(value) for value in ids.flatten()]
-        if ids is not None:
-            cv2.aruco.drawDetectedMarkers(overlay, corners, ids)
-        detected = (
-            {}
-            if ids is None
-            else {
-                int(marker_id): marker_corners.reshape(4, 2).mean(axis=0)
-                for marker_corners, marker_id in zip(corners, ids.flatten())
-            }
+        marker_corners, recovered_ids = detect_table_markers(
+            cv2, self.detector, image, set(self.reference_ids) | set(self.basket_ids)
         )
+        detected_ids = sorted(marker_corners)
+        if marker_corners:
+            cv2.aruco.drawDetectedMarkers(
+                overlay,
+                [marker_corners[marker_id] for marker_id in detected_ids],
+                np.asarray(detected_ids, dtype=np.int32).reshape(-1, 1),
+            )
+        detected = {
+            marker_id: corners.reshape(4, 2).mean(axis=0)
+            for marker_id, corners in marker_corners.items()
+        }
         common = sorted(set(detected).intersection(self.reference_centers))
         homography = None
         rms = None
@@ -176,6 +199,7 @@ class TableMapper:
             "ready": homography is not None,
             "required_ids": self.reference_ids,
             "detected_ids": detected_ids,
+            "equalized_fallback_ids": recovered_ids,
             "reference_rms_mm": None if rms is None else round(rms, 6),
             "pickup_roi_table_mm": {"x": list(self.roi["x"]), "y": list(self.roi["y"])},
             "detections_inside_pickup_roi": inside_count,

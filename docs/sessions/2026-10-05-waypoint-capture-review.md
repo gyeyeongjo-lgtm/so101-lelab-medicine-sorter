@@ -1,5 +1,11 @@
 # 2026-10-05 고정 슬롯 waypoint 저장본 검수
 
+## 20:09 KST LeLab 복구와 마커 ID4 안정성 검사
+
+사용자 승인 후 기존 8000 user `lelab.service`를 시작했다. 시작 전 canonical ACM0 follower/ACM1 leader serial이 기존 설정과 일치하고 root `fuser`에 두 포트 점유가 없으며 8002·8022 제어 작업이 모두 inactive였다. 시작 후 8000 health와 기존 robot config·카메라 8/4/6을 확인했고 텔레옵·녹화·추론은 모두 inactive다. 토크 레지스터는 읽지 않았고 팔을 움직이지 않았다.
+
+기존 8000 정면 MJPEG만 읽어 현장 마커를 진단했다. ID0–3은 안정적이지만 빨강 바구니 ID4는 13프레임에 3번, 별도 17프레임 두 배치에 2번/0번만 검출됐다. 같은 17프레임에 histogram equalization을 적용하자 12번/16번 검출됐다. 두 번째 배치의 ID0–3은 처리 전후 모두 17/17이었다. 처리 후 비예상 ID17이 1번 검출돼 새 fallback은 설정상 기대 ID에 한해 원본에서 빠진 것만 병합한다. 저장소 코드와 단위 테스트를 수정했지만 Jetson의 설치본·8020 서비스는 변경하지 않았다. 8020 unit에는 Astra 브리지와 `Conflicts=`가 있어 현재 카메라 소유권을 바꾸지 않았다. 이 비전 개선은 World→Base·Elbow 한계·경로 안전 문제를 해결하지 않으며 자동 투입 승인도 아니다.
+
 ## 19:40 KST 후속 읽기 전용 연결 점검
 
 Mac에서 Jetson 8000과 Mac 8030 TCP 연결이 거부됐다. Jetson SSH 읽기 전용 점검에서 `lelab.service`는 `inactive/dead`, `Result=success`, `MainPID=0`, `UnitFileState=disabled`; 이번 부팅의 시작·종료 시각 `n/a`다. 8002·8022는 listen하지만 8000·8020은 listen하지 않는다. 비활성화 경위·모터 토크는 확인하지 못했다. 과거 종료 후의 teleoperation/recording/inference inactive 확인을 **현재 live 상태 확인**으로 재사용하지 않는다. 서비스 시작/재시작, 카메라 장치 열기, USB·모터·토크 변경, 새 자동 재생은 모두 `NOT_RUN`. ArUco 감지 코드와 표식 설정이 존재해도 World→Base 등록 거부, URDF/캘리브레이션 불일치, 적재 연속 영상·경로 검증 미완료라 자동 투입은 허용하지 않는다.

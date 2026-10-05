@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from medicine_yolo_web import INDEX_HTML, inside_roi, project_table_xy, read_exact, video_index
+from medicine_yolo_web import INDEX_HTML, detect_table_markers, inside_roi, project_table_xy, read_exact, video_index
 
 import numpy as np
 
@@ -51,6 +51,28 @@ class MedicineYoloWebTests(unittest.TestCase):
         roi = {"x": (80.0, 220.0), "y": (100.0, 300.0)}
         self.assertTrue(inside_roi(point, roi))
         self.assertFalse(inside_roi((79.9, 120.0), roi))
+
+    def test_equalized_fallback_adds_only_missing_marker_without_replacing_original(self):
+        class FakeCV2:
+            COLOR_BGR2GRAY = 1
+
+            @staticmethod
+            def cvtColor(image, _code):
+                return image
+
+            @staticmethod
+            def equalizeHist(image):
+                return image + 1
+
+        class FakeDetector:
+            def detectMarkers(self, image):
+                if image == 1:
+                    return ["original-0"], np.asarray([[0]]), []
+                return ["retry-0", "retry-4", "retry-9"], np.asarray([[0], [4], [9]]), []
+
+        detected, recovered = detect_table_markers(FakeCV2, FakeDetector(), 1, {0, 4})
+        self.assertEqual(detected, {0: "original-0", 4: "retry-4"})
+        self.assertEqual(recovered, [4])
 
 
 if __name__ == "__main__":
