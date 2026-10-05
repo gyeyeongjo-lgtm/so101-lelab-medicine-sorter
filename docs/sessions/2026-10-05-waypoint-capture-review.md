@@ -17,6 +17,8 @@
 
 ## 상태와 다음 게이트
 
+- `FOLLOW-UP (camera-only, no motion)`: 사용자가 초록·파랑 바구니를 제거했다고 보고했다. 8030 정면·사선 실시간 화면에 바구니 한 개와 기준 마커 네 장이 보인다. 사선상 남은 것은 빨강 바구니 배치와 일치하며 정면 색상은 카메라 색감 때문에 파랗게 보이므로 색상 판정에는 사용하지 않았다. 8030 status 카메라 age 9.7/29.1/1.4 ms, 오류 null; LeLab teleoperation inactive. 새 텔레옵·캡처·재생 `NOT_RUN`.
+
 - `RESOLVED (stop verification)`: 사용자가 의도치 않게 다시 시작된 텔레옵을 직접 종료했다고 보고했다. 이어 Mac에서 읽기 전용 LeLab 상태 API가 `teleoperation_active=false`, `recording_active=false`, `inference_active=false`, `/health` ok를 반환했다. recording 내부 `current_phase=preparing`, `session_ended=false`는 유지되어 세션 정리 완료로 단정하지 않는다. 종료 검증에 UI 버튼이나 제어 API는 사용하지 않았다.
 
 - 후속 상태 확인 중 의도치 않은 텔레옵 시작 사고가 발생했다. Mac shell에서 8000/8030 접속이 거부되어 브라우저 LeLab 홈을 읽었고, `Teleoperation` 버튼을 상태 화면으로 가는 탐색으로 오인해 눌렀다. UI는 `Teleoperation Started`와 `Live Robot Data`를 표시했다. 사용자는 직전 텔레옵 종료를 보고했지만 **이번 새 시작을 승인한 적은 없다**. 즉시 실수를 알렸고 현장 중단을 요청했다.

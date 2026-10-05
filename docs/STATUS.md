@@ -2,6 +2,11 @@
 
 업데이트: 2026-10-05
 
+## 2026-10-05 빨강 바구니 단독 배치 — 카메라 확인
+
+- `PASS (camera-only)`: 사용자가 초록·파랑 바구니를 치웠다고 보고했다. Mac 8030의 새 정면·사선 프레임에서 바구니 한 개와 작업대 기준 ArUco 4장이 보인다. 사선 영상의 남은 바구니는 기존 빨강 ID4 배치 위치·형상과 일치한다. 정면 영상의 색감은 파랗게 보이므로 색상만으로 재식별하지 않는다. 카메라 frame age는 정면 9.7 ms, 사선 29.1 ms, 손목 1.4 ms이고 수신 오류는 없다.
+- `PASS (read-only control state)`: LeLab `teleoperation_active=false`. 새 텔레옵, 촬영, 팔 동작, waypoint 재생은 `NOT_RUN`. 기존 낮은 `BASKET4_HOVER` 세 건은 계속 재생 금지다. 단일 빨강 바구니의 새 상공 자세 teach에는 별도 현장 안전 확인과 그 시험에 대한 명시 승인이 필요하다.
+
 ## 2026-10-05 의도치 않은 텔레옵 시작 후 종료 확인
 
 - `PASS (read-only stop verification)`: 사용자가 LeLab에서 텔레옵을 직접 종료했다고 보고한 뒤, Mac의 읽기 전용 API로 `teleoperation_active=false`, `recording_active=false`, `inference_active=false`, `/health` ok를 확인했다. 이전의 `BLOCKED`는 이 확인 시점에 해소됐다. recording 내부 `current_phase=preparing`, `session_ended=false`는 여전히 남아 있어 세션 정리 완료로 해석하지 않는다.
