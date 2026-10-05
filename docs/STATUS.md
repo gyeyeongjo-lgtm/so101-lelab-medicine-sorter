@@ -1,6 +1,11 @@
 # 현재 상태
 
-업데이트: 2026-10-02
+업데이트: 2026-10-05
+
+## 2026-10-05 waypoint 현장 시작 전 연결 점검
+
+- `BLOCKED (LeLab inactive)`: Mac `127.0.0.1:8030/api/status`는 응답하지만 카메라 세 프레임의 나이가 약 64,420,000 ms이고 관절 수신은 connection refused/값 null이라 live 화면이 아니다. Jetson `192.168.50.20`은 ping 2/2와 SSH 22가 통과했으나 8000 `/health` 및 세 제어 상태 API는 연결 거부됐다. SSH 읽기 전용 확인에서 `lelab.service`는 `ActiveState=inactive`, `SubState=dead`, `MainPID=0`, `Result=success`였다. 서비스가 의도적으로 정지된 것인지 `NOT_VERIFIED`다.
+- `NOT_RUN`: LeLab 서비스 시작·재시작, 텔레옵, waypoint 캡처, 모터·토크·USB 조작은 하지 않았다. 서비스 시작과 현장 안전 확인 전에는 8030의 오래된 카메라 상태를 live 증거로 사용하지 않는다. 이후 빈 장면 teach에는 새 현장 확인과 별도 명시 승인이 필요하다. 상세: [2026-10-05 사전 점검](sessions/2026-10-05-waypoint-preflight.md).
 
 ## 2026-10-02 고정 슬롯 waypoint 증거 수집 준비 — 로봇 미구동
 
