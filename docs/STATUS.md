@@ -2,6 +2,12 @@
 
 업데이트: 2026-10-05
 
+## 2026-10-05 바구니 자세 역할 정정 — HOVER와 RELEASE 분리
+
+- `CORRECTION`: 사용자는 낮게 저장한 바구니 자세가 약통을 실제로 놓기 위한 높이라고 설명했다. 이전의 “너무 낮아 사용하지 않는다”는 평가는 **상공 대기 HOVER 기준**에 한정한다. 15:11:23–30의 8건은 버릴 자료가 아니라 빈 바구니 `BASKET4_RELEASE` 후보 증거로 별도 검토한다. 원본의 `BASKET4_HOVER` 라벨·관절·영상은 수정하거나 재생 승인하지 않는다.
+- `NEXT (offline/physical gate)`: ID4 경로에는 바구니 테두리 위에서 접근·이탈하는 HOVER와, 바구니 안에 약통을 놓는 낮은 RELEASE가 각각 필요하다. 저장된 정지 영상만으로 그리퍼 양쪽과 바구니 벽의 실제 간격, 병을 쥔 상태의 충돌, 투입·퇴피 경로는 입증되지 않았다. 같은 자세의 반복 촬영 대신 이 조건을 먼저 검증한다.
+- `PASS (stop verification)`: 사용자의 종료 보고 뒤 LeLab 읽기 전용 상태에서 teleoperation·recording·inference 모두 inactive를 확인했다. 새 모션·재생 `NOT_RUN`.
+
 ## 2026-10-05 추가 `BASKET4_HOVER` 13건 검수 — 텔레옵 종료 요청
 
 - `PASS (local integrity)`: 사용자가 저장한 추가 13건(15:11:00–15:11:30 KST)은 모두 `BASKET4_HOVER`, 각 관절 샘플 15개와 카메라 JPEG 3장이다. 새 JPEG 39장의 SHA-256이 metadata와 일치하고 최대 관절 표준편차는 0.00695 rad다. `use_for_replay=false`, `robot_enabled=false`, `motion_authorized=false` 유지. 원본은 Git-ignore 로컬에 보존했다.
