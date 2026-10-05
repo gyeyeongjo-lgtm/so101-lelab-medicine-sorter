@@ -4,8 +4,10 @@
 
 ## 2026-10-05 waypoint 현장 시작 전 연결 점검
 
-- `BLOCKED (LeLab inactive)`: Mac `127.0.0.1:8030/api/status`는 응답하지만 카메라 세 프레임의 나이가 약 64,420,000 ms이고 관절 수신은 connection refused/값 null이라 live 화면이 아니다. Jetson `192.168.50.20`은 ping 2/2와 SSH 22가 통과했으나 8000 `/health` 및 세 제어 상태 API는 연결 거부됐다. SSH 읽기 전용 확인에서 `lelab.service`는 `ActiveState=inactive`, `SubState=dead`, `MainPID=0`, `Result=success`였다. 서비스가 의도적으로 정지된 것인지 `NOT_VERIFIED`다.
-- `NOT_RUN`: LeLab 서비스 시작·재시작, 텔레옵, waypoint 캡처, 모터·토크·USB 조작은 하지 않았다. 서비스 시작과 현장 안전 확인 전에는 8030의 오래된 카메라 상태를 live 증거로 사용하지 않는다. 이후 빈 장면 teach에는 새 현장 확인과 별도 명시 승인이 필요하다. 상세: [2026-10-05 사전 점검](sessions/2026-10-05-waypoint-preflight.md).
+- `PASS (approved recovery)`: 사용자가 LeLab 서비스 시작과 현장 안전을 명시 승인했다. SSH에서 `lelab.service`의 정확한 ExecStart가 기존 `uv` LeLab/uvicorn 포트 8000임을 확인하고, 서비스가 inactive/dead인 상태에서 `systemctl --user start lelab.service`를 한 번 실행했다. 이후 active/running, `/health` ok, teleoperation·recording·inference active=false를 확인했다. recording 내부 `current_phase=preparing`, `session_ended=false`는 그대로라 세션 정리 완료로 해석하지 않는다.
+- `PASS (camera-only preview recovery)`: LeLab `/camera-preview/8`, `/4`, `/6`이 각각 HTTP 200 MJPEG 바이트를 실제 전송했다. Mac 8030은 서버 자체는 살아 있었지만 옛 프레임에 멈춰 있어, 세 제어 작업 inactive·정확한 Mac PID/명령/작업 디렉터리를 확인한 뒤 해당 8030 프로세스만 정상 종료하고 동일 인자로 재시작했다. 정면/사선/손목 frame age 각각 약 14/27/22 ms, 오류 null, 브라우저 waypoint 섹션 표시를 확인했다. 관절 방송 null은 텔레옵 inactive에서 예상 상태다.
+- `NOT_RUN (motion)`: 이번 승인 범위는 LeLab 서비스 시작과 프리뷰 복구였다. 텔레옵·waypoint 저장·자동 재생·모터 명령·토크·USB 변경은 하지 않았다. 다음 고정 슬롯 빈 장면 teach에는 별도의 현장 안전 재확인과 명시적 텔레옵 승인이 필요하다. `robot_enabled=false`, `motion_authorized=false` 유지.
+- `RESOLVED (initial LeLab outage)`: 승인 전 최초 점검에서는 Mac 8030 카메라 frame age가 약 64,420,000 ms이고 Jetson 8000이 연결 거부됐으며 `lelab.service`가 inactive/dead였다. 이때는 서비스·로봇을 변경하지 않았고, 오래된 화면을 live 증거로 사용하지 않았다. 사용자 승인 뒤 위와 같이 복구했다. 상세: [2026-10-05 사전 점검](sessions/2026-10-05-waypoint-preflight.md).
 
 ## 2026-10-02 고정 슬롯 waypoint 증거 수집 준비 — 로봇 미구동
 
