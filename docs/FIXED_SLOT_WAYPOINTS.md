@@ -1,13 +1,13 @@
 # 고정 슬롯 관절 waypoint 경로 — 설계·증거 수집 단계
 
-2026-10-05 보충: 빈 약통 모형 1개를 사용자가 저속 텔레옵으로 고정 슬롯에서 집어 빨강 ID4 바구니에 놓고 그리퍼를 빼내는 수동 시험 1회가 현장 보고 및 실시간 정면·사선 화면에서 완료됐다. 저장본은 네 정지점이며 자동 재생과 연속 경로 검증은 여전히 `NOT_RUN`이다. 약통을 놓는 낮은 `BASKET4_RELEASE`와 바구니 테두리 위 `BASKET4_HOVER`는 서로 다른 역할이다. 현재 8030 메뉴에는 `BASKET4_RELEASE` 라벨이 없어 마지막 개방 전 저장본의 원본 라벨은 `BASKET4_HOVER`; 원본은 바꾸지 않고 세션 검토에서만 역할을 구분한다.
+2026-10-05 보충: 빈 약통 모형 1개를 사용자가 저속 텔레옵으로 고정 슬롯에서 집어 빨강 ID4 바구니에 놓고 그리퍼를 빼내는 수동 시험 1회가 현장 보고 및 실시간 정면·사선 화면에서 완료됐다. 저장본은 네 정지점이며 자동 재생과 연속 경로 검증은 여전히 `NOT_RUN`이다. 약통을 놓는 낮은 `BASKET4_RELEASE`와 바구니 테두리 위 `BASKET4_HOVER`는 서로 다른 역할이다. 이제 8030 메뉴에는 `BASKET4_RELEASE`가 있지만 과거 마지막 개방 전 저장본의 원본 라벨은 `BASKET4_HOVER`로 보존한다.
 
 2026-10-02 현재 이 경로는 **연구용 빈 약통/모형**의 고정 슬롯 1곳에서 빨강 바구니 ID4 한 곳으로 가는 첫 시연 후보이다. 일반적인 World→Robot Base 보정이나 임의 위치 약통 집기의 대체품이 아니다. 슬롯·바구니·로봇 베이스·카메라 위치가 바뀌면 teach 자료를 그대로 재사용하지 않는다.
 
 ## 현재 구현 범위
 
 - Mac 8030의 `scripts/teach_capture_web.py`에 로봇 제어가 없는 별도 `POST /api/waypoint-capture`를 추가했다. 사용자가 **기존 LeLab 텔레옵을 직접 켜고**, 빈 약통 상태에서 자세를 멈춘 경우에만 최근 관절 방송 15개와 정면·사선 영상(손목은 신선할 때 보조)을 `.local/fixed-slot-waypoints/`에 저장한다. 원래 P1–P6 접촉 캡처는 별도 폴더/API로 남기되 기본 차단하며 웹 버튼도 비활성화했다. `--allow-touch-capture`는 별도 승인된 과거 실험에만 사용한다.
-- 허용 라벨은 `PARK`, `SOURCE1_HOVER`, `TRANSFER_HOVER`, `BASKET4_HOVER` 네 가지다. `HOVER`/`CLEAR`라는 이름만으로 실제 높이·충돌 여유를 보증하지 않는다. 각 저장본의 `capture_kind=waypoint`, `contact=not claimed`, `use_for_robot_world_fit=false`, `use_for_replay=false`, `robot_enabled=false`, `motion_authorized=false`가 기본값이다. 원본 영상·관절값은 Git-ignore 로컬에만 둔다.
+- 허용 라벨은 `PARK`, `SOURCE1_HOVER`, `TRANSFER_HOVER`, `BASKET4_HOVER`, `BASKET4_RELEASE` 다섯 가지다. 이름만으로 실제 높이·충돌 여유나 놓기 성공을 보증하지 않는다. 각 저장본의 `capture_kind=waypoint`, `contact=not claimed`, `use_for_robot_world_fit=false`, `use_for_replay=false`, `robot_enabled=false`, `motion_authorized=false`가 기본값이다. 원본 영상·관절값은 Git-ignore 로컬에만 둔다.
 - 저장 API는 텔레옵 활성, 현장 장면·완전 정지 확인, 15개 신선·안정 관절 방송, 정면·사선 영상의 수신시각 근접을 요구한다. 이 조건은 **증거 품질 게이트**이지 안전한 이동 경로의 증명이 아니다. 카메라 노출시각 동기화도 아니다.
 - 이번 변경에는 궤적 생성·보간·모터/토크/USB/serial 제어·LeLab 시작/정지·재생 API가 없다. 현장에서 새 텔레옵이나 자동 재생을 하지 않았다. 기존 Mac 8030 프로세스만 LeLab 세 작업 inactive 확인 뒤 정상 종료하고 동일 포트에서 새 코드로 시작했다. 새 UI·세 카메라 수신은 live 확인했지만 waypoint 실제 저장은 `NOT_RUN`이다.
 

@@ -2,6 +2,11 @@
 
 업데이트: 2026-10-05
 
+## 2026-10-05 연속 관절 관찰기 — 오프라인 준비만 완료
+
+- `PASS (offline)`: 다음 사용자 수동 텔레옵에서 LeLab의 읽기 전용 관절 방송을 기록할 `scripts/observe_teleop_trace.py`를 준비했다. 텔레옵 inactive면 저장하지 않고, 종료 시 기록을 멈춘다. Git-ignore 로컬 기록은 재생·로봇·모션 승인 플래그가 모두 false다. 기존 8030 포함 테스트 15개 통과.
+- `NOT_RUN`: 실제 연속 궤적 수집, 영상 동기화, 경로 안전 검증, ArUco 기반 자동 투입 및 자동 재생. 다음 현장 시험에는 새 안전 확인·명시 승인이 필요하다.
+
 ## 2026-10-05 8030 저장 라벨 보완 — Mac UI 반영 완료
 
 - `PASS (offline tests)`: Mac 캡처 UI와 서버의 허용 목록에 `BASKET4_RELEASE`를 추가했다. 적재 여부·접촉은 자동 판정되지 않으며 모든 저장본의 재생·로봇·모션 승인 플래그는 계속 false다. `python3 -m unittest tests.test_teach_capture_web` 11개 통과.

@@ -7,7 +7,7 @@
 | M2 | Astra RGB–Depth 정합 진단 | OpenNI2 정합·300-frame depth 진단 완료 |
 | M3 | Camera 2.5D와 World frame | 300-frame 안정성 통과; full 3D PnP는 잔차 기준 미달로 제어에 사용 금지 |
 | M4 | World→Robot Base 등록 | 첫 네 P5 자세와 추가 후보의 오프라인 TCP 진단은 일부 수치 통과지만 물리 접촉 검증·사전 지정 독립 holdout 미완료. World→Base 변환은 계속 거부 |
-| M4b | 고정 슬롯 waypoint 시연 경로 | M4와 별개의 제한된 대안. 정지 자세 증거를 저장하는 코드·계획만 준비; 실제 teach·경로 검증·자동 재생은 `NOT_RUN` |
+| M4b | 고정 슬롯 waypoint 시연 경로 | 빈 약통 모형 1개를 사용자 수동 텔레옵으로 빨강 ID4 바구니에 넣는 시험 1회 성공. 정지 자세 4건 저장; 연속 경로·반복성·자동 재생은 `NOT_RUN` |
 | M5 | 약통 검출·안전한 dry-run | YOLO live smoke·ArUco/basket 표시 통과; 약통 높이·grasp offset·limits·목표 안정성 필요 |
 | M6 | 제한된 실제 이동 | 별도 안전 승인 후 높은 Z에서 XY-only부터 검증 |
 | M7 | 분류→집기→이동→놓기 | descend/grip/lift/place와 실패 복구 검증 |
