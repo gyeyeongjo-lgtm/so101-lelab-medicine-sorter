@@ -2,6 +2,13 @@
 
 업데이트: 2026-10-05
 
+## 2026-10-05 바구니 출입 후보 오프라인 정리 — 텔레옵 종료 확인
+
+- `PASS (read-only stop)`: 사용자 종료 보고 뒤 LeLab teleoperation·recording·inference 모두 inactive를 확인했다. recording 내부 `current_phase=preparing`, `session_ended=false`는 그대로다. 새 제어·재생 `NOT_RUN`.
+- `PASS (offline sequence reduction)`: 15:17:39–57의 8개 정지 캡처 중 15:17:42/43은 최대 관절 차이 0.0005 rad, 15:17:50/51은 정확히 같아 중복이다. 따라서 시간순 고유 자세는 약 6개다. 인접 캡처 간 최대 관절 차이는 0.3274 rad까지 있어, 저장 정지점만 단순 직선 보간해 자동 이동할 근거가 없다. 이 결과를 출입 경로의 **검토용 후보**로 사용한다.
+- `USER_REPORTED (unloaded path)`: 사용자는 방금 빈 그리퍼로 바구니에 들어갔다 나올 때 테두리·벽 접촉이나 걸림이 없었고 약통 모형은 잡지 않았다고 확인했다. 이는 그 수동 시연의 현장 관찰로 기록하지만 연속 궤적 계측이나 적재 약통 안전성 증명으로 바꾸지 않는다.
+- `NEXT PHYSICAL GATE`: 다음 한 변수는 빈 약통 모형 1개를 쥔 상태다. 고정 출발 슬롯 배치·카메라/마커 가시성·현장 안전·즉시 중단 방법을 재확인하고 **해당 수동 저속 텔레옵 시험의 명시 승인**을 받은 뒤에만 진행한다. 자동 재생은 계속 금지한다.
+
 ## 2026-10-05 바구니 출입 정지 지점 8건 — 증거 후보로 사용
 
 - `PASS (local integrity)`: 사용자가 바구니 안팎으로 이동하며 15:17:39–57 KST에 추가 저장한 `BASKET4_HOVER` 8건의 JPEG 24장 SHA-256이 metadata와 모두 일치한다. 각 관절 샘플 15개, 최대 관절 표준편차 0.00274 rad이며 `use_for_replay=false`, `robot_enabled=false`, `motion_authorized=false`다.
