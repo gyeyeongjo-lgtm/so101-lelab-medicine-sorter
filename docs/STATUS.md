@@ -2,8 +2,17 @@
 
 업데이트: 2026-10-05
 
+## 2026-10-05 빈 약통 수동 투입 2회차 — 연속 관절 관찰 성공
+
+- `PASS (user-operated one-shot)`: 사용자가 기존 LeLab 텔레옵을 직접 켜고 이전 고정 슬롯의 빈 약통 모형 1개를 빨강 ID4 바구니에 놓은 뒤 직접 종료했다. 현장 보고는 투입 성공·간섭/걸림/이상 움직임 없음이다. 종료 후 8030 실시간 사선 화면에는 빨강 바구니 안 약통과 위로 분리된 열린 그리퍼가 보인다. 이후 읽기 전용 API에서 teleoperation·recording·inference active=false를 확인했다. 연속 관절 파일에는 카메라 영상이 없어 이동 중 간섭 여부의 독립 영상 판정은 `NOT_VERIFIED`다.
+- `PASS (preflight read-only)`: SSH 대화형 인증으로 Jetson canonical serial `5AE6058306`→ACM0 follower, `5AE6085272`→ACM1 leader를 확인했다. 시작 전 root `fuser`에 두 포트 점유 출력이 없고 LeLab 8000 user service active였다. `/robots/so-101`의 leader ACM1/follower ACM0, config `so-101.json`, camera 8/4/6이 일치했다. 세 제어 작업 inactive, Mac 8030 카메라 세 대 fresh였다. 비밀번호는 저장·커밋하지 않았다.
+- `PASS (local trace integrity)`: 사용자 직접 텔레옵 중 Mac에서 읽기 전용 `/ws/joint-data` 2,704개를 16:16:24–16:18:43 KST 약 139.7초 기록했다. `joints.jsonl` SHA-256이 manifest와 일치, 중복/역순 source timestamp 0건, 평균 수신율 19.35 Hz, 최대 수신 공백 389.4 ms(250 ms 초과 9건). 원본은 Git-ignore `.local/teleop-traces/`에만 보존했다. 종료 사유 `teleoperation_inactive`; `use_for_replay=false`, `robot_enabled=false`, `motion_authorized=false` 유지.
+- `LIMIT`: 이 기록은 Mac 수신 시각의 관절 방송이지 실제 모터 명령·카메라 동기 영상·접촉/충돌 여유가 아니다. 자동 재생, ArUco 기반 자동 투입, 반복성 및 실제 약품 사용은 여전히 `NOT_RUN/NOT_VERIFIED`다.
+- `OFFLINE COMPARISON`: 2회차 연속 기록을 1회차 정지 저장본 4개와 관절 공간에서 대조했다. 각 과거 자세의 최근접 샘플 최대 관절 차이는 0.3066/0.3744/0.4588/0.8163 rad로, 동일 자세의 재현이나 과거 waypoint 직접 재생 근거가 되지 않는다. 서로 다른 수동 시연의 사후 비교이며 영상 접촉/충돌 검증은 아니다.
+
 ## 2026-10-05 다음 수동 경로 기록 사전 점검 — 현장 확인 대기
 
+- `USER CONFIRMED`: 같은 빈 약통 모형의 고정 슬롯 배치·현장 안전과 사용자 직접 수동 1회 시험을 명시 승인했고, 본인의 Mac 터미널에서는 Jetson SSH가 연결됐다고 보고했다. 에이전트의 별도 비대화형 SSH는 여전히 인증 거부라 해당 세션을 공유할 수 없다. 사용자 터미널에서 canonical USB·점유 출력의 읽기 전용 전달을 요청했다. 새 텔레옵은 아직 시작하지 않았다.
 - `PASS (read-only)`: LeLab `/health` ok, teleoperation·recording·inference active=false. Mac 8030 정면·사선·손목 frame age 16.4/7.0/17.7 ms, 오류 null; 관절 방송 null은 텔레옵 inactive 상태와 일치한다.
 - `BLOCKED (current USB mapping)`: Mac에서 `jetson3@192.168.50.20` SSH 공개키/비밀번호 인증이 거부돼 이번 시점의 canonical leader/follower USB 매핑·버스 소유권은 `NOT_VERIFIED`다. 현재 사용자 직접 텔레옵의 새 시작·연속 관절 기록·자동 재생은 `NOT_RUN`. 현장 배치·안전 및 연결 확인 뒤 별도 범위 승인 필요.
 

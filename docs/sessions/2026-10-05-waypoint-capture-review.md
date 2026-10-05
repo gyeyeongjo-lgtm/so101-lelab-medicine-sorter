@@ -1,6 +1,18 @@
 # 2026-10-05 고정 슬롯 waypoint 저장본 검수
 
+## 사용자 수동 2회차와 연속 관절 기록
+
+사용자가 동일 고정 슬롯·현장 안전과 빈 약통 모형 1개 수동 투입 1회를 승인했다. Jetson SSH 대화형 읽기 전용 점검에서 canonical follower `5AE6058306`→`/dev/ttyACM0`, leader `5AE6085272`→`/dev/ttyACM1`; root `fuser` 점유 출력 없음, LeLab 8000 user service active를 확인했다. `/robots/so-101`의 leader ACM1/follower ACM0·양 config `so-101.json`·카메라 8/4/6과 일치했다. LeLab 세 제어 작업 inactive·Mac 8030 세 카메라 fresh 상태에서 사용자가 직접 기존 텔레옵을 켰고 시작 이상 움직임이 없다고 보고했다. 에이전트는 `/ws/joint-data`만 읽었다.
+
+`.local/teleop-traces/20261005T071624_105838Z_4f7c1a2f/`에 관절 방송 2,704개를 16:16:24–16:18:43 KST 약 139.7초 저장했다. 원본 JSONL SHA-256 `dcc81f9ab75eec80b61c8b5ed27d50d19e8a3eda0b94c6de8903e3b0b8e80108`은 manifest와 일치하고 중복/역순 source timestamp는 없다. 평균 수신율 약 19.35 Hz, 최대 수신 간격 389.4 ms, 250 ms 초과 9건이다. 사용자는 약통의 빨강 바구니 투입 성공, 간섭·걸림 없음, 텔레옵 직접 종료를 보고했다. 종료 후 8030 실시간 사선 화면에는 약통이 빨강 바구니 안에 있고 열린 그리퍼가 위로 분리된 모습이 보였다. 종료 뒤 LeLab teleoperation·recording·inference active=false; recording 내부 `current_phase=preparing`, `session_ended=false`는 남았다.
+
+이번 관절 기록에는 카메라 영상이 없으므로 물체/그리퍼 위치·접촉·바구니 간격의 독립 영상 판정은 `NOT_VERIFIED`다. Mac 수신 시각의 broadcast는 실제 모터 명령이나 안전 검증 궤적이 아니다. `use_for_replay=false`, `robot_enabled=false`, `motion_authorized=false`; 자동 재생·ArUco 기반 자동 투입은 `NOT_RUN`. 원본 데이터와 비밀번호는 Git에 넣지 않는다.
+
+오프라인 사후 대조: 1회차 정지 저장본 네 자세에 대해 2회차 관절 기록 내 최근접 샘플을 찾았을 때 최대 관절 절댓값 차이는 순서대로 0.3066/0.3744/0.4588/0.8163 rad다(6관절 RMS 0.1918/0.2352/0.2308/0.3971 rad). 서로 다른 수동 시연의 자세가 동일하게 재현됐다고 볼 수 없다. 정지 사진의 점만 직접 재생하거나 관절 기록을 승인된 자동 경로로 취급하지 않는다.
+
 ## 다음 기록 사전 점검
+
+사용자가 고정 슬롯 배치·현장 안전·수동 1회 시험을 승인했고 본인의 터미널 SSH 연결을 보고했다. 에이전트의 별도 비대화형 SSH는 계속 인증 거부여서 현재 canonical USB 매핑/버스 점유 출력 전달을 요청했다. 새 텔레옵·관절 기록은 아직 `NOT_RUN`.
 
 LeLab health 정상, 세 제어 작업 inactive, Mac 8030 카메라 3대 frame age 16.4/7.0/17.7 ms·오류 null을 읽기 전용으로 확인했다. Mac→Jetson `jetson3@192.168.50.20` SSH는 인증 거부여서 현재 canonical USB 매핑·버스 점유를 재검증하지 못했다. 새 사용자 수동 텔레옵·연속 관절 기록·자동 재생은 실행하지 않았다. 현장 배치/안전 및 연결 확인 대기.
 
