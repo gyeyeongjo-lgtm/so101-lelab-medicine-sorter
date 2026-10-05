@@ -2,6 +2,11 @@
 
 업데이트: 2026-10-05
 
+## 2026-10-05 의도치 않은 텔레옵 시작 후 종료 확인
+
+- `PASS (read-only stop verification)`: 사용자가 LeLab에서 텔레옵을 직접 종료했다고 보고한 뒤, Mac의 읽기 전용 API로 `teleoperation_active=false`, `recording_active=false`, `inference_active=false`, `/health` ok를 확인했다. 이전의 `BLOCKED`는 이 확인 시점에 해소됐다. recording 내부 `current_phase=preparing`, `session_ended=false`는 여전히 남아 있어 세션 정리 완료로 해석하지 않는다.
+- `NOT_RUN`: 종료 검증 과정에서 UI 버튼, 모터·토크·USB·서비스 제어, waypoint 재생·새 촬영은 실행하지 않았다. 의도치 않은 시작 자체는 아래 사고 기록으로 유지한다.
+
 ## 2026-10-05 텔레옵 의도치 않은 시작 — 즉시 현장 종료 요청
 
 - `INCIDENT`: 사용자가 기존 텔레옵을 종료했다고 보고한 뒤, 상태 확인을 위해 LeLab 홈의 `Teleoperation` 버튼을 눌렀다. 이 버튼은 단순 화면 이동이 아니라 텔레옵 시작을 실행했고 UI에 `Teleoperation Started` 알림과 `Live Robot Data`가 표시됐다. 사전 현장 안전 확인·이번 시작 승인이 없는 상태에서 발생한 잘못된 조작이다.
