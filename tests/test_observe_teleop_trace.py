@@ -1,6 +1,7 @@
 import tempfile
 import hashlib
 import json
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -8,8 +9,9 @@ from unittest.mock import patch
 
 import websocket
 
-from scripts.observe_teleop_trace import CameraEvidence, TraceAudit, record
-from scripts.teach_capture_web import JOINT_NAMES
+from scripts.observe_teleop_trace import (CameraEvidence, TraceAudit, cached_camera_worker,
+                                         check_camera_source, record)
+from scripts.teach_capture_web import CaptureState, JOINT_NAMES
 
 
 def joint_message(source_unix, pitch=0.0):
@@ -27,18 +29,62 @@ class TraceAuditTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temporary:
             folder = Path(temporary)
-            with patch("scripts.observe_teleop_trace.camera_worker", side_effect=one_frame):
+            with patch("scripts.observe_teleop_trace.cached_camera_worker", side_effect=one_frame):
                 evidence = CameraEvidence("http://localhost:8000", folder, ("ceiling",))
                 evidence.start()
                 evidence.threads[0].join(timeout=1)
                 with patch("scripts.observe_teleop_trace.time.monotonic_ns", return_value=1_000_000_000):
                     evidence.sample()
+                    evidence.state.add_frame("ceiling", jpeg, 1_100_000_000, 2_000_000_000)
                     evidence.sample()
                 summary = evidence.finish()
             self.assertEqual(summary["ceiling"]["frame_count"], 1)
             index = json.loads((folder / "ceiling" / "frames.jsonl").read_text())
             self.assertEqual(index["sha256"], hashlib.sha256(jpeg).hexdigest())
             self.assertEqual((folder / "ceiling" / index["filename"]).read_bytes(), jpeg)
+
+    def test_camera_source_must_be_fresh_loopback_and_read_only(self):
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return None
+
+            def read(self, *_):
+                return json.dumps({"camera_age_ms": {"ceiling": 12.0},
+                                   "errors": {"ceiling": None}, "robot_control": False}).encode()
+
+        with patch("scripts.observe_teleop_trace.urllib.request.urlopen", return_value=Response()) as request:
+            check_camera_source("http://127.0.0.1:8030", ("ceiling",))
+            request.assert_called_once_with("http://127.0.0.1:8030/api/status", timeout=2)
+        with self.assertRaisesRegex(ValueError, "loopback"):
+            check_camera_source("http://192.168.50.20:8000", ("ceiling",))
+        with patch("scripts.observe_teleop_trace.urllib.request.urlopen", return_value=Response()):
+            with patch("scripts.observe_teleop_trace.MAX_FRAME_AGE_NS", 10_000_000):
+                with self.assertRaisesRegex(RuntimeError, "not fresh"):
+                    check_camera_source("http://127.0.0.1:8030", ("ceiling",))
+
+    def test_cached_camera_worker_keeps_original_receive_timestamp(self):
+        class Response:
+            headers = {"X-Frame-Received-Unix-Ns": "2000000000"}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return None
+
+            def read(self, *_):
+                return b"\xff\xd8frame\xff\xd9"
+
+        state = CaptureState()
+        stop = threading.Event()
+        with patch("scripts.observe_teleop_trace.urllib.request.urlopen", return_value=Response()), \
+             patch("scripts.observe_teleop_trace.time.time_ns", return_value=2_100_000_000):
+            stop.wait = lambda _: stop.set()
+            cached_camera_worker(state, "ceiling", "http://127.0.0.1:8030", stop)
+        self.assertEqual(state.latest_frame("ceiling").received_unix_ns, 2_000_000_000)
 
     def test_tracks_gaps_steps_and_source_time_duplicates(self):
         audit = TraceAudit()
@@ -94,7 +140,8 @@ class TraceAuditTests(unittest.TestCase):
 
     def test_source_has_no_control_routes(self):
         source = (Path(__file__).resolve().parents[1] / "scripts" / "observe_teleop_trace.py").read_text()
-        for forbidden in ("/move-arm", "/stop-teleoperation", "/joint-positions", "serial.Serial"):
+        for forbidden in ("/move-arm", "/stop-teleoperation", "/joint-positions",
+                          "/camera-preview", "serial.Serial"):
             self.assertNotIn(forbidden, source)
 
 

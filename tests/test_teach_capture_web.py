@@ -41,6 +41,23 @@ class TeachCaptureTests(unittest.TestCase):
         self.assertEqual(list(iter_jpegs([b"boundary\xff", b"\xd8three\xff\xd9"])),
                          [b"\xff\xd8three\xff\xd9"])
 
+    def test_cached_frame_exposes_original_receive_timestamp(self):
+        state, _ = ready_state()
+        with tempfile.TemporaryDirectory() as temporary:
+            server = CaptureServer(("127.0.0.1", 0), state, Path(temporary), "http://invalid.local")
+            worker = threading.Thread(target=server.serve_forever, daemon=True)
+            worker.start()
+            try:
+                with urllib.request.urlopen(
+                    f"http://127.0.0.1:{server.server_port}/frame/ceiling.jpg", timeout=2
+                ) as response:
+                    self.assertEqual(response.headers["X-Frame-Received-Unix-Ns"], "2700000000")
+                    self.assertEqual(response.read(), b"\xff\xd8test-ceiling\xff\xd9")
+            finally:
+                server.shutdown()
+                server.server_close()
+                worker.join(timeout=2)
+
     def test_capture_selects_stable_joint_window_and_both_frames(self):
         state, now = ready_state()
         result = state.select("P6", now_ns=now)

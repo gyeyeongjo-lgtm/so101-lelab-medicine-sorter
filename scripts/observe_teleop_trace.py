@@ -10,8 +10,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import threading
 import time
+import urllib.error
 import urllib.request
 import uuid
 from datetime import datetime, timezone
@@ -19,15 +21,60 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 if __package__:
-    from scripts.teach_capture_web import CAMERAS, CaptureState, JOINT_NAMES, camera_worker, parse_joint
+    from scripts.teach_capture_web import CAMERAS, CaptureState, JOINT_NAMES, MAX_FRAME_AGE_NS, MAX_JPEG_BYTES, parse_joint
 else:
-    from teach_capture_web import CAMERAS, CaptureState, JOINT_NAMES, camera_worker, parse_joint
+    from teach_capture_web import CAMERAS, CaptureState, JOINT_NAMES, MAX_FRAME_AGE_NS, MAX_JPEG_BYTES, parse_joint
+
+
+DEFAULT_CAMERA_SOURCE_URL = "http://127.0.0.1:8030"
 
 
 def teleop_active(base_url: str) -> bool:
     with urllib.request.urlopen(base_url + "/teleoperation-status", timeout=2) as response:
         status = json.load(response)
     return status.get("teleoperation_active") is True
+
+
+def check_camera_source(base_url: str, names: tuple[str, ...]) -> None:
+    parts = urlsplit(base_url)
+    if (parts.scheme != "http" or parts.hostname not in ("127.0.0.1", "::1")
+            or parts.path not in ("", "/") or parts.query or parts.fragment
+            or parts.username is not None or parts.password is not None):
+        raise ValueError("camera evidence source must be a loopback HTTP origin")
+    with urllib.request.urlopen(base_url.rstrip("/") + "/api/status", timeout=2) as response:
+        status = json.load(response)
+    if not isinstance(status, dict):
+        raise ValueError("camera evidence source returned non-object status")
+    if status.get("robot_control") is not False:
+        raise RuntimeError("camera evidence source must declare robot_control=false")
+    ages = status.get("camera_age_ms", {})
+    errors = status.get("errors", {})
+    if not isinstance(ages, dict) or not isinstance(errors, dict):
+        raise ValueError("camera evidence source returned malformed camera status")
+    for name in names:
+        age = ages.get(name)
+        if (isinstance(age, bool) or not isinstance(age, (int, float)) or not math.isfinite(age)
+                or age < 0 or age * 1_000_000 > MAX_FRAME_AGE_NS or errors.get(name) is not None):
+            raise RuntimeError(f"{name} cached camera is not fresh and error-free")
+
+
+def cached_camera_worker(state: CaptureState, name: str, base_url: str,
+                         stop: threading.Event) -> None:
+    url = base_url.rstrip("/") + f"/frame/{name}.jpg"
+    while not stop.is_set():
+        try:
+            with urllib.request.urlopen(url, timeout=2) as response:
+                source_ns = int(response.headers["X-Frame-Received-Unix-Ns"])
+                jpeg = response.read(MAX_JPEG_BYTES + 1)
+            age_ns = time.time_ns() - source_ns
+            if source_ns <= 0 or not 0 <= age_ns <= MAX_FRAME_AGE_NS:
+                raise ValueError(f"{name} cached frame is stale or future-dated")
+            if len(jpeg) > MAX_JPEG_BYTES:
+                raise ValueError(f"{name} cached JPEG exceeds size limit")
+            state.add_frame(name, jpeg, received_unix_ns=source_ns)
+        except (OSError, ValueError, TypeError, KeyError, urllib.error.URLError) as error:
+            state.fail(name, error)
+        stop.wait(0.2)
 
 
 class TraceAudit:
@@ -73,18 +120,18 @@ class TraceAudit:
 
 
 class CameraEvidence:
-    """Sample existing LeLab MJPEG receivers; do not open V4L2 devices."""
+    """Sample cached Mac 8030 frames without opening another LeLab MJPEG stream."""
 
     def __init__(self, base_url: str, folder: Path, names: tuple[str, ...]):
         self.state = CaptureState()
         self.stop_event = threading.Event()
         self.threads = [
-            threading.Thread(target=camera_worker, args=(self.state, name, base_url, self.stop_event), daemon=True)
+            threading.Thread(target=cached_camera_worker, args=(self.state, name, base_url, self.stop_event), daemon=True)
             for name in names
         ]
         self.names = names
         self.folder = folder
-        self.last_frame_ns = {name: None for name in names}
+        self.last_frame_unix_ns = {name: None for name in names}
         self.counts = {name: 0 for name in names}
         self.indexes = {}
 
@@ -101,7 +148,7 @@ class CameraEvidence:
                 frame = self.state.latest_frame(name)
             except ValueError:
                 continue
-            if frame.received_ns == self.last_frame_ns[name]:
+            if frame.received_unix_ns == self.last_frame_unix_ns[name]:
                 continue
             filename = f"{frame.received_unix_ns}.jpg"
             (self.folder / name / filename).write_bytes(frame.jpeg)
@@ -111,7 +158,7 @@ class CameraEvidence:
                 "sha256": hashlib.sha256(frame.jpeg).hexdigest(),
             }, separators=(",", ":")) + "\n")
             self.indexes[name].flush()
-            self.last_frame_ns[name] = frame.received_ns
+            self.last_frame_unix_ns[name] = frame.received_unix_ns
             self.counts[name] += 1
 
     def finish(self) -> dict:
@@ -132,11 +179,14 @@ class CameraEvidence:
 
 
 def record(base_url: str, output_root: Path, max_seconds: int,
-           camera_names: tuple[str, ...] = ()) -> dict:
+           camera_names: tuple[str, ...] = (),
+           camera_source_url: str = DEFAULT_CAMERA_SOURCE_URL) -> dict:
     if not teleop_active(base_url):
         raise RuntimeError("LeLab teleoperation is inactive; no trace created")
     if any(name not in CAMERAS for name in camera_names) or len(set(camera_names)) != len(camera_names):
         raise ValueError("camera names must be unique known LeLab cameras")
+    if camera_names:
+        check_camera_source(camera_source_url, camera_names)
     import websocket
 
     parts = urlsplit(base_url)
@@ -146,7 +196,7 @@ def record(base_url: str, output_root: Path, max_seconds: int,
     stem = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S_%fZ") + "_" + uuid.uuid4().hex[:8]
     folder = output_root / stem
     audit = TraceAudit()
-    cameras = CameraEvidence(base_url, folder, camera_names) if camera_names else None
+    cameras = CameraEvidence(camera_source_url, folder, camera_names) if camera_names else None
     camera_summary = {}
     cameras_started = False
     reason = "max_duration"
@@ -205,11 +255,15 @@ def record(base_url: str, output_root: Path, max_seconds: int,
         "stop_reason": reason, "joint_file": "joints.jsonl",
         "joint_file_sha256": hashlib.sha256(raw).hexdigest(), **audit.summary(),
         "source": "/ws/joint-data", "timing": "Mac receive-time; not motor command or camera exposure-time",
-        "camera_video_recorded": any(item["frame_count"] for item in camera_summary.values()),
-        "camera_evidence_complete": bool(camera_names) and all(
-            camera_summary.get(name, {}).get("frame_count", 0) > 0 for name in camera_names),
+        "camera_video_recorded": False,
+        "camera_sampled_frames_recorded": any(item["frame_count"] for item in camera_summary.values()),
+        "camera_channels_observed": [
+            name for name in camera_names if camera_summary.get(name, {}).get("frame_count", 0) > 0
+        ],
+        "camera_evidence_complete": False,
         "camera_evidence": camera_summary,
-        "camera_timing": "Mac receive-time samples; not synchronized exposure-time video",
+        "camera_evidence_source": "Mac loopback 8030 cached JPEG; no additional LeLab camera stream",
+        "camera_timing": "original Mac 8030 receive-time; not synchronized exposure-time video",
         "use_for_replay": False,
         "robot_enabled": False, "motion_authorized": False,
     }
@@ -223,7 +277,9 @@ def main() -> int:
     parser.add_argument("--output-root", type=Path, default=Path(".local/teleop-traces"))
     parser.add_argument("--max-seconds", type=int, default=180)
     parser.add_argument("--camera-evidence", action="store_true",
-                        help="Sample ceiling and oblique LeLab MJPEG frames into the ignored trace folder")
+                        help="Sample ceiling and oblique cached Mac 8030 JPEGs into the ignored trace folder")
+    parser.add_argument("--camera-source-url", default=DEFAULT_CAMERA_SOURCE_URL,
+                        help="Loopback Mac cached-camera origin (default: http://127.0.0.1:8030)")
     args = parser.parse_args()
     parts = urlsplit(args.lelab_url)
     if parts.scheme not in ("http", "https") or not parts.netloc or parts.path not in ("", "/"):
@@ -232,8 +288,9 @@ def main() -> int:
         parser.error("--max-seconds must be 1–300")
     try:
         result = record(args.lelab_url.rstrip("/"), args.output_root, args.max_seconds,
-                        ("ceiling", "oblique") if args.camera_evidence else ())
-    except (OSError, RuntimeError, ImportError) as error:
+                        ("ceiling", "oblique") if args.camera_evidence else (),
+                        args.camera_source_url)
+    except (OSError, RuntimeError, ImportError, ValueError) as error:
         parser.exit(2, f"trace not started: {error}\n")
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0

@@ -307,11 +307,14 @@ class CaptureHandler(BaseHTTPRequestHandler):
     def log_message(self, fmt: str, *args: object) -> None:
         return
 
-    def send_bytes(self, body: bytes, content_type: str, status: HTTPStatus = HTTPStatus.OK) -> None:
+    def send_bytes(self, body: bytes, content_type: str, status: HTTPStatus = HTTPStatus.OK,
+                   headers: dict[str, str] | None = None) -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(body)))
+        for key, value in (headers or {}).items():
+            self.send_header(key, value)
         self.end_headers()
         self.wfile.write(body)
 
@@ -327,7 +330,10 @@ class CaptureHandler(BaseHTTPRequestHandler):
         elif path in tuple(f"/frame/{name}.jpg" for name in CAMERAS):
             name = path.split("/")[-1].split(".")[0]
             try:
-                self.send_bytes(self.server.state.latest_frame(name).jpeg, "image/jpeg")
+                frame = self.server.state.latest_frame(name)
+                self.send_bytes(frame.jpeg, "image/jpeg", headers={
+                    "X-Frame-Received-Unix-Ns": str(frame.received_unix_ns),
+                })
             except ValueError as error:
                 self.send_json({"error": str(error)}, HTTPStatus.SERVICE_UNAVAILABLE)
         else:

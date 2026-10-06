@@ -1,6 +1,12 @@
 # 현재 상태
 
-업데이트: 2026-10-05
+업데이트: 2026-10-06
+
+## 2026-10-06 11:26 KST 텔레옵 영상 증거 수집 경로 보완
+
+- `IMPLEMENTED (Mac only)`: 기존 관찰기가 텔레옵 중 LeLab 정면·사선 MJPEG를 추가로 열던 경로를 제거했다. 이제 `--camera-evidence`는 이미 실행 중인 Mac 8030의 캐시 JPEG를 읽고 원래 Mac 수신시각 헤더·신선도·중복·SHA-256을 검사한다. 8030이 없거나 정면·사선이 stale이면 기록 시작 전에 거부한다. 로봇 제어·재생 경로는 추가하지 않았다.
+- `PASS (offline/runtime)`: 관련 단위/HTTP·비전 테스트 34개 통과. LeLab 세 제어 작업 inactive를 확인하고 정확한 Mac 8030 프로세스만 새 코드로 갱신했다. 첫 상태에서는 정면 stream closed·사선/손목 503이었으나 자동 재시도 후 모두 회복. 정면·사선 `/frame` 응답에 수신시각 헤더가 있고, 최종 세 카메라 age 5.4/12.9/13.1 ms·오류 null, `robot_control=false`, teleoperation inactive다. 텔레옵 inactive 상태의 실제 관찰기 CLI는 exit 2로 거부됐고 새 자료 0건이다.
+- `NOT_RUN`: 새 방식으로 실제 사용자 수동 텔레옵을 촬영하거나 모션을 실행하지 않았다. World→Base 적합 거부·Elbow URDF 불일치·연속 경로 안전 미검증 때문에 자동 집기·투입·재생은 계속 차단이다. 상세 기록: `docs/sessions/2026-10-06-cached-camera-trace.md`.
 
 ## 2026-10-05 20:56 KST 사선 프리뷰 회복 확인
 
