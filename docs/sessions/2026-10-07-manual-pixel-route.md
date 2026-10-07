@@ -56,5 +56,12 @@
 - `FIRST UI TEST MISREAD`: 첫 UI 자동화의 접근성 값은 A 명령을 표시했지만 실제 DOM 입력값은 빈 문자열이라 버튼 결과가 바뀌지 않았다. DOM 입력 상태를 확인해 실제 텍스트 입력으로 다시 시험했고 위 판정이 표시됐다. 서버·명령 해석 오류는 아니며 사용자 명령이 적용된 적도 없다.
 - `NOT_RUN`: A/B 동시 현장 장면, 다른 촬영일/카메라 위치 변화, 실제 명령 지속·예약, 목적지 다중 투입 경로·용량, 모터 동작은 검증하지 않았다. 기존 World→Base/TCP 및 경로 승인은 여전히 거부 상태다.
 - `PASS (saved ROI evidence)`: Git 제외 보유 메타데이터 80개를 읽기 전용으로 재집계해 A 0/23·B 35/35·C 0/22만 기존 픽업 ROI에 들어감을 확인했다. 이는 약통 높이를 보정하지 않은 검출 상자 중심의 작업대 평면 투영이며 물리 집기 가능률이 아니다. 반환 경로에 `pickup_roi_match`와 `grasp_authorized=false`를 추가했다. 8031 live health는 `ok=true`, 프레임 age 0.304초, `robot_enabled=false`; 시험용 `A를 빨강`의 읽기 전용 미리보기는 `pickup_roi_match=false`, `grasp_authorized=false`, `motion_authorized=false`였다. 명령 저장·실행, ROI 확장·모터 제어는 하지 않았다.
-- `NEXT/BLOCKED`: 세 약통 동시 고정 배치에 대한 실제 한 프레임 검증은 사용자의 물리 배치가 있어야 한다. 그 전까지 합성 마커 오프라인 결과와 A 단독 라이브 결과만 있다. 카메라-only 검증과 실제 로봇 동작은 분리하며 자동 집기·재생 `NOT_RUN`이다.
+- `INITIAL NEXT/BLOCKED`: 세 약통 동시 고정 배치에 대한 실제 한 프레임 검증은 사용자 물리 배치를 기다렸다. 이후 아래의 카메라-only 동시 배치 검증으로 이 게이트는 해소됐다. 실제 로봇 동작은 별개이며 자동 집기·재생 `NOT_RUN`이다.
 - `PUSHED (ff57967)`: 이번 읽기 전용 UI·ROI 판정·테스트·문서 7개 파일을 기존 비공개 `fix/usb-recording` 브랜치에 push했다. 원본 사진·데이터셋·인증정보는 Git 제외. 웹 12개·고정 슬롯 7개 시험, Python 구문·diff 검사 통과. `gh` CLI가 Mac에 없어 GitHub 이슈 API 갱신은 `NOT_RUN`; 미해결 항목은 이 세션과 `docs/STATUS.md`에 유지한다.
+
+## 세 약통 동시 배치의 실제 읽기 전용 검사
+
+- `USER INPUT`: 사용자가 텔레옵 종료·팔 정지 상태에서 왼쪽 C·가운데 B·오른쪽 A를 동시에 놓았다고 보고했다. 물체 신원 자체는 그 보고에 의존한다.
+- `PASS (live vision)`: 8031 `/health`는 `ok=true`, frame age 0.013초, 검출 상자 3개, ArUco ID0–6, `robot_enabled=false`였다. 상자 중심 x는 약 C 308.7·B 381.1·A 444.1 px다. 기존 평면 픽업 ROI(101–273, 251–379 mm)에 B만 들어왔고 A/C는 밖이다. 이는 영상 평면 투영이지 실제 약통 높이·로봇 손끝 집기 위치가 아니다.
+- `PASS (read-only route)`: 기본 명령 `A를 파랑, B를 초록, C를 빨강`은 sequence 1317에서 ID6/ID5/ID4 경로 3개를 `DRY_RUN_ROUTE_ONLY`로 반환했다. 시험용 예시 `A를 빨간색, B도 빨간색 박스`는 A/B→ID4 경로 2개를 반환했다. 각 경로 `grasp_authorized=false`, 전체 `robot_enabled=false`, `motion_authorized=false`, `robot_coordinates_included=false`; 명령을 저장·예약·실행하지 않았다. LeLab 8000 텔레옵 읽기 전용 조회는 `teleoperation_active=false`였다.
+- `LIMIT`: 하나의 현장 배치·카메라 각도에서만 통과했다. 물체 종류를 상자 모양으로 독립 확인한 시험도, 다른 날짜/조명·카메라 이동 일반화도 아니다. ROI를 넓히거나 기존 World→Base/TCP 거부를 해제하지 않았다. 다중 투입 용량·경로·간섭과 실제 집기/투입은 `NOT_RUN`이다.
