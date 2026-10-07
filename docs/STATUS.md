@@ -2,6 +2,12 @@
 
 업데이트: 2026-10-07
 
+## 2026-10-07 LeLab 재연결·현재 약통 검출 — 자율 집기 미완료
+
+- `PASS (service-only recovery)`: 사용자 재연결 요청 시 8000 HTTP는 연결 거부·Mac 8030 캐시는 약 5,286초 오래됐다. 8002/8022 텔레옵·녹화·추론 inactive, canonical follower `5AE6058306`→ACM0·leader `5AE6085272`→ACM1, root `fuser`의 두 장치 점유 출력 없음, 8000 user service inactive/dead·PID 0을 확인했다. 기존 `lelab.service`만 시작해 active/running·health ok와 세 제어 작업 inactive를 확인했다. Mac 8030의 기존 실행 명령·PID 12929·`robot_control=false`를 확인한 후 멈춘 수신 프로세스만 TERM 종료하고 동일 명령으로 재시작했다. 이후 세 카메라 age 5.5–15.7 ms·오류 null·`robot_control=false`다. 모터·토크·USB·설정은 변경하지 않았다.
+- `PASS (one offline frame) / BLOCKED (unique grasp)`: 복구된 정면 캐시 한 장을 Git 제외 `.local/medicine-class-scenes/20261007_live_after_reconnect_ceiling.jpg`(SHA `6483b79f...433db4`)에 보존했다. 현재 영상에는 사람/기타 물체가 보이고 약통은 이전 고정 슬롯과 다른 화면 중앙 부근에 있다. 기존 한 클래스 ONNX를 이 저장 프레임에 오프라인 실행하면 겹치는 약통 후보 2개(confidence 0.894484·0.261647, bbox `[307.691,222.901,333.010,257.654]`·`[307.997,222.227,344.980,256.120]`)를 출력한다. 검출 JSON도 Git 제외 보존했다. 같은 물체의 중복 후보로 보이나 독립적인 단일 픽업 후보가 아니고 A/B/C 분류 출력도 없다. 이는 1프레임 오프라인 검출이지 실시간 폐루프 인식·집기 승인이 아니다. 팔 동작·LeLab inference `NOT_RUN`.
+- `ARCHITECTURE`: 작업대 ArUco ID0–3은 영상 픽셀→작업대 평면 XY, 바구니 ID4–6은 목적지 식별용이다. 약통은 영상 검출기/깊이로 찾는 구상이며 약통 표면에 ArUco가 반드시 필요한 것은 아니다. 현재 누락된 A/B/C 구분, 신뢰할 픽업 후보·높이, World→Base/TCP 및 경로 검증 때문에 마커 좌표만으로 약통을 집고 분류하는 단계는 아직 아니다.
+
 ## 2026-10-07 A/B/C 종료 프레임 180건 추출·현재 사진 검출 비교
 
 - `PASS (offline extraction, not success labeling)`: 새 읽기 전용 `scripts/audit_medicine_episode_ends.py`로 기존 A v2·B v1·C test 각 60회의 정면 영상에서 에피소드 시간표상 마지막 프레임을 추출했다. 연락표와 프레임 시각/마커 manifest는 Git 제외 `.local/dataset-episode-audit/20261007/`에 보존했다. ID4·ID5는 각 데이터셋 60/60 종료 프레임, ID6은 A 53/60·B 60/60·C 60/60에서 검출됐다. A의 ID6 7장 비검출은 가림 가능성이 있어 목적지 부재로 해석하지 않는다. 연락표에서 B는 중앙 ID6, C는 왼쪽 ID5 바구니 안 약통이 반복적으로 보이지만, 정지 한 장만으로 180회 성공/실패 라벨을 확정하지 않는다. 현재 규칙 B→ID5·C→ID4와 맞지 않는 기존 첫 시연 판단은 유지된다.
