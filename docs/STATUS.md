@@ -6,6 +6,7 @@
 
 - `PASS (read-only installed model audit)`: 설치 URDF SHA 일치 확인. 설치 STL은 실제 형상이 아닌 Git LFS 포인터였고, Jetson 기존 uv 캐시에서 포인터 SHA와 맞는 바이너리 STL을 찾았다. URDF visual/joint 변환을 적용한 모델 외접 폭은 B 입구 부근 Jaw 0.43259 rad에서 X 83.7·Y 52.0 mm, C 집은 상태 Jaw 0.21469에서 X 71.7·Y 52.0 mm, C 개방 후 Jaw 0.54582에서 X 91.6·Y 52.0 mm다.
 - `NOT_VERIFIED (physical clearance)`: X축을 바구니 짧은 명목 입구 88 mm에 맞춘 가정에서 B의 양옆 여유는 각 약 2.2 mm, C 개방 후 폭은 3.6 mm 초과다. 실제 손목 방향·장착물·내부 최소 개구·양손가락 연동은 모델에 완전히 반영되지 않았다. 사용자의 수동 무간섭 보고를 부정하지 않지만 이를 자동 통과/개방 안전 증거로 쓰지 않는다. 다음은 실제 자세별 외접 폭과 테두리 여유 검증이다. 로봇 이동·재생 `NOT_RUN`, 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`. 상세: [그리퍼 외접 폭 점검](sessions/2026-10-08-gripper-envelope-offline.md).
+- `OFFLINE DESIGN CANDIDATE ONLY`: 모델 X 폭을 바구니 긴 128 mm 방향으로 둔 가정에서는 B 자세의 명목 여유가 긴 방향 각 약 22.2 mm·짧은 방향 각 18 mm다. C 개방 자세도 각 약 18.2/18 mm다. 실제 손목 방향과 양손가락·장착물은 미검증이며 **회전/이동 명령이 아니다**. 실제 입구 최소 폭 및 기존 시연 방향을 먼저 확인한다.
 
 ## 2026-10-08 약통·바구니 치수 — 바깥 치수와 명목 입구 계산
 
