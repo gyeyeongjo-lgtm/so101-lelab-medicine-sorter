@@ -2,6 +2,12 @@
 
 업데이트: 2026-10-08
 
+## 2026-10-08 8022 카메라 점유 정리 — 8000 세 영상 복구
+
+- `PASS (approved service stop)`: 사용자 승인 후 8022의 정확한 `lelab-jetson-py310.service`가 텔레옵·녹화·추론 inactive임을 확인하고 그 서비스만 중지했다. 결과 inactive/dead·PID 0·8022 listener 없음. 8000 서비스·USB·모터·토크·캘리브레이션·설치 URDF는 변경하지 않았다. 8000 정면 8·사선 4·손목 6이 모두 HTTP 200으로 실제 MJPEG 바이트를 보냈고 `/health` ok, 텔레옵 inactive였다.
+- `PASS (read-only observer restore)`: 중지된 8022를 바라보던 정확한 Mac 8030 관찰기만 종료 후 8000 세 카메라 입력으로 재시작했다. 반복 상태 조회에서 세 프레임 나이 수십 ms 이하·오류 null·`robot_control=false`; 8031 정면/사선 입력도 fresh, `robot_enabled=false`. 8011 촬영 서비스는 8022 입력을 사용하므로 그 기능은 현재 `NOT_VERIFIED`다. 8022는 여전히 `enabled`여서 재부팅 시 충돌이 재발할 수 있으며, 영구 비활성화는 수행하지 않았다.
+- `CALIBRATION LIMIT POLICY`: 사용자가 요청한 캘리브레이션 최대값은 실제 제한 레지스터와 일치하는 Elbow 약 +97.011°·Wrist_Pitch 약 +100.615°의 **읽기 전용 장치 범위 대조**에 사용한다. 이전 수동 최고 자세는 각각 상한에서 약 0.35° 아래였으므로 이를 자동 목표값이나 여유 있는 안전 경로로 간주하지 않는다. 설치 URDF +90°/+95°를 수정하지 않았다. 자동 이동·집기 `BLOCKED/NOT_RUN`, 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`. 상세: [8022 카메라 점유 정리](sessions/2026-10-08-8022-camera-ownership-recovery.md).
+
 ## 2026-10-08 빈 작업대 소폭 이동 사전 점검 — 한 관절 검증 미완료
 
 - `PASS (camera receiver recovery)`: 8000은 텔레옵 inactive에서 정면 `/camera-preview/8`만 신선했고 사선 4·손목 6은 HTTP 503이었다. Jetson root `lsof`에서 기존 8022 LeLab PID 518962가 `/dev/video4`·`/dev/video6`을 점유하고, 그 인스턴스의 두 프리뷰는 HTTP 200임을 확인했다. 8000·8022·USB·카메라 장치 설정을 바꾸지 않고 Mac 읽기 전용 8030 관찰기에 카메라별 대체 MJPEG URL 옵션과 짧은 정상 스트림 재연결을 추가했다. 정확한 기존 8030 프로세스만 종료·동일 포트로 재시작한 뒤 정면·사선·손목 수신을 확인했다. 다만 8022의 짧은 스트림 종료가 반복돼 사선/손목은 간헐적으로 0.75초 신선도 기준을 넘었다. 실시간 안전 영상으로 연속성을 보증하지 않는다.
