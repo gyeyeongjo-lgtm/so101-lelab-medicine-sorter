@@ -8,6 +8,7 @@ It contains no LeLab, serial, torque, USB, or robot-control endpoint.
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import re
@@ -40,8 +41,20 @@ pre{white-space:pre-wrap;background:#18212b;padding:12px;border-radius:8px;color
 <figure class="view"><figcaption>천장 정면 · Astra · YOLO</figcaption><img src="/stream.mjpg" alt="medicine detection stream"></figure>
 <figure class="view"><figcaption>천장 사선 · RealSense D435</figcaption><img src="/angled.mjpg" alt="angled camera stream"></figure>
 </section>
+<section><h2>수동 위치 지정 · 판정만</h2>
+<p>움직임이 멈춘 장면에서 A/B/C를 사람이 확인하고 프레임을 고정한 뒤 약통 가운데를 클릭하세요. 이 결과로 팔을 움직이지 않습니다.</p>
+<label>확인한 약통 <select id="manual-label"><option value="">종류를 선택하세요</option><option value="A">A 큰 약통</option><option value="B">B 중간 약통</option><option value="C">C 작은 약통</option></select></label>
+<button id="freeze" type="button">현재 프레임 고정</button>
+<p><img id="manual-frame" alt="고정한 정면 프레임; 클릭해 약통 위치 지정"></p><pre id="manual-result">프레임을 고정하세요.</pre></section>
 <pre id="status">상태 읽는 중…</pre>
-<script>async function poll(){try{const r=await fetch('/health',{cache:'no-store'});document.querySelector('#status').textContent=JSON.stringify(await r.json(),null,2)}catch(e){document.querySelector('#status').textContent=String(e)}}poll();setInterval(poll,1500)</script>
+<script>
+let frozen=null, frozenAt=0;
+async function poll(){try{const r=await fetch('/health',{cache:'no-store'});document.querySelector('#status').textContent=JSON.stringify(await r.json(),null,2)}catch(e){document.querySelector('#status').textContent=String(e)}}
+async function freeze(){const out=document.querySelector('#manual-result');try{const r=await fetch('/manual-frame.json',{cache:'no-store'});const d=await r.json();if(!r.ok||!d.snapshot.ok||d.snapshot.frame_age_s>0.75){out.textContent='카메라 프레임이 신선하지 않습니다.';return}frozen=d.snapshot;frozenAt=Date.now();const img=document.querySelector('#manual-frame');img.src='data:image/jpeg;base64,'+d.jpeg_base64;out.textContent='고정 프레임 '+frozen.sequence+' — 약통 중심을 클릭하세요.'}catch(e){out.textContent=String(e)}}
+function iou(a,b){const w=Math.max(0,Math.min(a[2],b[2])-Math.max(a[0],b[0])),h=Math.max(0,Math.min(a[3],b[3])-Math.max(a[1],b[1]));const overlap=w*h;return overlap/((a[2]-a[0])*(a[3]-a[1])+(b[2]-b[0])*(b[3]-b[1])-overlap)}
+function choose(e){const out=document.querySelector('#manual-result'),img=e.currentTarget;if(!frozen||!img.naturalWidth){out.textContent='먼저 프레임을 고정하세요.';return}if(Date.now()-frozenAt>10000){out.textContent='고정 프레임이 10초를 넘었습니다. 다시 고정하세요.';return}const label=document.querySelector('#manual-label').value,rules={A:[6,'blue'],B:[5,'green'],C:[4,'red']};if(!rules[label]){out.textContent='실제 약통 종류 A/B/C를 먼저 확인하고 선택하세요.';return}const rect=img.getBoundingClientRect(),x=(e.clientX-rect.left)*img.naturalWidth/rect.width,y=(e.clientY-rect.top)*img.naturalHeight/rect.height,t=frozen.table,[id,color]=rules[label];let reason=null;if(!t||!t.ready||!Array.isArray(t.required_ids)||!Array.isArray(t.detected_ids)||!t.required_ids.every(n=>t.detected_ids.includes(n)))reason='작업대 기준 마커 누락';else if(!t.detected_ids.includes(id)||!t.basket_markers||!t.basket_markers[id]||t.basket_markers[id].color!==color||!t.basket_mapping||t.basket_mapping[id]!==color)reason='목표 바구니 마커 불일치';const boxes=(frozen.detections||[]).filter(d=>Array.isArray(d.xyxy)&&d.xyxy.length===4&&d.xyxy[0]<=x&&x<=d.xyxy[2]&&d.xyxy[1]<=y&&y<=d.xyxy[3]).sort((a,b)=>b.confidence-a.confidence);if(!reason&&!boxes.length)reason='클릭점에 약통 검출 상자 없음';if(!reason&&boxes.some(d=>iou(boxes[0].xyxy,d.xyxy)<0.5))reason='여러 물체 후보가 겹침';out.textContent=JSON.stringify({status:reason?'BLOCKED':'DRY_RUN_ROUTE_ONLY',reason,frame_sequence:frozen.sequence,clicked_pixel:[Math.round(x),Math.round(y)],human_label:label,target_marker_id:reason?null:id,target_color:reason?null:color,overlapping_boxes:boxes.length,robot_enabled:false,motion_authorized:false,note:'클릭점은 로봇 집기 좌표가 아닙니다. 실제 색·물체 신원은 사람이 확인해야 합니다.'},null,2)}
+document.querySelector('#freeze').addEventListener('click',freeze);document.querySelector('#manual-frame').addEventListener('click',choose);poll();setInterval(poll,1500)
+</script>
 </main></body></html>"""
 
 
@@ -314,8 +327,38 @@ class DetectionWorker:
         with self.lock:
             return self.sequence, self.jpeg
 
+    def snapshot_with_jpeg(self):
+        """Return one internally consistent frame and status for manual review."""
+        with self.lock:
+            age = None if self.updated_monotonic is None else round(time.monotonic() - self.updated_monotonic, 3)
+            snapshot = {
+                "ok": self.jpeg is not None and self.error is None and age is not None and age < 5,
+                "sequence": self.sequence,
+                "frame_age_s": age,
+                "detections": self.detections,
+                "table": self.table_status,
+                "error": self.error,
+                "robot_enabled": False,
+            }
+            jpeg = self.jpeg
+        return snapshot, jpeg
+
     def _frames(self):
         cv2, np = self.cv2, self.np
+        if is_http_jpeg(self.device) and self.raw_rgb_command is None:
+            while not self.stop_event.is_set():
+                try:
+                    with urlopen(self.device, timeout=3) as response:
+                        jpeg = response.read(2_000_000)
+                    image = cv2.imdecode(np.frombuffer(jpeg, dtype=np.uint8), cv2.IMREAD_COLOR)
+                    if image is None:
+                        raise ValueError("JPEG decode failed")
+                    yield image
+                except Exception as exc:
+                    with self.lock:
+                        self.error = f"cached JPEG source failed: {exc}"
+                self.stop_event.wait(0.25)
+            return
         if is_http_stream(self.device) and self.raw_rgb_command is None:
             with urlopen(self.device, timeout=5) as stream:
                 for jpeg in mjpeg_jpegs(stream, self.stop_event):
@@ -439,6 +482,10 @@ def is_http_stream(source: str) -> bool:
     return source.startswith(("http://", "https://"))
 
 
+def is_http_jpeg(source: str) -> bool:
+    return is_http_stream(source) and source.split("?", 1)[0].endswith(".jpg")
+
+
 class PreviewWorker:
     """Read and JPEG-encode a secondary V4L2 camera without inference."""
 
@@ -482,6 +529,23 @@ class PreviewWorker:
 
     def _run(self):
         cv2 = self.cv2
+        if is_http_jpeg(self.device):
+            while not self.stop_event.is_set():
+                try:
+                    with urlopen(self.device, timeout=3) as response:
+                        jpeg = response.read(2_000_000)
+                    if not jpeg.startswith(b"\xff\xd8"):
+                        raise ValueError("invalid JPEG")
+                    with self.lock:
+                        self.sequence += 1
+                        self.jpeg = jpeg
+                        self.updated_monotonic = time.monotonic()
+                        self.error = None
+                except Exception as exc:
+                    with self.lock:
+                        self.error = f"cached JPEG source failed: {exc}"
+                self.stop_event.wait(0.25)
+            return
         if is_http_stream(self.device):
             while not self.stop_event.is_set():
                 try:
@@ -562,6 +626,9 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/detections.json":
             snapshot = self.worker.snapshot()
             self._json({"detections": snapshot["detections"], "sequence": snapshot["sequence"], "robot_enabled": False})
+        elif path == "/manual-frame.json":
+            snapshot, jpeg = self.worker.snapshot_with_jpeg()
+            self._json({"snapshot": snapshot, "jpeg_base64": None if jpeg is None else base64.b64encode(jpeg).decode("ascii")})
         elif path == "/stream.mjpg":
             self._stream(self.worker)
         elif path == "/angled.mjpg" and self.angled_worker is not None:

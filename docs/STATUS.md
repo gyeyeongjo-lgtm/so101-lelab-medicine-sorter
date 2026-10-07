@@ -2,6 +2,13 @@
 
 업데이트: 2026-10-07
 
+## 2026-10-07 수동 클릭 분류 경로 — Mac 8031 읽기 전용 라이브
+
+- `IMPLEMENTED (repo only)`: 사용자가 정면 프레임에서 약통 중심을 클릭하고 A/B/C를 확인하면, 프레임 신선도·동일 sequence·ID0–3·목표 바구니 ID/색 매핑·약통 상자 포함 여부를 검사해 목적지 ID만 제안하는 읽기 전용 경로를 추가했다. 겹친 중복 상자는 IoU로 구분한다. 자동 A/B/C 분류나 로봇 집기 좌표·모터 명령은 없다. 상세: [수동 위치 지정](MANUAL_PIXEL_ROUTE.md), [세션 기록](sessions/2026-10-07-manual-pixel-route.md).
+- `PASS (tests/live read-only)`: 관련 단위 테스트 17개, Python 구문 검사·diff 검사 통과. 최초 일반 샌드박스의 8000/8030 연결 거부는 네트워크 제한에 따른 잘못된 현장 진단이었다. 허용된 읽기 전용 조회에서 8000 health 200, 8002 health 200, Mac 8030 세 카메라 age 13–18 ms·오류 null을 확인했다. 8000 텔레옵·녹화·추론 active=false다.
+- `PASS (temporary Mac 8031)`: 8000 MJPEG 직접 추가 구독은 503을 내어 즉시 종료했다. 기존 Mac 8030의 신선한 캐시 JPEG만 읽도록 변경해 임시 8031 읽기 전용 페이지를 실행했다. 최종 health ok, 프레임 age 0.202 s, 정면 약통 후보 1개, ArUco ID0–6 검출, 사선 수신 ok, `robot_enabled=false`. 브라우저에서 프레임 고정·라벨 미선택 차단과 약통 중심 클릭의 `DRY_RUN_ROUTE_ONLY` 표시를 확인했다. A 라벨 클릭은 **UI 시험용 가상 입력**이며 현재 약통 신원 판정이 아니다. 화면은 임시 프로세스여서 세션 종료 뒤 상시 구동 보장은 없다.
+- `NOT_RUN (motion/classification)`: 실제 A/B/C 신원은 사용자가 확인해야 한다. 픽셀은 집기 좌표가 아니고 높이·World→Base/TCP·경로 검증은 차단 상태다. 8020 서비스, USB·토크·설정·모터 변경 없음. `robot_enabled=false`, `motion_authorized=false` 유지.
+
 ## 2026-10-07 LeLab 재연결·현재 약통 검출 — 자율 집기 미완료
 
 - `PASS (service-only recovery)`: 사용자 재연결 요청 시 8000 HTTP는 연결 거부·Mac 8030 캐시는 약 5,286초 오래됐다. 8002/8022 텔레옵·녹화·추론 inactive, canonical follower `5AE6058306`→ACM0·leader `5AE6085272`→ACM1, root `fuser`의 두 장치 점유 출력 없음, 8000 user service inactive/dead·PID 0을 확인했다. 기존 `lelab.service`만 시작해 active/running·health ok와 세 제어 작업 inactive를 확인했다. Mac 8030의 기존 실행 명령·PID 12929·`robot_control=false`를 확인한 후 멈춘 수신 프로세스만 TERM 종료하고 동일 명령으로 재시작했다. 이후 세 카메라 age 5.5–15.7 ms·오류 null·`robot_control=false`다. 모터·토크·USB·설정은 변경하지 않았다.

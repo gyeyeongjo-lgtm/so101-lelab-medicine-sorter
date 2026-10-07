@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from medicine_yolo_web import (
-    DetectionWorker, INDEX_HTML, detect_table_markers, inside_roi, is_http_stream,
+    DetectionWorker, INDEX_HTML, detect_table_markers, inside_roi, is_http_jpeg, is_http_stream,
     mjpeg_jpegs, project_table_xy, read_exact, video_index,
 )
 
@@ -22,6 +22,8 @@ class MedicineYoloWebTests(unittest.TestCase):
         self.assertNotIn("move-arm", INDEX_HTML)
         self.assertNotIn("start-inference", INDEX_HTML)
         self.assertNotIn("stop-teleoperation", INDEX_HTML)
+        self.assertIn("/manual-frame.json", INDEX_HTML)
+        self.assertIn("motion_authorized:false", INDEX_HTML)
 
     def test_read_exact_combines_short_reads(self):
         class ShortStream:
@@ -75,12 +77,28 @@ class MedicineYoloWebTests(unittest.TestCase):
         self.assertFalse(snapshot["ok"])
         self.assertGreater(snapshot["frame_age_s"], 5)
 
+    def test_manual_frame_keeps_jpeg_and_detection_sequence_together(self):
+        worker = DetectionWorker.__new__(DetectionWorker)
+        worker.lock = threading.Lock()
+        worker.jpeg = b"jpeg-42"
+        worker.error = None
+        worker.updated_monotonic = time.monotonic()
+        worker.sequence = 42
+        worker.detections = [{"xyxy": [1, 2, 3, 4]}]
+        worker.table_status = {"ready": True}
+        snapshot, jpeg = worker.snapshot_with_jpeg()
+        self.assertEqual((snapshot["sequence"], jpeg), (42, b"jpeg-42"))
+        self.assertEqual(snapshot["detections"], worker.detections)
+        self.assertFalse(snapshot["robot_enabled"])
+
     def test_video_index_resolves_video_node(self):
         self.assertEqual(video_index("/dev/video4"), 4)
 
     def test_existing_lelab_preview_is_an_http_stream(self):
         self.assertTrue(is_http_stream("http://127.0.0.1:8000/camera-preview/8"))
         self.assertFalse(is_http_stream("/dev/video8"))
+        self.assertTrue(is_http_jpeg("http://127.0.0.1:8030/frame/ceiling.jpg"))
+        self.assertFalse(is_http_jpeg("http://127.0.0.1:8000/camera-preview/8"))
 
     def test_table_projection_and_roi_gate(self):
         homography = np.asarray([[2.0, 0.0, -20.0], [0.0, 2.0, -40.0], [0.0, 0.0, 1.0]])
