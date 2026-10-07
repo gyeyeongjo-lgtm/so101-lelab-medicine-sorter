@@ -2,6 +2,12 @@
 
 업데이트: 2026-10-07
 
+## 2026-10-07 수동 시연의 활동 구간 분리 — 학습·재생 불가 유지
+
+- `PASS (offline, read-only)`: 새 `scripts/summarize_teleop_activity.py`가 원본 SHA-256/JPEG 감사 후 시작 자세 대비 0.01 rad 초과의 최초 시점을 찾았다. 87.103초·관절 1,685개 중 앞 62.925초는 이 기준에서 시작 자세를 벗어나지 않았고, 최초 변화(index 1216)부터 기록 끝까지 **잠정** 24.181초·469개다. 이 구간의 정면/사선 캐시 JPEG는 각 99장, 최대 프레임 간격 0.498/0.501초다. 시작·끝의 과업 의미를 자동 판정한 것은 아니다.
+- `LIMIT`: 카메라는 Mac 수신시각 캐시이며 노출시각 동기 영상이 아니고 `camera_evidence_complete=false`다. 따라서 이 자료를 학습 준비 완료나 자동 재생 가능한 시연으로 승격하지 않는다. 원본 `URDF_LIMIT_MISMATCH`, World→Base/TCP 거부, 경로 간섭 미검증도 그대로다. 새 하드웨어 동작 `NOT_RUN`; `training_ready=false`, `use_for_replay=false`, `motion_authorized=false`.
+- `PASS (test/live read-only)`: 신규 활동 요약 3개와 기존 원본 감사 6개 단위 테스트 통과. Jetson 8000 health는 `ok`, 텔레옵·녹화·추론 active=false다. 녹화 내부 `current_phase=preparing`, `session_ended=false`는 세션 정리 완료 증거가 아니다. 전체 테스트 묶음은 Mac Python별 누락 패키지와 sandbox loopback bind 제한으로 통과 판정을 내리지 않았다. 원본 JPEG·관절값은 Git 제외 경로에 그대로 보존. 상세: `docs/sessions/2026-10-07-teleop-activity-audit.md`.
+
 ## 2026-10-07 분류 규칙 확인 — 목적지 일부만 확정
 
 - `USER CONFIRMED`: 큰 약통 A→파란 바구니 ID6, 중간 약통 B→초록 ID5, 작은 약통 C→빨강 ID4. 물리 좌우 순서는 움직일 수 있으므로 색상·ID를 기준으로 삼는다. 현재 YOLO 모델은 약통 단일 클래스만 검출해 A/B/C를 자동 구분하지 못한다. 규칙과 모델 능력을 혼동하거나 미분류 물체를 임의 배정하지 않는다.
