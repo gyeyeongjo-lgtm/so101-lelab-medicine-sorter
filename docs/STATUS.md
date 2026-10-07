@@ -2,6 +2,11 @@
 
 업데이트: 2026-10-08
 
+## 2026-10-08 약통·바구니 치수 — 현장 보고, 단위 잠정
+
+- `USER REPORTED / UNIT PROVISIONAL`: 보고 숫자를 cm로 잠정 해석하면 A 높이 98·밑지름 38·뚜껑지름 48 mm, B 70/38/48 mm, C 70/30/35 mm다. 세 바구니 각각 세로 138·가로 98·높이 58 mm다. 단위 명시 확인과 바구니 **내부 유효 개구**는 `NOT_VERIFIED`다.
+- `OFFLINE ONLY`: 바구니와 출발 면이 같은 높이라면 수평 이송 전에 병 바닥이 테두리 58 mm보다 위에 있어야 한다. 안전 여유, 열린 그리퍼 외접 폭, 내벽 간격, World→Base/TCP 및 연속 경로는 미확인이라 자동 집기·이동은 `BLOCKED/NOT_RUN`. 상세: [치수 검토](sessions/2026-10-08-object-dimensions.md). 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`.
+
 ## 2026-10-08 8022 카메라 점유 정리 — 8000 세 영상 복구
 
 - `PASS (approved service stop)`: 사용자 승인 후 8022의 정확한 `lelab-jetson-py310.service`가 텔레옵·녹화·추론 inactive임을 확인하고 그 서비스만 중지했다. 결과 inactive/dead·PID 0·8022 listener 없음. 8000 서비스·USB·모터·토크·캘리브레이션·설치 URDF는 변경하지 않았다. 8000 정면 8·사선 4·손목 6이 모두 HTTP 200으로 실제 MJPEG 바이트를 보냈고 `/health` ok, 텔레옵 inactive였다.
