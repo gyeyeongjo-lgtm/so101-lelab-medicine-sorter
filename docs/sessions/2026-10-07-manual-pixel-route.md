@@ -66,3 +66,8 @@
 - `PASS (read-only route)`: 기본 명령 `A를 파랑, B를 초록, C를 빨강`은 sequence 1317에서 ID6/ID5/ID4 경로 3개를 `DRY_RUN_ROUTE_ONLY`로 반환했다. 시험용 예시 `A를 빨간색, B도 빨간색 박스`는 A/B→ID4 경로 2개를 반환했다. 각 경로 `grasp_authorized=false`, 전체 `robot_enabled=false`, `motion_authorized=false`, `robot_coordinates_included=false`; 명령을 저장·예약·실행하지 않았다. LeLab 8000 텔레옵 읽기 전용 조회는 `teleoperation_active=false`였다.
 - `LIMIT`: 하나의 현장 배치·카메라 각도에서만 통과했다. 물체 종류를 상자 모양으로 독립 확인한 시험도, 다른 날짜/조명·카메라 이동 일반화도 아니다. ROI를 넓히거나 기존 World→Base/TCP 거부를 해제하지 않았다. 다중 투입 용량·경로·간섭과 실제 집기/투입은 `NOT_RUN`이다.
 - `GIT`: 이 세 약통 라이브 판정과 한계는 기존 `fix/usb-recording` 브랜치에 커밋·push했다. 원본 카메라 프레임과 개인 자료는 커밋하지 않았고 GitHub 이슈 API 갱신은 `NOT_RUN`이다.
+
+## 다음 동작 단계의 기존 증거 점검
+
+- `PASS (read-only inventory)`: Git 제외 `.local/fixed-slot-waypoints/` 35건의 메타데이터에서 `PARK` 7·`SOURCE1_HOVER` 2·`BASKET4_HOVER` 26건을 확인했고 모두 `use_for_replay=false`다. 이 묶음에는 ID5/ID6 목적지 waypoint와 연속 집기·투입 궤적이 없다. 기존 A 수동 시연 관찰 자료와 정지 waypoint를 자동 재생 증거로 혼동하지 않는다.
+- `BLOCKED (automatic motion)`: 세 병 고정 슬롯 시각 판정은 통과했지만 A/C는 픽업 ROI 밖이고 검증된 TCP/World→Base·연속 경로·ID5/6 투입 경로가 없다. 현장 추가 teach와 별도 안전·동작 승인 전에는 LeLab 자동 제어·관절 재생을 시작하지 않는다.
