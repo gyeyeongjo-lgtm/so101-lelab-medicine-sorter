@@ -7,7 +7,7 @@
 | M2 | Astra RGB–Depth 정합 진단 | OpenNI2 정합·300-frame depth 진단 완료 |
 | M3 | Camera 2.5D와 World frame | 300-frame 안정성 통과; full 3D PnP는 잔차 기준 미달로 제어에 사용 금지 |
 | M4 | World→Robot Base 등록 | 첫 네 P5 자세와 추가 후보의 오프라인 TCP 진단은 일부 수치 통과지만 물리 접촉 검증·사전 지정 독립 holdout 미완료. World→Base 변환은 계속 거부 |
-| M4b | 고정 슬롯 waypoint 시연 경로 | 큰 A→파랑 ID6, 중간 B→초록 ID5 사용자 수동 투입 각 1회 성공 보고와 종료 영상 확인. A/B/C 상공 비접촉 접근도 관찰했으나 A/C는 기존 픽업 ROI 밖이며 C 기록은 퇴피 전체가 빠졌다. B 투입 관절 2,813개·정면 594장·사선 592장 무결성은 통과했지만 설치 URDF 상한 불일치와 동기 연속 영상·경로 여유 미검증으로 자동 재생 거부. C→빨강 ID4 수동 투입과 B/C 반복성 `NOT_RUN` |
+| M4b | 고정 슬롯 waypoint 시연 경로 | 큰 A→파랑 ID6, 중간 B→초록 ID5, 작은 C→빨강 ID4 사용자 직접 수동 투입 각 1회 성공 보고와 종료 영상 확인. A/B/C 상공 비접촉 접근도 관찰했으나 A/C는 기존 픽업 ROI 밖이며 C 접근 기록은 퇴피 전체가 빠졌다. B/C 투입 관절·정면·사선 표본 무결성은 통과했지만 설치 URDF 상한 불일치와 동기 연속 영상·경로 여유 미검증으로 자동 재생 거부. 동일 조건 반복성·자동 인식→집기→투입 `NOT_RUN` |
 | M5 | 약통 검출·안전한 dry-run | YOLO live smoke·ArUco/basket 표시 통과; 약통 높이·grasp offset·limits·목표 안정성 필요 |
 | M6 | 제한된 실제 이동 | 별도 안전 승인 후 높은 Z에서 XY-only부터 검증 |
 | M7 | 분류→집기→이동→놓기 | descend/grip/lift/place와 실패 복구 검증 |
