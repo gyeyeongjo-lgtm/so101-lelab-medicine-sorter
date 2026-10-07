@@ -15,3 +15,5 @@ Jetson의 두 Python 설치 각각 `frontend/dist`·`frontend/public`에 있는 
 ## 다음 안전 게이트
 
 수동 시연은 파란 ID6 바구니에 성공했지만 자동 재생에 필요한 World→Base/TCP 적합은 거부 상태이고 연속 경로의 간섭 여유는 독립 검증되지 않았다. 사용자 현장 안전 확인을 계속 존중하되 반복적인 확인 요청은 줄인다. 자동 관절 재생·자율 투입은 `BLOCKED`, 새 하드웨어 움직임은 `NOT_RUN`, 원본의 `use_for_replay=false`, `robot_enabled=false`, `motion_authorized=false`를 유지한다. 이번 후속 분석 중 LeLab 텔레옵 inactive, Mac 8030 `robot_control=false`를 읽기 전용 확인했다.
+
+오프라인 회귀 시험의 첫 호출은 `tests`가 Python package가 아닌데 dotted module 이름으로 지정해 import 오류 2건이 났다. 같은 두 파일을 `unittest discover -s tests -p ...`로 다시 실행해 `medicine_yolo_web` 9건, `audit_teleop_trace` 6건, 합계 15건 통과했다. 이는 소프트웨어 검사이며 실제 로봇 경로 시험은 아니다.
