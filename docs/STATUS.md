@@ -2,6 +2,12 @@
 
 업데이트: 2026-10-08
 
+## 2026-10-08 빈 작업대 소폭 이동 사전 점검 — 한 관절 검증 미완료
+
+- `PASS (camera receiver recovery)`: 8000은 텔레옵 inactive에서 정면 `/camera-preview/8`만 신선했고 사선 4·손목 6은 HTTP 503이었다. Jetson root `lsof`에서 기존 8022 LeLab PID 518962가 `/dev/video4`·`/dev/video6`을 점유하고, 그 인스턴스의 두 프리뷰는 HTTP 200임을 확인했다. 8000·8022·USB·카메라 장치 설정을 바꾸지 않고 Mac 읽기 전용 8030 관찰기에 카메라별 대체 MJPEG URL 옵션과 짧은 정상 스트림 재연결을 추가했다. 정확한 기존 8030 프로세스만 종료·동일 포트로 재시작한 뒤 정면·사선·손목 수신을 확인했다. 다만 8022의 짧은 스트림 종료가 반복돼 사선/손목은 간헐적으로 0.75초 신선도 기준을 넘었다. 실시간 안전 영상으로 연속성을 보증하지 않는다.
+- `INCOMPLETE (user-operated free-space micro-motion)`: 사용자는 빈 그리퍼·빈 작업대·사람 범위 밖·즉시 중단 준비를 확인하고 기존 8000 텔레옵을 직접 시작했다. 에이전트는 모터 API·토크·설정·URDF를 변경하지 않았다. 초기 관절 방송 Elbow 1.677818 rad, Rotation 0.071348 rad, Wrist_Pitch 0.863075 rad. 공중에서 팔꿈치만 상한에서 멀어지는 작은 수동 이동을 요청했으나 뒤이은 두 번째 관절 스냅샷은 Elbow 1.6855 rad(상한 쪽 +0.0077), Rotation −0.1082 rad(−0.1795), Wrist_Pitch 0.7618 rad(−0.1013)였다. 사용자는 작은 이동·정지와 접촉/이상 없음이라고 보고했다. 현장 보고와 관절 스냅샷은 양립할 수 있지만 **한 관절·한 변수 시험은 성립하지 않는다**. 즉시 추가 이동 중단을 요청했고 종료 후 8000 텔레옵·녹화·추론 inactive를 확인했다.
+- `FIRST FAILURE / LIMIT`: 읽기 전용 60초 관찰기가 실제 이동 전에 시간 초과돼 관절 1,156개가 모두 동일 자세다. JPEG 정면 245·사선 170장과 SHA 무결성은 통과했지만 이 파일은 이동의 연속 궤적 증거가 아니다. 설치 URDF Elbow 상한 초과 1,156/1,156은 시작 정지 자세에서 이미 존재했다. 새 두 관절 스냅샷 사이의 경로·실제 이동량/속도·충돌 여유는 `NOT_VERIFIED`, 자동 모션 `NOT_RUN`. 자세한 기록: [빈 작업대 이동 사전 점검](sessions/2026-10-08-empty-space-micro-motion.md). GitHub 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`.
+
 ## 2026-10-08 follower 위치 제한 레지스터 읽기 — LeLab 복구 완료
 
 - `PASS (approved read-only hardware check)`: 사용자 현장 안전 확인·읽기 전용 점검 승인 후 중지돼 있던 기존 `lelab.service`를 유지한 상태에서 canonical USB follower `5AE6058306`→`/dev/ttyACM0`, leader `5AE6085272`→`/dev/ttyACM1`, 서비스 inactive/dead·PID 0, root `fuser` 두 포트 점유 출력 없음을 확인했다. 설치 LeLab Python 3.14.7과 Feetech 제어표/`connect`·`read`·`disconnect` 실제 소스를 검사한 뒤 follower 버스 하나만 열어 Elbow(id 3) 제한 880–3087, Wrist_Pitch(id 4) 제한 936–3225 raw를 읽었다. `handshake=False`, `normalize=False`, 재시도 0이며 닫을 때 `disable_torque=False`를 명시했다. 모터 목표·토크·캘리브레이션·USB 설정 변경 및 로봇 동작 `NOT_RUN`.

@@ -13,6 +13,7 @@ from scripts.teach_capture_web import (
     CaptureState,
     JOINT_NAMES,
     WAYPOINT_NAMES,
+    camera_stream_url,
     iter_jpegs,
     save_capture,
 )
@@ -35,6 +36,15 @@ def ready_state():
 
 
 class TeachCaptureTests(unittest.TestCase):
+    def test_camera_source_override_keeps_joint_origin_separate(self):
+        base = "http://192.168.50.20:8000"
+        self.assertEqual(camera_stream_url("ceiling", base), base + "/camera-preview/8")
+        self.assertEqual(camera_stream_url("oblique", base,
+                         "http://192.168.50.20:8022/camera-preview/4"),
+                         "http://192.168.50.20:8022/camera-preview/4")
+        with self.assertRaisesRegex(ValueError, "camera URL"):
+            camera_stream_url("oblique", base, "http://192.168.50.20:8022/camera-preview/6")
+
     def test_mjpeg_parser_handles_split_frames(self):
         frames = list(iter_jpegs([b"noise\xff\xd8one\xff", b"\xd9--\xff\xd8two\xff\xd9"]))
         self.assertEqual(frames, [b"\xff\xd8one\xff\xd9", b"\xff\xd8two\xff\xd9"])

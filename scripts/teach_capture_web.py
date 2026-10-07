@@ -375,9 +375,23 @@ class CaptureHandler(BaseHTTPRequestHandler):
             self.send_json({"error": str(error)}, HTTPStatus.BAD_REQUEST)
 
 
-def camera_worker(state: CaptureState, name: str, base_url: str, stop: threading.Event) -> None:
-    url = f"{base_url}/camera-preview/{CAMERAS[name]}"
+def camera_stream_url(name: str, base_url: str, override: str | None = None) -> str:
+    if name not in CAMERAS:
+        raise ValueError(f"unknown camera: {name}")
+    if override is None:
+        return f"{base_url}/camera-preview/{CAMERAS[name]}"
+    parts = urlsplit(override)
+    if (parts.scheme not in ("http", "https") or not parts.netloc or
+            parts.path != f"/camera-preview/{CAMERAS[name]}" or parts.query or parts.fragment):
+        raise ValueError(f"{name} camera URL must point to /camera-preview/{CAMERAS[name]}")
+    return override
+
+
+def camera_worker(state: CaptureState, name: str, base_url: str, stop: threading.Event,
+                  override_url: str | None = None) -> None:
+    url = camera_stream_url(name, base_url, override_url)
     while not stop.is_set():
+        received_frame = False
         try:
             with urllib.request.urlopen(url, timeout=5) as response:
                 chunks = iter(lambda: response.read1(16_384), b"")
@@ -385,10 +399,14 @@ def camera_worker(state: CaptureState, name: str, base_url: str, stop: threading
                     if stop.is_set():
                         return
                     state.add_frame(name, jpeg)
+                    received_frame = True
             state.fail(name, "camera stream closed")
         except (OSError, ValueError, urllib.error.URLError) as error:
             state.fail(name, error)
-        stop.wait(2)
+        # Some installed preview workers close an otherwise healthy MJPEG
+        # response after a short burst. Reconnect promptly after real frames;
+        # retain the longer backoff for unavailable cameras.
+        stop.wait(0.1 if received_frame else 2)
 
 
 def joint_worker(state: CaptureState, base_url: str, stop: threading.Event) -> None:
@@ -425,6 +443,8 @@ def main() -> int:
     parser.add_argument("--output-root", type=Path, default=Path(".local/teach-captures"))
     parser.add_argument("--waypoint-output-root", type=Path,
                         default=Path(".local/fixed-slot-waypoints"))
+    parser.add_argument("--oblique-camera-url", help="Read-only alternate MJPEG source for camera 4")
+    parser.add_argument("--wrist-camera-url", help="Read-only alternate MJPEG source for camera 6")
     parser.add_argument("--allow-touch-capture", action="store_true",
                         help="legacy contact API only; requires a separate approved experiment")
     args = parser.parse_args()
@@ -438,11 +458,23 @@ def main() -> int:
     except ImportError:
         parser.error("websocket-client is required for joint broadcasts; capture server not started")
     args.lelab_url = args.lelab_url.rstrip("/")
+    camera_overrides = {
+        "oblique": args.oblique_camera_url,
+        "wrist": args.wrist_camera_url,
+    }
+    for name, override in camera_overrides.items():
+        if override is not None:
+            try:
+                camera_stream_url(name, args.lelab_url, override)
+            except ValueError as error:
+                parser.error(str(error))
     args.output_root.mkdir(parents=True, exist_ok=True)
     state = CaptureState()
     stop = threading.Event()
     workers = [
-        threading.Thread(target=camera_worker, args=(state, name, args.lelab_url, stop), daemon=True)
+        threading.Thread(target=camera_worker,
+                         args=(state, name, args.lelab_url, stop, camera_overrides.get(name)),
+                         daemon=True)
         for name in CAMERAS
     ]
     workers.append(threading.Thread(target=joint_worker, args=(state, args.lelab_url, stop), daemon=True))
