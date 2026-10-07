@@ -26,15 +26,19 @@ MIN_COMPONENT_AREA_PX = 1000
 DEFAULT_URDF = Path(__file__).resolve().parents[1] / "configs/so101_installed_urdf_limits_20261005.json"
 
 
-def propose_body_bbox(image: np.ndarray) -> dict:
+def propose_color_bbox(image: np.ndarray, roi_xyxy: tuple[int, int, int, int],
+                       hsv_lower: tuple[int, int, int], hsv_upper: tuple[int, int, int],
+                       min_component_area_px: int = MIN_COMPONENT_AREA_PX) -> dict:
     if image is None or image.ndim != 3 or image.shape[2] != 3 or image.shape[:2] != (480, 640):
         raise ValueError("expected a 640x480 BGR image")
-    x1, y1, x2, y2 = ROI_XYXY
+    x1, y1, x2, y2 = roi_xyxy
+    if not 0 <= x1 < x2 <= 640 or not 0 <= y1 < y2 <= 480:
+        raise ValueError("invalid ROI")
     hsv = cv2.cvtColor(image[y1:y2, x1:x2], cv2.COLOR_BGR2HSV)
-    mask = cv2.inRange(hsv, np.array(HSV_LOWER, np.uint8), np.array(HSV_UPPER, np.uint8))
+    mask = cv2.inRange(hsv, np.array(hsv_lower, np.uint8), np.array(hsv_upper, np.uint8))
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
     count, _, stats, _ = cv2.connectedComponentsWithStats(mask)
-    candidates = [row for row in stats[1:count] if row[cv2.CC_STAT_AREA] >= MIN_COMPONENT_AREA_PX]
+    candidates = [row for row in stats[1:count] if row[cv2.CC_STAT_AREA] >= min_component_area_px]
     if not candidates:
         return {"status": "NO_BODY_CANDIDATE", "bbox_xywh_px": None, "mask_area_px": 0,
                 "candidate_only": True, "basket_mouth_detected": False,
@@ -46,6 +50,11 @@ def propose_body_bbox(image: np.ndarray) -> dict:
             "mask_area_px": area, "candidate_only": True,
             "basket_mouth_detected": False, "basket_pose_authorized": False,
             "robot_enabled": False, "motion_authorized": False}
+
+
+def propose_body_bbox(image: np.ndarray) -> dict:
+    """Legacy central brown-body proposal used for the earlier video audit."""
+    return propose_color_bbox(image, ROI_XYXY, HSV_LOWER, HSV_UPPER)
 
 
 def inspect_image(path: Path) -> dict:

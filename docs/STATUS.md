@@ -2,6 +2,14 @@
 
 업데이트: 2026-10-08
 
+## 2026-10-08 사용자 고정 바구니 배치 — 새 천장 기준·조명 실패 기록
+
+- `USER REPORTED`: 모든 바구니 자세는 현재 배치로 고정한다. 움직이는 바구니의 동적 pose 추적은 보류하고, 현 사진을 화면상 기준으로 삼되 배치가 달라지면 재검증한다.
+- `SUPERSEDED`: 02:22 사진(`20261008T022151_4I2Q82`)은 ID4/6이 왼쪽에서 겹친 이전 배치다. 운영 기준으로 재사용하지 않는다.
+- `PASS (read-only capture)`: 새 배치의 Git 제외 `.local/basket-opening-captures/20261008T022818_PV95dh/ceiling.jpg`(SHA `ed744692...a94324`)에서 ID0–6 검출, 왼쪽 ID4·가운데 ID5·오른쪽 ID6과 세 몸체 색 성분 상자 후보를 기록했다. 이는 입구 중심이나 로봇 목표가 아니다.
+- `PARTIAL/INDETERMINATE`: 직후 두 사진의 밝기 중앙값이 233→53/52로 떨어져 색상 몸체 후보 3개가 모두 사라졌다. 첫 어두운 사진은 마커만 대체로 일치해 `MARKERS_MATCH_BODY_UNVERIFIED`; 두 번째는 ID3 누락으로 `INDETERMINATE`다. 이전 배치 대비 ID4/6 마커 이동 227/353 px도 확인했다. 짧은 입구 약 85 mm 대비 모델 B 그리퍼 X 폭 83.7 mm는 양옆 명목 0.65 mm, C 개방 폭 91.6 mm는 입구보다 6.6 mm 크다. 실제 손목 방향·높이별 간섭 여유는 `NOT_VERIFIED`.
+- `MOTION BLOCKED`: 모든 입구 내부·높이·마커 강성·충돌 여유·TCP/World→Base는 `NOT_VERIFIED`; 자동 모션 `NOT_RUN`. [고정 장면 기록](sessions/2026-10-08-fixed-baskets-ceiling-reference.md). 감사 코드·문서 로컬 커밋 완료, 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`.
+
 ## 2026-10-08 바구니 몸체 후보 — 입구 중심 아님
 
 - `PASS (offline candidate audit)`: 기존 SHA 검증된 정면 영상 6기록·2,711장에서 갈색 바구니 몸체의 색 성분 상자 후보를 2,641장(97.4%)에서 찾았다. B 투입의 가림 구간 70장은 후보가 없고 부분 가림 때 상자가 좁아지거나 이동한다. 현재 회전 장면 한 장의 후보는 `(320,259,106,76)` px로 이전 세로 배치의 중간 크기 약 72×104 px와 방향이 달랐다.
