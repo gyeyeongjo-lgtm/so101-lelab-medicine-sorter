@@ -2,6 +2,12 @@
 
 업데이트: 2026-10-07
 
+## 2026-10-07 B 배치 장면 확인 — 단독 분류 자료 보류
+
+- `PASS (read-only)`: 사용자 B 배치 완료 보고 후 Jetson 8000 텔레옵·녹화·추론 active=false, Mac 8030 세 카메라 수신 오류 null·`robot_control=false`를 확인했다. 모터·카메라 장치·USB 설정은 건드리지 않았다.
+- `LOCAL ONLY / HOLD`: 정면 캐시 한 장에서 새 약통이 화면 약 x=375,y=231에 보이지만, 이전 A 출발 자리의 약통도 약 x=442,y=224에 남아 있고 왼쪽에 다른 약통도 보인다. B의 실제 개체 식별은 사용자 보고에만 의존하며 단독 B·동일 출발 자리 사진으로 인정하지 않는다. 원본 JPEG와 SHA·제한 메타데이터는 Git 제외 `.local/medicine-class-scenes/20261007_B_multibottle_unverified.*`에만 보존했다. 자동 분류 학습·모터 경로 결정 `NOT_RUN`.
+- `NEXT (user action)`: 텔레옵을 끈 채 팔 이동 범위의 약통을 B 하나만 남기고, 기존 A가 있던 오른쪽 출발 자리로 B를 옮긴 뒤 다시 촬영한다. 현재 B로 보이는 약통과 남은 약통의 신원은 현장에서 확인해야 한다.
+
 ## 2026-10-07 배치 후 현장·기존 A/B/C 자료 점검 — 자동 실행 계속 차단
 
 - `INCIDENT / STOPPED`: 사용자가 큰 A를 출발 자리에 두고 파란 ID6 바구니를 비운 뒤, LeLab 홈의 `Teleoperation` 버튼을 단순 이동으로 오인해 클릭했다. 실제로는 텔레옵이 즉시 시작됐다. 상태 API에서 active=true를 확인하자 즉시 공식 `/stop-teleoperation`을 호출했고 성공 응답 및 teleoperation/recording/inference active=false를 재확인했다. 사용자는 현장에서 예상 밖 움직임·접촉이 없고 안전하다고 확인했다. 이 버튼을 탐색 목적으로 다시 누르지 않는다. 별도 실제 모션 승인이나 녹화는 `NOT_RUN`.

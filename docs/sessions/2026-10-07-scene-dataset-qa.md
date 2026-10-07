@@ -27,6 +27,12 @@
 
 ## 다음 게이트
 
+### B 배치 보고 후 카메라 재확인
+
+- 사용자에게서 `B 배치완료` 보고를 받았다. Jetson 8000의 teleoperation/recording/inference는 모두 active=false, Mac 8030의 세 카메라 오류 null·`robot_control=false`였다. 녹화 내부 `current_phase=preparing`, `session_ended=false`는 세션 종료 증거로 취급하지 않는다.
+- 새 정면 캐시 JPEG에서 이전 A 출발 자리(화면 약 x=442,y=224)의 약통이 그대로 있고, 화면 약 x=375,y=231에 다른 약통이 추가됐다. 화면 왼쪽에도 약통이 보인다. B가 추가된 약통인지는 사용자 보고 외에 독립 확인이 없으며, A와 동일 자리의 단독 B 비교 자료가 아니다.
+- 이 장면은 `.local/medicine-class-scenes/20261007_B_multibottle_unverified.jpg`에 원본 SHA-256 `85f62fe5a8600740b18fe64e98a5095a8354b6a4cdc7b8ed73407c095f99fc90` 및 제한 메타데이터와 함께 Git 제외로 보존했다. B 학습 샘플 승인·검출기 재학습·로봇 동작은 `NOT_RUN`. 사용자에게 텔레옵을 끈 채 B 하나만 기존 A 자리에 두는 재배치를 요청한다.
+
 첫째, A/B/C 각 자료의 에피소드별 실제 목표 마커와 성공 여부를 전수 검수해 유효 부분만 분리한다. 둘째, 현재 고정 출발 슬롯과 ROI를 카메라 여러 장·높이 확인으로 다시 정의한다. 셋째, World→Base/TCP, Elbow URDF/캘리브레이션 차이, 연속 경로 여유를 별도 검증한다. 이 전에는 어떤 기존 ACT 모델도 현재 장면에 실행하지 않는다. 원본 데이터셋·영상·비밀번호는 Git에 넣지 않는다.
 
 이번 문서 점검 관련 분류·비전 단위 테스트는 5+9개 `PASS`. 종료 전 LeLab teleoperation/recording/inference active=false를 다시 확인했다. GitHub CLI 로그인 부재로 이슈 API 갱신은 `NOT_RUN`; 코드·문서의 커밋과 push 상태는 Git 이력으로 별도 확인한다.
