@@ -28,6 +28,8 @@ class ActivitySummaryTests(unittest.TestCase):
         self.assertEqual(result["provisional_activity_duration_s"], 1)
         self.assertEqual(result["cameras"]["ceiling"]["frames_in_provisional_activity_window"], 2)
         self.assertEqual(result["cameras"]["ceiling"]["max_interframe_gap_s"], 0.5)
+        self.assertEqual(result["terminal_identical_pose_samples"], 2)
+        self.assertEqual(result["terminal_identical_pose_span_s"], 1.0)
         self.assertFalse(result["training_ready"])
         self.assertFalse(result["motion_authorized"])
 
@@ -36,6 +38,8 @@ class ActivitySummaryTests(unittest.TestCase):
         self.assertEqual(result["status"], "NO_POSE_DEPARTURE")
         self.assertIsNone(result["first_active_sample_index"])
         self.assertEqual(result["joint_samples_in_window"], 0)
+        self.assertEqual(result["terminal_identical_pose_samples"], 1)
+        self.assertEqual(result["terminal_identical_pose_span_s"], 0)
 
     def test_bad_timestamps_and_threshold_are_rejected(self):
         with self.assertRaisesRegex(ValueError, "timestamps must increase"):

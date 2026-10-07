@@ -29,6 +29,12 @@ def summarize(samples: list[dict], camera_indices: dict[str, list[dict]], thresh
     first_active = next((index for index, sample in enumerate(samples)
                          if any(abs(float(sample["joints_rad"][name]) - float(first_pose[name]))
                                 > threshold_rad for name in JOINT_NAMES)), None)
+    final_pose = samples[-1]["joints_rad"]
+    terminal_identical = 0
+    for sample in reversed(samples):
+        if sample["joints_rad"] != final_pose:
+            break
+        terminal_identical += 1
     start_ns = receive_times[first_active] if first_active is not None else None
     end_ns = receive_times[-1]
     camera_summary = {}
@@ -54,6 +60,9 @@ def summarize(samples: list[dict], camera_indices: dict[str, list[dict]], thresh
         "initial_idle_duration_s": None if start_ns is None else round((start_ns - receive_times[0]) / 1e9, 3),
         "provisional_activity_duration_s": None if start_ns is None else round((end_ns - start_ns) / 1e9, 3),
         "joint_samples_in_window": 0 if first_active is None else len(samples) - first_active,
+        "terminal_identical_pose_samples": terminal_identical,
+        "terminal_identical_pose_span_s": round(
+            (receive_times[-1] - receive_times[-terminal_identical]) / 1e9, 3),
         "cameras": camera_summary,
         "training_ready": False,
         "use_for_replay": False,
@@ -63,6 +72,7 @@ def summarize(samples: list[dict], camera_indices: dict[str, list[dict]], thresh
             "Activity means pose departed from the initial pose; task phases and success were not inferred.",
             "Camera timestamps are Mac receive times, not synchronized sensor exposure times.",
             "This summary does not resolve URDF limits, robot-world calibration, or path clearance.",
+            "Repeated identical joint broadcasts do not prove physical stillness or contact clearance.",
         ],
     }
 
