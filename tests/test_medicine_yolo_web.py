@@ -31,6 +31,8 @@ class MedicineYoloWebTests(unittest.TestCase):
         self.assertIn("pickup_roi_match:roiMatch", INDEX_HTML)
         self.assertIn("사진·라벨 로컬 저장", INDEX_HTML)
         self.assertIn("window.addEventListener('pageshow'", INDEX_HTML)
+        self.assertIn("out.textContent+='\\n다시 프레임", INDEX_HTML)
+        self.assertNotIn("out.textContent+='\n다시 프레임", INDEX_HTML)
 
     def test_read_exact_combines_short_reads(self):
         class ShortStream:
