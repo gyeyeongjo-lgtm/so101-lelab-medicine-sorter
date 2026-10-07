@@ -139,7 +139,9 @@ def decide_fixed_slot_command(snapshot: object, assignments: dict[str, str],
         return _blocked("requested_bottle_missing")
     routes = [{"bottle_label": label, "source_slot": label,
                "target_color": color, "target_marker_id": COLORS[color],
-               "detection_confidence": occupied[label]["confidence"]}
+               "detection_confidence": occupied[label]["confidence"],
+               "pickup_roi_match": occupied[label].get("inside_pickup_roi") is True,
+               "grasp_authorized": False}
               for label, color in assignments.items()]
     return {"status": "DRY_RUN_ROUTE_ONLY", "reason": None,
             "frame_sequence": snapshot.get("sequence"), "routes": routes,

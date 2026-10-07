@@ -48,3 +48,12 @@
 - `PASS (one live dry-run)`: Mac 8031 `/health`의 실제 신선한 카메라/마커 상태에서 예시 `A를 빨간색`은 A 오른쪽 슬롯을 찾아 빨강 ID4 `DRY_RUN_ROUTE_ONLY`를 반환했다. `robot_enabled=false`, `motion_authorized=false`, `robot_coordinates_included=false`다.
 - `NOT_RUN/BLOCKED`: A/B 동시 배치 명령의 실제 화면 검증, 위치/카메라 변화 검증, 바구니 다중 투입 용량·경로·충돌, 로봇 집기·재생은 하지 않았다. 이 시제품은 목적지 후보만 내며 자동 분류/운용 완료가 아니다.
 - `PUSHED (42170f7)`: 이 dry-run 코드·설정·테스트·기록을 기존 GitHub `fix/usb-recording` 브랜치에 올렸다. 실제 목적지 변경 명령이 아니므로 기본 매핑은 보존했다.
+
+## 8031 명령 미리보기 UI 연결
+
+- `IMPLEMENTED`: 기존 로컬 8031에 명령 입력칸과 `명령 판정만` 버튼, 별도 `/api/command-preview`를 추가했다. 실제 작업 지정으로 저장하지 않고 현재 읽기 전용 worker snapshot에서 고정 슬롯 dry-run 함수만 호출한다. 수동 사진 저장 기능과 기존 기본 A/B/C→바구니 규칙은 유지한다. 로봇 제어 endpoint는 없다.
+- `PASS (tests/live)`: 웹 단위 테스트 12개(명령 API의 robot-disabled 응답 포함)·고정 슬롯 테스트 7개, Python 구문·diff 검사 통과. 정확한 8031 PID/실행 명령·저장 폴더 80개를 확인한 뒤 그 임시 프로세스만 TERM 종료하고 같은 입력으로 재시작했다. `/health ok=true`, 신선한 정면 1개 검출·사진 저장 활성·robot_enabled=false. 실제 브라우저 새 UI에서 `A를 빨간색` 입력·버튼 클릭 시 A 오른쪽 슬롯→빨강 ID4 `DRY_RUN_ROUTE_ONLY`가 보였다. 시험 입력은 새로고침해 비웠다.
+- `FIRST UI TEST MISREAD`: 첫 UI 자동화의 접근성 값은 A 명령을 표시했지만 실제 DOM 입력값은 빈 문자열이라 버튼 결과가 바뀌지 않았다. DOM 입력 상태를 확인해 실제 텍스트 입력으로 다시 시험했고 위 판정이 표시됐다. 서버·명령 해석 오류는 아니며 사용자 명령이 적용된 적도 없다.
+- `NOT_RUN`: A/B 동시 현장 장면, 다른 촬영일/카메라 위치 변화, 실제 명령 지속·예약, 목적지 다중 투입 경로·용량, 모터 동작은 검증하지 않았다. 기존 World→Base/TCP 및 경로 승인은 여전히 거부 상태다.
+- `PASS (saved ROI evidence)`: Git 제외 보유 메타데이터 80개를 읽기 전용으로 재집계해 A 0/23·B 35/35·C 0/22만 기존 픽업 ROI에 들어감을 확인했다. 이는 약통 높이를 보정하지 않은 검출 상자 중심의 작업대 평면 투영이며 물리 집기 가능률이 아니다. 반환 경로에 `pickup_roi_match`와 `grasp_authorized=false`를 추가했다. 8031 live health는 `ok=true`, 프레임 age 0.304초, `robot_enabled=false`; 시험용 `A를 빨강`의 읽기 전용 미리보기는 `pickup_roi_match=false`, `grasp_authorized=false`, `motion_authorized=false`였다. 명령 저장·실행, ROI 확장·모터 제어는 하지 않았다.
+- `NEXT/BLOCKED`: 세 약통 동시 고정 배치에 대한 실제 한 프레임 검증은 사용자의 물리 배치가 있어야 한다. 그 전까지 합성 마커 오프라인 결과와 A 단독 라이브 결과만 있다. 카메라-only 검증과 실제 로봇 동작은 분리하며 자동 집기·재생 `NOT_RUN`이다.

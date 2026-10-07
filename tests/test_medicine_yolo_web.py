@@ -1,18 +1,23 @@
 import sys
 import json
+import io
 import tempfile
 import threading
 import time
 import unittest
 from collections import deque
+from email.message import Message
+from http import HTTPStatus
 from pathlib import Path
+from types import SimpleNamespace
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from medicine_yolo_web import (
-    DetectionWorker, INDEX_HTML, detect_table_markers, inside_roi, is_http_jpeg, is_http_stream,
+    DetectionWorker, Handler, INDEX_HTML, detect_table_markers, inside_roi, is_http_jpeg, is_http_stream,
     mjpeg_jpegs, project_table_xy, read_exact, video_index,
 )
+from medicine_fixed_slot_command import DEFAULT_SLOTS, validate_slots
 from medicine_sort_dry_run import DEFAULT_RULES, validate_rules
 
 import numpy as np
@@ -30,6 +35,9 @@ class MedicineYoloWebTests(unittest.TestCase):
         self.assertIn("motion_authorized:false", INDEX_HTML)
         self.assertIn("pickup_roi_match:roiMatch", INDEX_HTML)
         self.assertIn("사진·라벨 로컬 저장", INDEX_HTML)
+        self.assertIn("/api/command-preview", INDEX_HTML)
+        self.assertIn("명령 판정만", INDEX_HTML)
+        self.assertIn("document.querySelector('#route-command').value=''", INDEX_HTML)
         self.assertIn("window.addEventListener('pageshow'", INDEX_HTML)
         self.assertIn("out.textContent+='\\n다시 프레임", INDEX_HTML)
         self.assertNotIn("out.textContent+='\n다시 프레임", INDEX_HTML)
@@ -131,6 +139,34 @@ class MedicineYoloWebTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "already saved"):
                 worker.save_manual_capture(Path(temporary), rules, label="C",
                                            sequence=42, pixel=(20, 20))
+
+    def test_command_preview_endpoint_is_dry_run_only(self):
+        body = json.dumps({"command": "A를 빨간색"}, ensure_ascii=False).encode()
+        headers = Message()
+        headers["Content-Type"] = "application/json"
+        headers["Content-Length"] = str(len(body))
+        handler = Handler.__new__(Handler)
+        handler.path = "/api/command-preview"
+        handler.headers = headers
+        handler.rfile = io.BytesIO(body)
+        handler.server = SimpleNamespace(
+            worker=SimpleNamespace(snapshot=lambda: {
+                "ok": True, "robot_enabled": False, "frame_age_s": 0.1, "sequence": 42,
+                "table": {"ready": True, "detected_ids": [0, 1, 2, 3, 4],
+                          "basket_mapping": {"4": "red"},
+                          "basket_markers": {"4": {"color": "red"}}},
+                "detections": [{"confidence": 0.95, "xyxy": [420, 200, 458, 252]}],
+            }),
+            fixed_slots=validate_slots(json.loads(DEFAULT_SLOTS.read_text(encoding="utf-8"))),
+            allow_manual_capture=False,
+        )
+        responses = []
+        handler._json = lambda payload, status=HTTPStatus.OK: responses.append((status, payload))
+        handler.do_POST()
+        self.assertEqual(responses[0][0], HTTPStatus.OK)
+        self.assertEqual(responses[0][1]["routes"][0]["target_marker_id"], 4)
+        self.assertFalse(responses[0][1]["motion_authorized"])
+        self.assertFalse(responses[0][1]["robot_coordinates_included"])
 
     def test_video_index_resolves_video_node(self):
         self.assertEqual(video_index("/dev/video4"), 4)

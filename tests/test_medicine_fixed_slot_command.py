@@ -33,6 +33,8 @@ class FixedSlotCommandTests(unittest.TestCase):
         result = decide_fixed_slot_command(self.snapshot, assignments, self.slots)
         self.assertEqual(result["status"], "DRY_RUN_ROUTE_ONLY")
         self.assertEqual([r["target_marker_id"] for r in result["routes"]], [4, 4])
+        self.assertFalse(result["routes"][0]["grasp_authorized"])
+        self.assertFalse(result["routes"][0]["pickup_roi_match"])
         self.assertFalse(result["robot_enabled"])
         self.assertFalse(result["motion_authorized"])
         self.assertFalse(result["robot_coordinates_included"])

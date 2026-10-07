@@ -26,6 +26,8 @@ from pathlib import Path
 from urllib.request import urlopen
 
 from detect_medicine_onnx import decode_detections, letterbox
+from medicine_fixed_slot_command import (DEFAULT_SLOTS, decide_fixed_slot_command,
+                                        parse_command, validate_slots)
 from medicine_sort_dry_run import DEFAULT_RULES, decide_manual_pixel, validate_rules
 
 
@@ -51,6 +53,10 @@ pre{white-space:pre-wrap;background:#18212b;padding:12px;border-radius:8px;color
 <label>확인한 약통 <select id="manual-label"><option value="">종류를 선택하세요</option><option value="A">A 큰 약통</option><option value="B">B 중간 약통</option><option value="C">C 작은 약통</option></select></label>
 <button id="freeze" type="button">현재 프레임 고정</button>
 <p><img id="manual-frame" alt="고정한 정면 프레임; 클릭해 약통 위치 지정"></p><button id="manual-save" type="button" disabled>사진·라벨 로컬 저장</button><pre id="manual-result">프레임을 고정하세요.</pre></section>
+<section><h2>고정 배치 명령 미리보기 · 로봇 구동 없음</h2>
+<p>왼쪽 C·가운데 B·오른쪽 A 배치에서 현재 보이는 약통과 바구니 마커를 검사합니다. 입력한 명령은 저장하거나 실행하지 않습니다.</p>
+<label>목적지 명령 <input id="route-command" type="text" size="48" autocomplete="off" placeholder="예: A를 빨간색, B도 빨간색 박스"></label>
+<button id="route-preview" type="button">명령 판정만</button><pre id="route-result">명령을 입력하세요.</pre></section>
 <pre id="status">상태 읽는 중…</pre>
 <script>
 let frozen=null, frozenAt=0, selected=null;
@@ -59,7 +65,8 @@ async function freeze(){const out=document.querySelector('#manual-result');selec
 function iou(a,b){const w=Math.max(0,Math.min(a[2],b[2])-Math.max(a[0],b[0])),h=Math.max(0,Math.min(a[3],b[3])-Math.max(a[1],b[1]));const overlap=w*h;return overlap/((a[2]-a[0])*(a[3]-a[1])+(b[2]-b[0])*(b[3]-b[1])-overlap)}
 function choose(e){const out=document.querySelector('#manual-result'),img=e.currentTarget;selected=null;document.querySelector('#manual-save').disabled=true;if(!frozen||!img.naturalWidth){out.textContent='먼저 프레임을 고정하세요.';return}if(Date.now()-frozenAt>10000){out.textContent='고정 프레임이 10초를 넘었습니다. 다시 고정하세요.';return}const label=document.querySelector('#manual-label').value,rules={A:[6,'blue'],B:[5,'green'],C:[4,'red']};if(!rules[label]){out.textContent='실제 약통 종류 A/B/C를 먼저 확인하고 선택하세요.';return}const rect=img.getBoundingClientRect(),x=(e.clientX-rect.left)*img.naturalWidth/rect.width,y=(e.clientY-rect.top)*img.naturalHeight/rect.height,t=frozen.table,[id,color]=rules[label];let reason=null;if(!t||!t.ready||!Array.isArray(t.required_ids)||!Array.isArray(t.detected_ids)||!t.required_ids.every(n=>t.detected_ids.includes(n)))reason='작업대 기준 마커 누락';else if(!t.detected_ids.includes(id)||!t.basket_markers||!t.basket_markers[id]||t.basket_markers[id].color!==color||!t.basket_mapping||t.basket_mapping[id]!==color)reason='목표 바구니 마커 불일치';const boxes=(frozen.detections||[]).filter(d=>Array.isArray(d.xyxy)&&d.xyxy.length===4&&d.xyxy[0]<=x&&x<=d.xyxy[2]&&d.xyxy[1]<=y&&y<=d.xyxy[3]).sort((a,b)=>b.confidence-a.confidence);if(!reason&&!boxes.length)reason='클릭점에 약통 검출 상자 없음';if(!reason&&boxes.some(d=>iou(boxes[0].xyxy,d.xyxy)<0.5))reason='여러 물체 후보가 겹침';const roiMatch=boxes.length>0&&boxes[0].inside_pickup_roi===true;const result={status:reason?'BLOCKED':'DRY_RUN_ROUTE_ONLY',reason,frame_sequence:frozen.sequence,clicked_pixel:[Math.round(x),Math.round(y)],human_label:label,target_marker_id:reason?null:id,target_color:reason?null:color,overlapping_boxes:boxes.length,pickup_roi_match:roiMatch,robot_enabled:false,motion_authorized:false,note:roiMatch?'클릭점은 로봇 집기 좌표가 아닙니다. 실제 색·물체 신원은 사람이 확인해야 합니다.':'기존 픽업 구역 밖입니다. 목적지 제안만 가능하고 자동 집기는 금지입니다.'};out.textContent=JSON.stringify(result,null,2);if(!reason){selected={label,sequence:frozen.sequence,pixel:[x,y],identity_confirmed:true};document.querySelector('#manual-save').disabled=false}}
 async function saveManual(){const out=document.querySelector('#manual-result'),button=document.querySelector('#manual-save');if(!selected){out.textContent='먼저 약통 중심을 클릭하세요.';return}button.disabled=true;try{const r=await fetch('/api/manual-capture',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(selected)});const d=await r.json();out.textContent=JSON.stringify(d,null,2);if(!r.ok)out.textContent+='\\n다시 프레임을 고정해 촬영하세요.'}catch(e){out.textContent=String(e)}}
-document.querySelector('#freeze').addEventListener('click',freeze);document.querySelector('#manual-frame').addEventListener('click',choose);document.querySelector('#manual-save').addEventListener('click',saveManual);window.addEventListener('pageshow',()=>{document.querySelector('#manual-label').value='';selected=null;document.querySelector('#manual-save').disabled=true});poll();setInterval(poll,1500)
+async function previewCommand(){const input=document.querySelector('#route-command'),out=document.querySelector('#route-result'),button=document.querySelector('#route-preview');if(!input.value.trim()){out.textContent='명령을 입력하세요.';return}button.disabled=true;try{const r=await fetch('/api/command-preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:input.value})});const d=await r.json();out.textContent=JSON.stringify(d,null,2)}catch(e){out.textContent=String(e)}finally{button.disabled=false}}
+document.querySelector('#freeze').addEventListener('click',freeze);document.querySelector('#manual-frame').addEventListener('click',choose);document.querySelector('#manual-save').addEventListener('click',saveManual);document.querySelector('#route-preview').addEventListener('click',previewCommand);window.addEventListener('pageshow',()=>{document.querySelector('#manual-label').value='';document.querySelector('#route-command').value='';selected=null;document.querySelector('#manual-save').disabled=true});poll();setInterval(poll,1500)
 </script>
 </main></body></html>"""
 
@@ -713,10 +720,11 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"detail": "Not Found"}, HTTPStatus.NOT_FOUND)
 
     def do_POST(self):
-        if self.path.split("?", 1)[0] != "/api/manual-capture":
+        path = self.path.split("?", 1)[0]
+        if path not in ("/api/manual-capture", "/api/command-preview"):
             self._json({"detail": "No robot-control endpoint"}, HTTPStatus.METHOD_NOT_ALLOWED)
             return
-        if not self.server.allow_manual_capture:
+        if path == "/api/manual-capture" and not self.server.allow_manual_capture:
             self._json({"error": "manual capture is disabled", "robot_enabled": False},
                        HTTPStatus.FORBIDDEN)
             return
@@ -727,6 +735,15 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < length <= 1024:
                 raise ValueError("request body size is invalid")
             payload = json.loads(self.rfile.read(length))
+            if path == "/api/command-preview":
+                if not isinstance(payload, dict) or not isinstance(payload.get("command"), str):
+                    raise ValueError("command text is required")
+                assignments = parse_command(payload["command"])
+                result = decide_fixed_slot_command(
+                    self.worker.snapshot(), assignments, self.server.fixed_slots
+                )
+                self._json(result)
+                return
             if not isinstance(payload, dict) or payload.get("identity_confirmed") is not True:
                 raise ValueError("human A/B/C identity confirmation is required")
             pixel = payload.get("pixel")
@@ -794,6 +811,8 @@ def parse_args():
                         help="local Git-ignored folder for human-labeled raw JPEG review candidates")
     parser.add_argument("--allow-manual-capture", action="store_true",
                         help="opt in to local-only manual JPEG saving; does not enable robot control")
+    parser.add_argument("--fixed-slots", type=Path, default=DEFAULT_SLOTS,
+                        help="provisional fixed-layout slot ranges for read-only command preview")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8020)
     parser.add_argument("--image-size", type=int, default=640)
@@ -832,6 +851,7 @@ def main():
     server.worker = worker
     server.manual_capture_root = args.manual_capture_root
     server.manual_rules = validate_rules(json.loads(DEFAULT_RULES.read_text(encoding="utf-8")))
+    server.fixed_slots = validate_slots(json.loads(args.fixed_slots.read_text(encoding="utf-8")))
     server.allow_manual_capture = args.allow_manual_capture
     angled_worker = PreviewWorker(args.angled_device, fourcc=args.angled_fourcc) if args.angled_device else None
     server.angled_worker = angled_worker
