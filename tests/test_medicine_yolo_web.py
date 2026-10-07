@@ -24,6 +24,7 @@ class MedicineYoloWebTests(unittest.TestCase):
         self.assertNotIn("stop-teleoperation", INDEX_HTML)
         self.assertIn("/manual-frame.json", INDEX_HTML)
         self.assertIn("motion_authorized:false", INDEX_HTML)
+        self.assertIn("pickup_roi_match:roiMatch", INDEX_HTML)
 
     def test_read_exact_combines_short_reads(self):
         class ShortStream:

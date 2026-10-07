@@ -175,6 +175,7 @@ def decide_manual_pixel(snapshot: object, verified_label: str, pixel: tuple[floa
         status="DRY_RUN_ROUTE_ONLY", reason=None,
         target_marker_id=rule["basket_id"], target_color=rule["color"],
         selected_detection_count=len(selected),
+        pickup_roi_match=primary.get("inside_pickup_roi") is True,
         warning="Human A/B/C label and configured basket color mapping; pixel and table projection are not robot grasp coordinates",
     )
     return result

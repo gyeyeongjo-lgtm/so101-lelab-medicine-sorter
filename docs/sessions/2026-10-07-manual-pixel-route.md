@@ -10,5 +10,6 @@
 - `FIRST FAILURE/RECOVERY`: Mac 임시 8021 포트는 이미 listen 중이라 사용하지 않았다. 비어 있는 8031에서 8000 MJPEG를 직접 구독하는 첫 시도는 정면 `camera source ended`, 사선 HTTP 503으로 실패했다. 정확한 임시 프로세스만 TERM 종료하고 8030의 기존 캐시 JPEG 두 채널만 주기적으로 읽는 방식으로 바꿨다. 새 8031의 health ok, 정면 age 0.202 s·약통 후보 1개·ID0–6, 사선 ok다. 8030 세 영상은 계속 신선하다.
 - `PASS (browser UI)`: 프레임 고정이 실제 sequence를 표시했다. 약통 중심 약 (321,242) 클릭과 **시험용 A 선택**은 `DRY_RUN_ROUTE_ONLY`/ID6/blue와 중복 상자 2개를 표시했다. 이 선택은 현재 약통의 A 신원을 검증하지 않는다. 이후 UI 기본 선택을 빈 값으로 수정해 실제 A/B/C 미선택 클릭은 차단됨을 다시 확인했다.
 - `NO MOTION`: 8000 텔레옵·녹화·추론 inactive, recording 내부 `current_phase=preparing`/`session_ended=false` 유지. 8030 `robot_control=false`, 8031 `robot_enabled=false`. 8020 서비스·카메라 장치·USB·토크·모터·LeLab 설정을 변경하지 않았다.
+- `ROI LIMIT`: 현재 약통 후보는 기존 픽업 ROI 밖이다. 목적지 제안 결과에 `pickup_roi_match=false`를 명시해, UI의 route-only 판정을 자동 집기 준비 완료로 오인하지 않게 했다.
 
 다음 현장 입력은 사용자가 현재 약통의 실제 A/B/C를 확인한 뒤 8031 화면에서 종류 선택→프레임 고정→약통 중심 클릭이다. 그 결과는 목적지 제안까지만 사용한다. 8031은 임시 서버여서 프로세스가 종료되면 재실행이 필요하다. 사람의 확인 없이 크기 라벨을 추측하지 않는다.

@@ -72,6 +72,7 @@ class MedicineSortDryRunTests(unittest.TestCase):
         result = decide_manual_pixel(self.snapshot, "B", (320, 240), 42, self.rules)
         self.assertEqual(result["status"], "DRY_RUN_ROUTE_ONLY")
         self.assertEqual(result["selected_detection_count"], 2)
+        self.assertFalse(result["pickup_roi_match"])
         self.assertEqual((result["target_marker_id"], result["target_color"]), (5, "green"))
         self.assertFalse(result["motion_authorized"])
         self.assertFalse(result["robot_coordinates_included"])
