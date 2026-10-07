@@ -2,6 +2,11 @@
 
 업데이트: 2026-10-07
 
+## 2026-10-07 현장 작업 없이 기존 A/B/C 자료 검수 재개
+
+- `PASS (read-only inventory)`: Jetson의 기존 LeRobot 캐시에서 현재 사용 후보 A v2·B v1·C test가 각각 60 episode/32,597·27,613·28,966 frame임을 메타데이터로 재확인했다. 각 데이터셋의 기존 MP4는 A 7개, B 6개, C 7개이며 파일 크기 합계는 약 1.24/0.97/0.99 GB다. 원본 파일·LeLab 설정·로봇 제어 상태는 변경하지 않았다.
+- `NOT_VERIFIED`: MP4 파일 존재와 에피소드 개수는 각 60회가 현재 사용자 규칙 A→ID6·B→ID5·C→ID4에 맞거나 성공했다는 증거가 아니다. 첫 에피소드의 B/C 목적지 불일치가 이미 확인돼 있으므로, 다음은 180회 각 종료 프레임의 목적지 마커·투입 성공 여부를 오프라인 검수하는 작업이다. 그 전 기존 B/C 모델 자동 실행은 계속 `REJECTED`다. 현장 사용자 작업은 현재 필요하지 않다.
+
 ## 2026-10-07 LeLab 8000 복구·C 세 카메라 촬영
 
 - `PASS (service-only recovery)`: 사용자 요청에 따라 Jetson 8000의 기존 `lelab.service`만 시작했다. 시작 전 8000은 inactive/dead·PID 0, 8002/8022 텔레옵·녹화·추론 inactive였고 canonical follower `5AE6058306`→ACM0·leader `5AE6085272`→ACM1, root `fuser`의 두 장치 점유 출력이 없었다. 시작 후 8000 active/running·health ok, 텔레옵·녹화·추론 active=false다. 설정·USB·모터·토크는 바꾸지 않았다.
