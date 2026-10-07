@@ -7,6 +7,7 @@
 - `PASS (camera-only)`: 사용자 `B 단독 배치 완료` 후 Jetson 8000 텔레옵·녹화·추론 active=false, Mac 8030 세 카메라 오류 null·`robot_control=false`를 재확인했다. 정면 캐시 한 장에서 기존 A 출발 자리 약 x=440,y=228에 약통 1개가 보이고, 다른 약통들은 화면 왼쪽 바깥쪽에 있다. 이 한 개가 B라는 신원은 사용자 확인이며 영상에서 자동 판별한 결과가 아니다.
 - `LOCAL ONLY`: 정면 원본·SHA·제한 메타데이터를 Git 제외 `.local/medicine-class-scenes/20261007_B_source.*`에 저장했다. 이전 여러 약통 장면은 별도 보류 자료로 남겼다. A/B 각 한 장은 분류기 학습·검증에 부족하고 픽업 ROI/로봇 좌표 문제도 미해결이다. 로봇 동작·자동 추론 `NOT_RUN`.
 - `NEXT (user action)`: 텔레옵을 끈 채 B를 치우고 작은 C 하나만 같은 출발 자리에 놓으면 C 정면 장면을 같은 방식으로 확보한다.
+- `NOT_RUN (A/B detector comparison)`: 로컬 기본·번들 Python에는 OpenCV가 없고, Jetson 비대화형 SSH는 인증 거부됐다. 기존 로컬 askpass를 통한 SSH도 이번 시도에서는 응답을 완료하지 않아 중단했다. LeLab/카메라 읽기 전용 API는 정상이며 설정·모터 상태는 변경하지 않았다. 모델 비교 결과를 추측해 기재하지 않는다.
 
 ## 2026-10-07 B 배치 장면 확인 — 단독 분류 자료 보류
 
