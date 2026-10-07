@@ -1,6 +1,14 @@
 # 현재 상태
 
-업데이트: 2026-10-06
+업데이트: 2026-10-07
+
+## 2026-10-07 현장 승인 후 수동 시연 사전 점검
+
+- `PASS (read-only)`: Jetson SSH 연결, canonical USB `5AE6058306`→`/dev/ttyACM0` follower·`5AE6085272`→`/dev/ttyACM1` leader를 확인했다. 시작 전후 root `fuser`에 두 포트 점유 출력이 없었다. 8002·8022의 텔레옵·녹화·추론은 모두 inactive다.
+- `PASS (service-only)`: 8000 `lelab.service`가 inactive였으므로 기존 unit을 설정 변경 없이 시작했다. health `ok`, 텔레옵·녹화·추론 inactive이며 `/robots/so-101`은 leader ACM1/follower ACM0, 카메라 8/4/6을 가리킨다. 모터·토크·USB·캘리브레이션은 변경하지 않았다.
+- `PASS (Mac evidence)`: 읽기 전용 Mac 8030 증거 페이지를 기존 명령으로 시작했다. 정면/사선/손목 카메라 수신 오류 null·프레임 신선도를 확인했고 `robot_control=false`다. 관절 방송 null은 텔레옵 inactive 상태와 일치한다.
+- `PASS (passive capture / safe stop)`: 사용자가 현재 대상 한 개→가운데 ID4 목표, 양옆 바구니 경로 여유, 시작 자세·즉시 중단 준비를 확인하고 기존 텔레옵을 직접 시작·종료했다. 종료 후 LeLab 텔레옵·녹화·추론 active=false다. Mac은 모터·토크·USB를 제어하지 않고 캐시 정면 367장·사선 364장과 관절 방송 1,685개(87.103초)를 Git 제외 `.local/teleop-traces/20261007T050941_395283Z_d2c1f385/`에 저장했다. 원본·index 해시 검증 통과, 두 채널 수신 오류 null, 중복·역순 source timestamp 0건이다.
+- `REJECTED (outcome / replay)`: 종료 후 정면 영상에는 약통이 **가운데 ID4가 아닌 오른쪽 바구니**에 보인다. 현장 실제 위치와 간섭 여부는 사용자에게 확인 요청 중이며 ID4 투입 성공으로 기록하지 않는다. 설치 URDF 기준 오프라인 감사에서 Elbow 1,465/1,685개가 상한을 최대 0.116224 rad 초과해 `URDF_LIMIT_MISMATCH`(exit 2)다. 이는 물리 하드스톱 초과 증거는 아니나 자동 재생·자율 투입은 계속 `BLOCKED`; 영상도 노출시각 동기 연속 비디오가 아니다. 세부 기록: `docs/sessions/2026-10-07-manual-trace-preflight.md`.
 
 ## 2026-10-06 11:26 KST 텔레옵 영상 증거 수집 경로 보완
 
