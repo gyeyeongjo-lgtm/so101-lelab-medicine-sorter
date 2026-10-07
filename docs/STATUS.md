@@ -2,6 +2,25 @@
 
 업데이트: 2026-10-08
 
+## 2026-10-08 회전 바구니 ID5 마커 의미 — 8031 읽기 전용 표시 반영
+
+- `PASS (camera-only before/after)`: 바구니 회전 전후 ID5 마커 중심의 테이블 평면 투영값은 `[192.966,133.179]`→`[111.030,230.299]` mm, 차이 벡터 길이 약 127.1 mm다. 바구니 입구 중심 이동이 아니며 마커 높이도 미보정이다. ID5만으로 목적지 중심·자세를 정의하지 않는다.
+- `IMPLEMENTED/LIVE (read-only 8031)`: 마커 좌표는 바구니 중심이 아님을 상태·명령 미리보기에 명시하고 바구니 중심/자세 승인 false를 추가했다. Mac 8031만 기존 카메라·저장 옵션으로 재시작했고 health 신선·ID0–3/5·`robot_enabled=false`를 확인했다. 최초 백그라운드 재시작 실패 후 전경 세션으로 복구했다. 새 합성/관련 시험 20개 통과. 로봇 좌표·경로 `NOT_VERIFIED`, 자동 모션 `NOT_RUN`. 상세: [마커 의미 점검](sessions/2026-10-08-basket-marker-semantics.md). 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`.
+
+## 2026-10-08 캘리브레이션 파일·수동 궤적 대조 — 자동 재생 차단 유지
+
+- `PASS (read-only installed-source audit)`: Jetson follower 캘리브레이션 파일 SHA를 확인하고 설치 LeRobot `DEGREES` 정규화식으로 다섯 arm 관절의 파일 경계를 계산했다. canonical follower/leader USB 메타데이터와 LeLab active·텔레옵 inactive를 읽었다. 시리얼 버스·모터·토크·서비스 설정은 건드리지 않았다.
+- `PASS (offline trace audit) / MOTION BLOCKED`: 보유 연속 기록 9건·관절 방송 16,568개는 모두 캘리브레이션 **파일** 범위 안이었다. 그러나 9건 전부 설치 URDF와 불일치하며, 파일 경계까지 최솟값이 Elbow/Wrist_Pitch 각각 0.352°에 불과하다. 1° 이내 표본은 Elbow 3,547개·Wrist_Pitch 20개다. 1°는 진단 폭이지 안전 마진이 아니다. 카메라 완전 경로 증거는 9건 모두 false다. 다른 세 arm 모터 레지스터, 실제 하드스톱·동적 여유·연속 경로는 `NOT_VERIFIED`; 자동 이동·재생 `BLOCKED/NOT_RUN`. 파생 범위 스냅샷·재현용 오프라인 검사기를 추가했고 관련 시험 12개 통과. 상세: [캘리브레이션 궤적 대조](sessions/2026-10-08-calibration-trace-envelope-offline.md). 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`.
+
+## 2026-10-08 초록 바구니 비접촉 정렬 — 방향 확인 완료·삽입 미검증
+
+- `PASS (reoriented basket camera check)`: 사용자 재배치 후 정면 영상에서 초록 바구니 긴 축이 좌우이고 ID5가 검출된다. 이는 이전 손가락 벌림 좌우 방향과 화면상 일치한다. 8031은 `ROBOT DISABLED`, LeLab 메인 UI는 `Ready`였다. 당시 실제 텔레옵 서버 상태·3D 간섭 여유는 `NOT_VERIFIED`였고 이후 별도 수동 비접촉 1회를 승인받았다.
+- `PASS (user-operated non-contact direction check)`: 사용자가 새 현장 안전 확인·비접촉 1회 승인을 하고 기존 LeLab 텔레옵으로 빈 그리퍼를 초록 바구니 상공에서 정지시켰다. 정면 영상에서 손가락 벌림 방향과 바구니 긴 축은 좌우로 일치한다. 손끝은 뒤쪽 테두리 근처에 투영돼 입구 중앙과 실제 공기 간격은 카메라만으로 `NOT_VERIFIED`. 사용자는 비접촉 퇴피·텔레옵 종료·간섭 없음이라고 보고했고 영상상 그리퍼가 바구니에서 떨어져 있다. 서버 종료 API는 접속 제한으로 재확인하지 못했다. 안쪽 진입·자동 이동·재생 `NOT_RUN`.
+- `PASS (read-only visual preflight)`: 사용자 배치 보고 후 LeLab은 `Ready`, Mac 8031은 `ROBOT DISABLED`이며 기준 ID0–3·초록 바구니 ID5를 검출했다. 정면·사선 화면에 초록 바구니 1개가 보인다.
+- `USER APPROVED (manual non-contact one-shot)`: 사용자가 물체를 이동 범위 밖으로 치우고 빈 그리퍼·사람 범위 밖·즉시 중단 준비를 확인했다. 새 영상 가장자리에는 물체와 가위가 남아 보여 영상만으로 범위 밖 여부를 확정하지 않는다. 사용자가 기존 LeLab 텔레옵을 직접 켜고 리더를 움직이지 않은 상태에서 이상 움직임을 확인하도록 요청했다. 실제 간섭 여유 `NOT_VERIFIED`, 자동 이동·재생 `BLOCKED/NOT_RUN`. 상세: [초록 바구니 사전 점검](sessions/2026-10-08-green-basket-noncontact-preflight.md). 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`.
+- `INCOMPLETE (manual overhead alignment)`: 사용자는 바구니 상공 비접촉 정지를 보고했다. 정면 영상의 손가락 벌림 방향은 화면 좌우, 바구니 긴 축은 상하라 긴 축 정렬은 확인되지 않았다. 추가 하강 없이 먼저 테두리 위로 충분히 퇴피하도록 요청했고 결과 대기 중이다. 실제 여유 `NOT_VERIFIED`.
+- `STOPPED (direction not verified)`: 사용자는 공중 퇴피와 손목 방향 변경을 보고했지만 갱신된 정면 영상에서 벌림 방향은 계속 좌우로 보인다. 바구니 안으로 진입하지 않았고 사용자는 비접촉 퇴피·텔레옵 직접 종료, 이상 없음을 보고했다. 종료 후 영상에는 그리퍼가 바구니에서 떨어져 있다. 서버 측 `/teleoperation-status` 재조회는 네트워크 차단으로 `NOT_VERIFIED`; 자동 이동·재생 `BLOCKED/NOT_RUN`.
+
 ## 2026-10-08 그리퍼 메쉬 외접 폭 — 모델 여유 부족, 실제 검증 미완료
 
 - `PASS (read-only installed model audit)`: 설치 URDF SHA 일치 확인. 설치 STL은 실제 형상이 아닌 Git LFS 포인터였고, Jetson 기존 uv 캐시에서 포인터 SHA와 맞는 바이너리 STL을 찾았다. URDF visual/joint 변환을 적용한 모델 외접 폭은 B 입구 부근 Jaw 0.43259 rad에서 X 83.7·Y 52.0 mm, C 집은 상태 Jaw 0.21469에서 X 71.7·Y 52.0 mm, C 개방 후 Jaw 0.54582에서 X 91.6·Y 52.0 mm다.

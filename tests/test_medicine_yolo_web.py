@@ -10,11 +10,12 @@ from email.message import Message
 from http import HTTPStatus
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from medicine_yolo_web import (
-    DetectionWorker, Handler, INDEX_HTML, detect_table_markers, inside_roi, is_http_jpeg, is_http_stream,
+    DetectionWorker, Handler, INDEX_HTML, TableMapper, detect_table_markers, inside_roi, is_http_jpeg, is_http_stream,
     mjpeg_jpegs, project_table_xy, read_exact, video_index,
 )
 from medicine_fixed_slot_command import DEFAULT_SLOTS, validate_slots
@@ -184,6 +185,42 @@ class MedicineYoloWebTests(unittest.TestCase):
         roi = {"x": (80.0, 220.0), "y": (100.0, 300.0)}
         self.assertTrue(inside_roi(point, roi))
         self.assertFalse(inside_roi((79.9, 120.0), roi))
+
+    def test_basket_marker_projection_is_not_presented_as_basket_center(self):
+        class FakeCV2:
+            FONT_HERSHEY_SIMPLEX = 0
+            aruco = SimpleNamespace(drawDetectedMarkers=lambda *_args: None)
+
+            @staticmethod
+            def findHomography(_image_points, _table_points, method=0):
+                return np.eye(3), None
+
+            @staticmethod
+            def perspectiveTransform(points, _homography):
+                return points
+
+            @staticmethod
+            def putText(*_args):
+                return None
+
+        mapper = TableMapper.__new__(TableMapper)
+        mapper.cv2, mapper.np = FakeCV2, np
+        mapper.detector = object()
+        mapper.reference_centers = {0: (0, 0), 1: (100, 0), 2: (100, 100), 3: (0, 100)}
+        mapper.reference_ids = [0, 1, 2, 3]
+        mapper.basket_ids = {5: "green"}
+        mapper.roi = {"x": (0, 100), "y": (0, 100)}
+        centers = {0: (0, 0), 1: (100, 0), 2: (100, 100), 3: (0, 100), 5: (60, 50)}
+        corners = {marker_id: np.asarray([[[x, y]] * 4], dtype=np.float32)
+                   for marker_id, (x, y) in centers.items()}
+        image = np.zeros((480, 640, 3), dtype=np.uint8)
+        with patch("medicine_yolo_web.detect_table_markers", return_value=(corners, [])):
+            result = mapper.analyze(image, image.copy(), [])
+        marker = result["basket_markers"]["5"]
+        self.assertEqual(marker["table_xy_mm"], [60.0, 50.0])
+        self.assertIsNone(marker["basket_center_table_xy_mm"])
+        self.assertFalse(marker["basket_pose_verified"])
+        self.assertFalse(result["basket_pose_authorized"])
 
     def test_equalized_fallback_adds_only_missing_marker_without_replacing_original(self):
         class FakeCV2:

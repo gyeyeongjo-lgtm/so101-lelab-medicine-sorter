@@ -73,6 +73,7 @@ def validate_slots(raw: object) -> dict[str, dict]:
 def _blocked(reason: str) -> dict:
     return {"status": "BLOCKED", "reason": reason, "routes": [],
             "robot_enabled": False, "motion_authorized": False,
+            "basket_pose_authorized": False,
             "robot_coordinates_included": False}
 
 
@@ -146,8 +147,9 @@ def decide_fixed_slot_command(snapshot: object, assignments: dict[str, str],
     return {"status": "DRY_RUN_ROUTE_ONLY", "reason": None,
             "frame_sequence": snapshot.get("sequence"), "routes": routes,
             "fixed_layout_provisional": True,
-            "warning": "No grasp coordinates, path, collision clearance, or basket capacity is verified",
+            "warning": "Marker ID identifies a basket, not its center or pose; no grasp coordinates, path, collision clearance, or basket capacity is verified",
             "robot_enabled": False, "motion_authorized": False,
+            "basket_pose_authorized": False,
             "robot_coordinates_included": False}
 
 

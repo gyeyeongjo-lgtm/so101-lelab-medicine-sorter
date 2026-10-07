@@ -217,6 +217,9 @@ class TableMapper:
                 basket_markers[str(marker_id)] = {
                     "color": color,
                     "table_xy_mm": [round(point[0], 3), round(point[1], 3)],
+                    "point_semantics": "marker_center_projected_to_table_plane_not_basket_center",
+                    "basket_center_table_xy_mm": None,
+                    "basket_pose_verified": False,
                 }
                 label_color = {
                     "red": (0, 0, 255),
@@ -264,7 +267,8 @@ class TableMapper:
             "detections_inside_pickup_roi": inside_count,
             "basket_markers": basket_markers,
             "basket_mapping": {str(marker_id): color for marker_id, color in self.basket_ids.items()},
-            "projection": "bbox image center projected onto table plane; object height not corrected",
+            "projection": "image centers projected onto table plane; object and basket-marker heights not corrected",
+            "basket_pose_authorized": False,
             "robot_target_authorized": False,
         }
 
