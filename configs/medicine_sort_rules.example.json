@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "label_source": "human_verified_only",
+  "rules": {
+    "A": {"description": "large medicine bottle", "basket_id": 6, "color": "blue"},
+    "B": {"description": "medium medicine bottle", "basket_id": 5, "color": "green"},
+    "C": {"description": "small medicine bottle", "basket_id": 4, "color": "red"}
+  }
+}
