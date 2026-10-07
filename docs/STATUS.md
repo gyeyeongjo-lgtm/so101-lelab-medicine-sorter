@@ -1,6 +1,12 @@
 # 현재 상태
 
-업데이트: 2026-10-07
+업데이트: 2026-10-08
+
+## 2026-10-08 follower 위치 제한 레지스터 읽기 — LeLab 복구 완료
+
+- `PASS (approved read-only hardware check)`: 사용자 현장 안전 확인·읽기 전용 점검 승인 후 중지돼 있던 기존 `lelab.service`를 유지한 상태에서 canonical USB follower `5AE6058306`→`/dev/ttyACM0`, leader `5AE6085272`→`/dev/ttyACM1`, 서비스 inactive/dead·PID 0, root `fuser` 두 포트 점유 출력 없음을 확인했다. 설치 LeLab Python 3.14.7과 Feetech 제어표/`connect`·`read`·`disconnect` 실제 소스를 검사한 뒤 follower 버스 하나만 열어 Elbow(id 3) 제한 880–3087, Wrist_Pitch(id 4) 제한 936–3225 raw를 읽었다. `handshake=False`, `normalize=False`, 재시도 0이며 닫을 때 `disable_torque=False`를 명시했다. 모터 목표·토크·캘리브레이션·USB 설정 변경 및 로봇 동작 `NOT_RUN`.
+- `PASS (restore)`: 진단 종료 후 기존 `lelab.service`만 시작했다. active/running·8000 health `ok`, 텔레옵·녹화·추론 active=false를 확인했다. follower 캘리브레이션 파일의 두 관절 `range_min/range_max`는 읽힌 레지스터와 각각 같다. 그러나 설치 URDF의 Elbow/Wrist_Pitch 범위와 기존 관절 방송의 불일치는 해소되지 않았고, 레지스터 값만으로 물리 하드스톱·하중 중 여유·연속 경로 안전을 증명할 수 없다. 자동 재생·집기 `BLOCKED/NOT_RUN`. 상세: [제한 레지스터 점검](sessions/2026-10-08-follower-limit-read.md).
+- `LIMIT`: 레지스터 읽은 뒤 root `fuser` 재확인은 완료되지 않아 중단했다. 버스 API의 `disconnect(disable_torque=False)` 호출 이후 서비스 재시작·health는 성공했다. GitHub 이슈 API 갱신 `NOT_RUN`, 문서 원격 push `NOT_PUSHED`.
 
 ## 2026-10-07 수동 클릭 분류 경로 — Mac 8031 읽기 전용 라이브
 
