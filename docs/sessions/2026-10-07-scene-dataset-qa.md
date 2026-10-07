@@ -58,6 +58,13 @@
 - 8002의 기존 정면 프리뷰 8에서 JPEG 한 장만 읽고 닫았다. 새 사진의 출발 자리에는 이전과 같은 위치의 약통 한 개가 보이고 위쪽 다른 약통 두 개는 계속 없다. 화면 왼쪽의 보라색 용기는 신원 판정하지 않았다. 원본 `.local/medicine-class-scenes/20261007_C_source_reshoot.jpg` SHA-256 `c9af2923d7f3bcd4d4de2e8d104b92bd6d23659ceb1a31f9c51f650002acb47c`와 제한 메타데이터를 Git 제외로 보존했다. 앞선 C 사진은 원본 증거로 보존하되 새로운 분류 후보로 사용하지 않는다.
 - A/B/C 신원은 사용자 보고에 따른 단일 프레임 예시다. 검출기 비교·분류기 학습·자동 경로 결정·로봇 동작은 `NOT_RUN`.
 
+### 사용자 요청의 LeLab 8000 복구 및 C 세 카메라 촬영
+
+- 직전 C 사진들은 정면 카메라 한 대의 사진이었다. 사용자 요청에 따라 Jetson 8000을 복구하기 전, 8002·8022 텔레옵/녹화/추론 inactive, canonical follower `5AE6058306`→`/dev/ttyACM0`, leader `5AE6085272`→`/dev/ttyACM1`, root `fuser -v` 두 포트 점유 출력 없음, 기존 `lelab.service` inactive/dead·PID 0을 확인했다. 기존 user service에 `start`만 수행했다. 이후 active/running·health ok, 8000 세 제어 작업 active=false다. 설정·USB·모터·토크 변경 `NOT_RUN`.
+- Mac 8030은 8000 복구 후에도 약 2,428초 된 캐시를 반환했다. 8030 listener PID 2654의 실행 명령이 기존 `scripts/teach_capture_web.py --lelab-url http://192.168.50.20:8000 --host 127.0.0.1 --port 8030 --output-root .local/teach-captures`임과 `robot_control=false`를 확인했다. 해당 프로세스만 TERM으로 정상 종료하고 같은 명령으로 다시 시작했다. 이후 세 영상 age 약 19–37 ms·오류 null, 로봇 제어 false다.
+- 새 640×480 정면·사선·손목 JPEG 각 한 장을 8030 캐시에서 병렬 요청했다. 세 원본 SHA-256은 정면 `81d2f1ecf6d325c23bf4eed6305441a1ff6da74fa3d7b476c91333efdc7b4ab1`, 사선 `2ba177a0b70761167666806263894ae9272431ba58eb6835fbf566a32c86fb99`, 손목 `df57ed8328a490dc33c25ff8d169c741d80012d066eb791d753e8145aec6ba50`이다. Git 제외 `.local/medicine-class-scenes/20261007_C_threeview_*`에 보존했다. 정면·사선에는 C로 보고된 약통이 보이나, 현재 정지 팔 자세의 손목 영상에는 그리퍼만 보인다. 세 카메라 수신 성공이지 약통이 세 각도 모두에서 보이는 촬영은 아니다. 수신시각 근사 자료이며 노출시각 동기화 `NOT_VERIFIED`.
+- 촬영 후 8000 텔레옵·녹화·추론 active=false, 8030 세 영상 fresh·오류 null·`robot_control=false`를 재확인했다. 약통 A/B/C 자동 분류 학습·평가, 손목 카메라의 약통 가시성 확보를 위한 팔 이동, 자동 모터 동작은 `NOT_RUN`.
+
 첫째, A/B/C 각 자료의 에피소드별 실제 목표 마커와 성공 여부를 전수 검수해 유효 부분만 분리한다. 둘째, 현재 고정 출발 슬롯과 ROI를 카메라 여러 장·높이 확인으로 다시 정의한다. 셋째, World→Base/TCP, Elbow URDF/캘리브레이션 차이, 연속 경로 여유를 별도 검증한다. 이 전에는 어떤 기존 ACT 모델도 현재 장면에 실행하지 않는다. 원본 데이터셋·영상·비밀번호는 Git에 넣지 않는다.
 
 이번 문서 점검 관련 분류·비전 단위 테스트는 5+9개 `PASS`. 종료 전 LeLab teleoperation/recording/inference active=false를 다시 확인했다. GitHub CLI 로그인 부재로 이슈 API 갱신은 `NOT_RUN`; 코드·문서의 커밋과 push 상태는 Git 이력으로 별도 확인한다.

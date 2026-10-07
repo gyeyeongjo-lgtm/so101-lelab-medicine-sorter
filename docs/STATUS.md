@@ -2,6 +2,12 @@
 
 업데이트: 2026-10-07
 
+## 2026-10-07 LeLab 8000 복구·C 세 카메라 촬영
+
+- `PASS (service-only recovery)`: 사용자 요청에 따라 Jetson 8000의 기존 `lelab.service`만 시작했다. 시작 전 8000은 inactive/dead·PID 0, 8002/8022 텔레옵·녹화·추론 inactive였고 canonical follower `5AE6058306`→ACM0·leader `5AE6085272`→ACM1, root `fuser`의 두 장치 점유 출력이 없었다. 시작 후 8000 active/running·health ok, 텔레옵·녹화·추론 active=false다. 설정·USB·모터·토크는 바꾸지 않았다.
+- `PASS (Mac receive recovery)`: 기존 Mac 8030 수신 프로세스는 8000 복구 뒤에도 40분 넘은 프레임을 반환했다. 명령·PID·loopback 바인딩·`robot_control=false`를 확인하고 해당 프로세스만 정상 종료한 뒤 동일 명령으로 재시작했다. 이후 정면/사선/손목 카메라 age 약 19–37 ms, 오류 null이다.
+- `PASS (three cameras) / LIMIT (bottle views)`: 8030에서 정면·사선·손목 640×480 JPEG를 각각 한 장씩 거의 동시에 받아 Git 제외 `.local/medicine-class-scenes/20261007_C_threeview_*`와 SHA 메타데이터로 보존했다. C 약통은 정면·사선 두 영상에 보이나 손목 영상에는 그리퍼만 보인다. 세 카메라 수신 성공과 약통의 세 방향 가시성을 혼동하지 않는다. 노출시각 동기화도 `NOT_VERIFIED`; C 신원은 사용자 보고다. 촬영 뒤에도 LeLab 세 제어 작업 inactive, Mac `robot_control=false`다.
+
 ## 2026-10-07 C 재촬영·LeLab 8000 상태 확인
 
 - `PASS (camera-only)`: 사용자 재촬영 요청 후 8002 텔레옵·녹화·추론 inactive를 확인하고 기존 정면 프리뷰에서 새 JPEG 한 장을 읽어 닫았다. 출발 자리 약 x=440,y=228에 약통 1개가 보이며, 위쪽의 다른 약통 2개는 계속 치워져 있다. 맨 왼쪽 보라색 용기는 남아 있으나 신원은 판정하지 않는다. 최신 사진·SHA·제한 메타데이터는 Git 제외 `.local/medicine-class-scenes/20261007_C_source_reshoot.*`에만 보존했다. 이전 C 사진은 원본 증거로 남기되 분류 후보에서 제외한다.
