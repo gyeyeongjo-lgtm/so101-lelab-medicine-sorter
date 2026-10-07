@@ -57,3 +57,4 @@
 - `NOT_RUN`: A/B 동시 현장 장면, 다른 촬영일/카메라 위치 변화, 실제 명령 지속·예약, 목적지 다중 투입 경로·용량, 모터 동작은 검증하지 않았다. 기존 World→Base/TCP 및 경로 승인은 여전히 거부 상태다.
 - `PASS (saved ROI evidence)`: Git 제외 보유 메타데이터 80개를 읽기 전용으로 재집계해 A 0/23·B 35/35·C 0/22만 기존 픽업 ROI에 들어감을 확인했다. 이는 약통 높이를 보정하지 않은 검출 상자 중심의 작업대 평면 투영이며 물리 집기 가능률이 아니다. 반환 경로에 `pickup_roi_match`와 `grasp_authorized=false`를 추가했다. 8031 live health는 `ok=true`, 프레임 age 0.304초, `robot_enabled=false`; 시험용 `A를 빨강`의 읽기 전용 미리보기는 `pickup_roi_match=false`, `grasp_authorized=false`, `motion_authorized=false`였다. 명령 저장·실행, ROI 확장·모터 제어는 하지 않았다.
 - `NEXT/BLOCKED`: 세 약통 동시 고정 배치에 대한 실제 한 프레임 검증은 사용자의 물리 배치가 있어야 한다. 그 전까지 합성 마커 오프라인 결과와 A 단독 라이브 결과만 있다. 카메라-only 검증과 실제 로봇 동작은 분리하며 자동 집기·재생 `NOT_RUN`이다.
+- `PUSHED (ff57967)`: 이번 읽기 전용 UI·ROI 판정·테스트·문서 7개 파일을 기존 비공개 `fix/usb-recording` 브랜치에 push했다. 원본 사진·데이터셋·인증정보는 Git 제외. 웹 12개·고정 슬롯 7개 시험, Python 구문·diff 검사 통과. `gh` CLI가 Mac에 없어 GitHub 이슈 API 갱신은 `NOT_RUN`; 미해결 항목은 이 세션과 `docs/STATUS.md`에 유지한다.
