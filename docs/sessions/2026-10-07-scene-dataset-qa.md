@@ -52,6 +52,12 @@
 - 새 640×480 화면에는 출발 자리 약 x=440,y=228의 약통 하나가 남고, 앞선 C 사진에서 위쪽 왼편에 보이던 두 약통은 사라졌다. 화면 맨 왼쪽의 보라색 용기 신원은 판정하지 않았다. `.local/medicine-class-scenes/20261007_C_source_cleared.jpg` SHA-256 `3467772b59ca8c3d682306a61749a55ccce7aa636a3aeb90506cb1481a49b9fa`와 메타데이터를 Git 제외로 저장했다. 앞선 원본은 보존하고 새 사진을 C 출발 자리의 더 깨끗한 참고 장면으로 우선한다. B와 C 신원은 사용자 보고에 따른다.
 - SSH 진단 중 구 문서의 `chosun` 계정 시도는 인증 실패했으나 현재 환경 문서의 `jetson3` 계정으로는 로그인에 성공했다. 사용자가 턴을 중단해 원격 명령은 실행하지 않았으며 남은 대화형 세션은 `exit`으로 종료했다. 비밀번호는 명령줄·출력·파일·Git에 기록하지 않았다. 8000 서비스 원인 조사·재시작은 `NOT_RUN`이다.
 
+### LeLab 재시작 보고 뒤 C 재촬영
+
+- 사용자는 LeLab을 켰다고 보고했으나 8000 health·세 상태 API는 연결 거부이고 Mac 8030 카메라 캐시는 약 1,366초 오래됐다. SSH로 `systemctl --user is-active lelab.service`=`inactive`, `show`는 `ActiveState=inactive`, `SubState=dead`, `MainPID=0`, `Result=success`, `ExecMainStatus=0`임을 읽기 전용 확인했다. 서비스 시작·재시작은 이번 요청에서 실행하지 않았다. 8002는 텔레옵·녹화·추론 inactive다.
+- 8002의 기존 정면 프리뷰 8에서 JPEG 한 장만 읽고 닫았다. 새 사진의 출발 자리에는 이전과 같은 위치의 약통 한 개가 보이고 위쪽 다른 약통 두 개는 계속 없다. 화면 왼쪽의 보라색 용기는 신원 판정하지 않았다. 원본 `.local/medicine-class-scenes/20261007_C_source_reshoot.jpg` SHA-256 `c9af2923d7f3bcd4d4de2e8d104b92bd6d23659ceb1a31f9c51f650002acb47c`와 제한 메타데이터를 Git 제외로 보존했다. 앞선 C 사진은 원본 증거로 보존하되 새로운 분류 후보로 사용하지 않는다.
+- A/B/C 신원은 사용자 보고에 따른 단일 프레임 예시다. 검출기 비교·분류기 학습·자동 경로 결정·로봇 동작은 `NOT_RUN`.
+
 첫째, A/B/C 각 자료의 에피소드별 실제 목표 마커와 성공 여부를 전수 검수해 유효 부분만 분리한다. 둘째, 현재 고정 출발 슬롯과 ROI를 카메라 여러 장·높이 확인으로 다시 정의한다. 셋째, World→Base/TCP, Elbow URDF/캘리브레이션 차이, 연속 경로 여유를 별도 검증한다. 이 전에는 어떤 기존 ACT 모델도 현재 장면에 실행하지 않는다. 원본 데이터셋·영상·비밀번호는 Git에 넣지 않는다.
 
 이번 문서 점검 관련 분류·비전 단위 테스트는 5+9개 `PASS`. 종료 전 LeLab teleoperation/recording/inference active=false를 다시 확인했다. GitHub CLI 로그인 부재로 이슈 API 갱신은 `NOT_RUN`; 코드·문서의 커밋과 push 상태는 Git 이력으로 별도 확인한다.
