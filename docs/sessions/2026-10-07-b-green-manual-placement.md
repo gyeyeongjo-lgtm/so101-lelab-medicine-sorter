@@ -18,5 +18,6 @@
 - 제어 없는 관찰기 `observe_teleop_trace.py --camera-evidence --max-seconds 300`이 Git 제외 `.local/teleop-traces/20261007T142452_662258Z_4a0b493a/`에 관절 방송 2,813개(수신 span 147.060초), 정면 JPEG 594장, 사선 JPEG 592장을 보존했다. 종료 사유는 `teleoperation_inactive`이며 300초 제한에 걸리지 않았다.
 - 오프라인 감사에서 관절·카메라 해시와 인덱스/시간 순서를 검증했다. source 시각 중복·역순 0건, 최대 관절 수신 공백 174.271 ms다. 카메라는 Mac 수신시각 표본으로 센서 노출시각 동기 연속 영상이 아니며 `camera_evidence_complete=false`다.
 - 설치 URDF SHA `443d38d7...f67236` 기준 `URDF_LIMIT_MISMATCH`: Elbow 상한 초과 55/2,813개(최대 0.045643 rad), Wrist_Pitch 상한 초과 13/2,813개(최대 0.091872 rad). 물리 하드스톱 위반의 증거는 아니지만 자동 관절 재생 거부 조건이다. `use_for_replay=false`, `robot_enabled=false`, `motion_authorized=false`, `training_ready=false`를 유지한다.
+- 추가 읽기 전용 구간 진단에서 Elbow 초과는 index 2758–2812/시작 후 144.20–147.04초, Wrist_Pitch 초과는 index 2718–2730/142.11–142.75초에 각각 연속으로 나타났다. 모두 기록 끝에 가까우나 수신 자료만으로 실제 모터 한계나 안전한 복귀 경로를 판정하지 않는다.
 - A→파랑 기존 수동 성공과 이번 B→초록 수동 성공은 각각 해당 현장 1회 범위의 증거다. C→빨강 수동 투입, B/C 반복성, 자동 인식→집기→투입, World→Base/TCP와 연속 경로 안전 검증은 `NOT_RUN/NOT_VERIFIED`다.
 - 원본 JPEG·관절값·자격증명은 Git 제외 로컬에만 보존한다. 문서만 로컬 커밋하며, 앞선 push 외부 전송 심사 거부를 우회하지 않아 `NOT_PUSHED`; GitHub 이슈 갱신 `NOT_RUN`.

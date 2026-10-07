@@ -12,11 +12,13 @@
 - 사선 표본에서는 C 바닥과 뒤쪽 테두리가 가깝게 보여 추가 하강·개방 전 현장 확인을 요청했다. 사용자는 병 바닥이 실제로 테두리보다 위에 있고 손가락·병의 테두리/벽 접촉은 없다고 확인했다. 이후 병 바닥을 바구니 바닥에 가볍게 대고 멈췄으며 과한 눌림·간섭은 없다고 보고했다.
 - 사용자는 팔 위치를 유지해 그리퍼만 열고 C가 분리·안정됐으며, 열린 그리퍼를 위로 빼서 걸림 없이 퇴피했다고 확인했다. 마지막 정면·사선 표본에는 왼쪽 빨강 바구니 안 약통과 위로 분리된 그리퍼가 보인다. 수동 투입 성공과 부합하나, 표본 영상만으로 동작 전 구간의 실제 접촉·충돌 여유를 독립 검증하지 않는다.
 - 종료 뒤 LeLab API에서 텔레옵·녹화·추론 active=false를 확인했다. 녹화 내부 `current_phase=preparing`, `session_ended=false`는 세션 정리 완료 증거가 아니다.
+- 종료 뒤 8031의 신선한 정면 한 프레임은 `detection_count=0`, ID0–6 검출, `robot_target_authorized=false`였다. 이는 그 한 프레임에서 새 픽업 후보가 없었다는 뜻일 뿐 바구니 안 C를 안정적으로 인식/검증했다는 뜻은 아니다.
 
 ## 관찰 원본·안전 게이트
 
 - 제어 없는 관찰기 `observe_teleop_trace.py --camera-evidence --max-seconds 300`이 Git 제외 `.local/teleop-traces/20261007T143059_675985Z_3cc61cfd/`에 관절 방송 2,686개(수신 span 140.566초), 정면 JPEG 578장, 사선 JPEG 577장을 보존했다. 종료 사유는 `teleoperation_inactive`; 시간 제한에 걸리지 않았다.
 - 오프라인 감사에서 관절·카메라 해시/인덱스·시간 순서를 검증했다. source 시각 중복/역순 0건, 최대 관절 수신 공백 409.848 ms다. 카메라는 Mac 수신시각 표본으로 센서 노출시각 동기 연속 영상이 아니며 `camera_evidence_complete=false`다.
 - 설치 URDF SHA `443d38d7...f67236` 기준 `URDF_LIMIT_MISMATCH`: Elbow 상한 초과 329/2,686개(최대 0.102415 rad), Wrist_Pitch 상한 초과 17/2,686개(최대 0.091872 rad). 물리 하드스톱 위반의 증거는 아니지만 자동 관절 재생 거부 조건이다. `use_for_replay=false`, `robot_enabled=false`, `motion_authorized=false`, `training_ready=false`를 유지한다.
+- 추가 읽기 전용 구간 진단에서 Elbow 초과는 index 0–234/시작 후 0–12.19초와 2592–2685/135.71–140.57초, Wrist_Pitch 초과는 index 2536–2552/132.76–133.61초에 나타났다. 주로 기록 시작·끝 부근이라는 관찰일 뿐, 실제 모터 제한/하드스톱이나 중간 경로의 안전성을 증명하지 않는다.
 - A→파랑·B→초록·C→빨강은 사용자 직접 수동 각 1회 결과이며 동일 시작 자세·반복 성공률, 자동 인식→집기→투입, World→Base/TCP·연속 경로 안전은 `NOT_VERIFIED/NOT_RUN`이다. 원본 JPEG·관절값·자격증명은 Git 제외 로컬에만 보존한다.
 - 문서만 로컬 커밋한다. 앞선 원격 push의 외부 전송 심사 거부를 우회하지 않아 `NOT_PUSHED`; GitHub 이슈 갱신 `NOT_RUN`.
