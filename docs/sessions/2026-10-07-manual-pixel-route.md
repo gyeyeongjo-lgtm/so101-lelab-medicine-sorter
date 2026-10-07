@@ -65,3 +65,4 @@
 - `PASS (live vision)`: 8031 `/health`는 `ok=true`, frame age 0.013초, 검출 상자 3개, ArUco ID0–6, `robot_enabled=false`였다. 상자 중심 x는 약 C 308.7·B 381.1·A 444.1 px다. 기존 평면 픽업 ROI(101–273, 251–379 mm)에 B만 들어왔고 A/C는 밖이다. 이는 영상 평면 투영이지 실제 약통 높이·로봇 손끝 집기 위치가 아니다.
 - `PASS (read-only route)`: 기본 명령 `A를 파랑, B를 초록, C를 빨강`은 sequence 1317에서 ID6/ID5/ID4 경로 3개를 `DRY_RUN_ROUTE_ONLY`로 반환했다. 시험용 예시 `A를 빨간색, B도 빨간색 박스`는 A/B→ID4 경로 2개를 반환했다. 각 경로 `grasp_authorized=false`, 전체 `robot_enabled=false`, `motion_authorized=false`, `robot_coordinates_included=false`; 명령을 저장·예약·실행하지 않았다. LeLab 8000 텔레옵 읽기 전용 조회는 `teleoperation_active=false`였다.
 - `LIMIT`: 하나의 현장 배치·카메라 각도에서만 통과했다. 물체 종류를 상자 모양으로 독립 확인한 시험도, 다른 날짜/조명·카메라 이동 일반화도 아니다. ROI를 넓히거나 기존 World→Base/TCP 거부를 해제하지 않았다. 다중 투입 용량·경로·간섭과 실제 집기/투입은 `NOT_RUN`이다.
+- `GIT`: 이 세 약통 라이브 판정과 한계는 기존 `fix/usb-recording` 브랜치에 커밋·push했다. 원본 카메라 프레임과 개인 자료는 커밋하지 않았고 GitHub 이슈 API 갱신은 `NOT_RUN`이다.
