@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "source": "2026-10-07 fixed-camera C-left B-middle A-right review captures",
+  "image_size_px": [640, 480],
+  "provisional": true,
+  "slots": {
+    "C": {"center_x_px": [300, 340], "box_height_px": [30, 44]},
+    "B": {"center_x_px": [355, 405], "box_height_px": [32, 44]},
+    "A": {"center_x_px": [420, 460], "box_height_px": [43, 60]}
+  }
+}
