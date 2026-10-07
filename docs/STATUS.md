@@ -2,6 +2,13 @@
 
 업데이트: 2026-10-07
 
+## 2026-10-07 A/B/C 종료 프레임 180건 추출·현재 사진 검출 비교
+
+- `PASS (offline extraction, not success labeling)`: 새 읽기 전용 `scripts/audit_medicine_episode_ends.py`로 기존 A v2·B v1·C test 각 60회의 정면 영상에서 에피소드 시간표상 마지막 프레임을 추출했다. 연락표와 프레임 시각/마커 manifest는 Git 제외 `.local/dataset-episode-audit/20261007/`에 보존했다. ID4·ID5는 각 데이터셋 60/60 종료 프레임, ID6은 A 53/60·B 60/60·C 60/60에서 검출됐다. A의 ID6 7장 비검출은 가림 가능성이 있어 목적지 부재로 해석하지 않는다. 연락표에서 B는 중앙 ID6, C는 왼쪽 ID5 바구니 안 약통이 반복적으로 보이지만, 정지 한 장만으로 180회 성공/실패 라벨을 확정하지 않는다. 현재 규칙 B→ID5·C→ID4와 맞지 않는 기존 첫 시연 판단은 유지된다.
+- `PASS (offline current-scene detector) / NOT_CLASSIFIED`: 기존 ONNX 모델 SHA `d2f8452e...5c846`과 설치 LeLab OpenCV로 저장된 A/B/C 정면 사진 각 한 장을 검사했다. 약통 후보는 각 1개, confidence A 0.968962·B 0.954861·C 0.908477이며 모두 동일한 `white_medicine_bottle_model` 클래스 0이다. 위치 bbox는 각각 `[421.569,206.586,456.775,257.626]`, `[420.563,215.952,453.643,256.040]`, `[423.911,215.363,449.996,251.292]` 픽셀이다. 이것은 세 물체 검출이지 A/B/C 분류 정확도 검증이 아니며, 단일 장면에서 크기만으로 규칙을 승인하지 않는다. 검출 JSON은 Git 제외 로컬에 보존했다. 모터·추론·녹화 `NOT_RUN`.
+- `PASS (tooling)`: 종료 프레임 추출의 시간표/파일 인덱스 단위 테스트 5개 통과, Jetson 실제 LeLab Python·PyAV·PyArrow·OpenCV에서 180장 추출 통과. 원본 데이터셋·모델은 수정하지 않았다.
+- `SERVICE STATUS CHANGED`: 오프라인 검사 후 8000 HTTP가 다시 연결 거부·Mac 8030 프레임이 오래된 상태임을 확인했다. Jetson `lelab.service`는 inactive/dead, Result=success·ExecMainStatus=0이다. `systemctl status`에 19:17:08의 명시적 Stopping/Stopped와 worker SIGKILL 기록이 보이나 누가 stop을 요청했는지는 `NOT_VERIFIED`다. 이번에는 재시작하지 않았다. 8000과 신선한 8030을 전제로 한 실시간 작업은 중지한다.
+
 ## 2026-10-07 현장 작업 없이 기존 A/B/C 자료 검수 재개
 
 - `PASS (read-only inventory)`: Jetson의 기존 LeRobot 캐시에서 현재 사용 후보 A v2·B v1·C test가 각각 60 episode/32,597·27,613·28,966 frame임을 메타데이터로 재확인했다. 각 데이터셋의 기존 MP4는 A 7개, B 6개, C 7개이며 파일 크기 합계는 약 1.24/0.97/0.99 GB다. 원본 파일·LeLab 설정·로봇 제어 상태는 변경하지 않았다.
