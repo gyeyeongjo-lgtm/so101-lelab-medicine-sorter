@@ -47,3 +47,4 @@
 - `PASS (tests/offline)`: 단위 테스트 7개, Python 구문·diff 검사 통과. 기존 ONNX를 보유 80장에 다시 실행하고 **합성 마커 정상 상태**를 넣은 고정 슬롯 판정은 C 22/B 35/A 23 모두 통과했다. 이는 같은 촬영 세션의 슬롯 적합성 검사이지 독립 분류 정확도가 아니다.
 - `PASS (one live dry-run)`: Mac 8031 `/health`의 실제 신선한 카메라/마커 상태에서 예시 `A를 빨간색`은 A 오른쪽 슬롯을 찾아 빨강 ID4 `DRY_RUN_ROUTE_ONLY`를 반환했다. `robot_enabled=false`, `motion_authorized=false`, `robot_coordinates_included=false`다.
 - `NOT_RUN/BLOCKED`: A/B 동시 배치 명령의 실제 화면 검증, 위치/카메라 변화 검증, 바구니 다중 투입 용량·경로·충돌, 로봇 집기·재생은 하지 않았다. 이 시제품은 목적지 후보만 내며 자동 분류/운용 완료가 아니다.
+- `PUSHED (42170f7)`: 이 dry-run 코드·설정·테스트·기록을 기존 GitHub `fix/usb-recording` 브랜치에 올렸다. 실제 목적지 변경 명령이 아니므로 기본 매핑은 보존했다.
