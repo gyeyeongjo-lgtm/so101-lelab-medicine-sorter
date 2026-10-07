@@ -17,3 +17,5 @@
 신규 단위 테스트 3개, 기존 `audit_teleop_trace` 테스트 6개 `PASS`. 전체 테스트 묶음은 첫 Mac Python에 OpenCV가 없고 `.venv` Python에는 `websocket-client`가 없으며, 양쪽 모두 현재 sandbox의 loopback bind 제한으로 `teach_capture_web` HTTP 테스트 네 건이 오류라서 통과 판정을 내리지 않는다. 이는 새 요약기 실패가 아니라 시험 환경 제한이고, 전체 회귀 시험은 `NOT_VERIFIED`다.
 
 읽기 전용 live 확인에서는 Jetson 8000 health `ok`, teleoperation/recording/inference 모두 active=false였다. 녹화 내부 `current_phase=preparing`, `session_ended=false`이므로 세션 종료 완결성은 주장하지 않는다. 이번 작업은 원격 서비스·제어 endpoint에 쓰기 요청을 보내지 않았다. 원본 로컬 자료와 비밀번호·토큰은 커밋 대상에서 제외한다.
+
+분석 코드·테스트·상태·세션 기록은 로컬 commit `c3350e5`로 남기고 비공개 `origin/fix/usb-recording`에 push했다. GitHub CLI는 로그인 상태가 아니라 이슈 API 갱신은 `NOT_RUN`; Git push는 macOS Git 자격 증명 경로에서 별도로 성공했다.
