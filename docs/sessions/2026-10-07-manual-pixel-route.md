@@ -13,3 +13,12 @@
 - `ROI LIMIT`: 현재 약통 후보는 기존 픽업 ROI 밖이다. 목적지 제안 결과에 `pickup_roi_match=false`를 명시해, UI의 route-only 판정을 자동 집기 준비 완료로 오인하지 않게 했다.
 
 다음 현장 입력은 사용자가 현재 약통의 실제 A/B/C를 확인한 뒤 8031 화면에서 종류 선택→프레임 고정→약통 중심 클릭이다. 그 결과는 목적지 제안까지만 사용한다. 8031은 임시 서버여서 프로세스가 종료되면 재실행이 필요하다. 사람의 확인 없이 크기 라벨을 추측하지 않는다.
+
+## 추가: A/B/C 사진 저장 실패 확인과 로컬 저장 기능
+
+- `FIRST FAILURE`: 사용자는 A/B/C를 위치·회전을 바꿔 여러 번 촬영했다고 보고했으나, 실제 조작은 기존 8031의 프레임 고정·약통 클릭이었다. 이 화면은 판정 결과만 표시했고 파일 저장은 하지 않았다. 작업 폴더 및 Mac 다운로드·바탕화면에서 신규 사진을 찾지 못했다. 이 시도의 저장 사진 수는 0이다.
+- `IMPLEMENTED`: 별도 `사진·라벨 로컬 저장` 버튼과 선택적 `--allow-manual-capture` API를 추가했다. 서버는 고정 프레임 sequence·신선도·마커·검출 상자·A/B/C 라벨을 다시 검증한 후 동일 프레임의 주석 없는 원본 JPEG와 SHA-256·클릭점·판정 메타데이터를 `.local/medicine-manual-captures/`에 저장한다. 동일 sequence 중복은 거부하고, `FOR_REVIEW`/`training_ready=false`/`robot_enabled=false`/`motion_authorized=false`를 기록한다. 브라우저 재방문 시 라벨을 빈 값으로 초기화한다.
+- `PASS (tests)`: 판정 7개·웹 11개 단위 테스트 총 18개, Python 구문 검사와 `git diff --check` 통과. 한 번의 잘못된 `unittest` 모듈 호출은 `tests` 패키지가 없어 import 오류였고, `discover -s tests`로 올바르게 재실행해 통과했다.
+- `PASS (temporary server health)`: 기존 Mac 8031 프로세스의 실행 명령과 PID를 확인하고 해당 임시 프로세스만 TERM 종료한 뒤 동일 카메라 입력·저장 옵션으로 재실행했다. `/health`는 `ok=true`, 정면 age 0.324초·사선 age 0.171초, `manual_capture_enabled=true`, `robot_enabled=false`였다. 실제 저장 파일 0건. 8000/8030/USB·모터는 건드리지 않았다.
+- `NOT_RUN/BLOCKED (user input)`: 현재 A/B/C 라이브 저장·원본 재로딩 검수는 사용자가 실제 라벨을 확인해 새 화면에서 `종류 선택 → 프레임 고정 → 중심 클릭 → 사진·라벨 로컬 저장`을 눌러야 가능하다. 과거 클릭을 파일로 복원하거나 임의의 A/B/C 라벨로 저장하지 않는다. 브라우저의 `SAVED_FOR_REVIEW`와 실제 파일 수 확인이 다음 단계다.
+- `NOT_PUSHED`: 이번 변경은 아직 GitHub에 push하지 않았다. 원본 JPEG·데이터셋·인증정보는 Git 제외다.

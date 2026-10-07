@@ -1,7 +1,10 @@
 import sys
+import json
+import tempfile
 import threading
 import time
 import unittest
+from collections import deque
 from pathlib import Path
 
 
@@ -10,6 +13,7 @@ from medicine_yolo_web import (
     DetectionWorker, INDEX_HTML, detect_table_markers, inside_roi, is_http_jpeg, is_http_stream,
     mjpeg_jpegs, project_table_xy, read_exact, video_index,
 )
+from medicine_sort_dry_run import DEFAULT_RULES, validate_rules
 
 import numpy as np
 
@@ -25,6 +29,8 @@ class MedicineYoloWebTests(unittest.TestCase):
         self.assertIn("/manual-frame.json", INDEX_HTML)
         self.assertIn("motion_authorized:false", INDEX_HTML)
         self.assertIn("pickup_roi_match:roiMatch", INDEX_HTML)
+        self.assertIn("사진·라벨 로컬 저장", INDEX_HTML)
+        self.assertIn("window.addEventListener('pageshow'", INDEX_HTML)
 
     def test_read_exact_combines_short_reads(self):
         class ShortStream:
@@ -91,6 +97,38 @@ class MedicineYoloWebTests(unittest.TestCase):
         self.assertEqual((snapshot["sequence"], jpeg), (42, b"jpeg-42"))
         self.assertEqual(snapshot["detections"], worker.detections)
         self.assertFalse(snapshot["robot_enabled"])
+
+    def test_manual_capture_saves_exact_raw_frame_once_for_review(self):
+        worker = DetectionWorker.__new__(DetectionWorker)
+        worker.lock = threading.Lock()
+        worker.device = "http://127.0.0.1:8030/frame/ceiling.jpg"
+        worker.saved_sequences = set()
+        worker.frame_history = deque([{
+            "sequence": 42,
+            "monotonic": time.monotonic(),
+            "raw_jpeg": b"\xff\xd8raw\xff\xd9",
+            "image_size_px": [640, 480],
+            "detections": [{"xyxy": [10, 10, 30, 30], "confidence": 0.9,
+                            "inside_pickup_roi": False}],
+            "table": {"ready": True, "required_ids": [0, 1, 2, 3],
+                      "detected_ids": [0, 1, 2, 3, 4, 5, 6],
+                      "basket_mapping": {"4": "red", "5": "green", "6": "blue"},
+                      "basket_markers": {"4": {"color": "red"}, "5": {"color": "green"},
+                                         "6": {"color": "blue"}}},
+        }])
+        rules = validate_rules(json.loads(DEFAULT_RULES.read_text(encoding="utf-8")))
+        with tempfile.TemporaryDirectory() as temporary:
+            result = worker.save_manual_capture(Path(temporary), rules, label="C",
+                                                sequence=42, pixel=(20, 20))
+            folder = Path(result["folder"])
+            self.assertEqual((folder / "ceiling.jpg").read_bytes(), b"\xff\xd8raw\xff\xd9")
+            metadata = json.loads((folder / "metadata.json").read_text(encoding="utf-8"))
+            self.assertEqual(metadata["human_verified_label"], "C")
+            self.assertEqual(metadata["decision"]["target_marker_id"], 4)
+            self.assertFalse(metadata["training_ready"])
+            with self.assertRaisesRegex(ValueError, "already saved"):
+                worker.save_manual_capture(Path(temporary), rules, label="C",
+                                           sequence=42, pixel=(20, 20))
 
     def test_video_index_resolves_video_node(self):
         self.assertEqual(video_index("/dev/video4"), 4)

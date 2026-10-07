@@ -98,7 +98,8 @@ def _box_iou(a: list[float], b: list[float]) -> float:
 
 
 def decide_manual_pixel(snapshot: object, verified_label: str, pixel: tuple[float, float],
-                        frame_sequence: int, rules: dict[str, dict]) -> dict:
+                        frame_sequence: int, rules: dict[str, dict],
+                        *, max_age_s: float = 0.75) -> dict:
     """Check a human-clicked bottle on one saved vision snapshot; never plan motion."""
     result = {
         "status": "BLOCKED", "reason": None, "verified_label": verified_label,
@@ -119,7 +120,7 @@ def decide_manual_pixel(snapshot: object, verified_label: str, pixel: tuple[floa
     if type(frame_sequence) is not int or frame_sequence < 1 or snapshot.get("sequence") != frame_sequence:
         result["reason"] = "frame_sequence_mismatch"
         return result
-    if not isinstance(age, (int, float)) or not math.isfinite(age) or not 0 <= age <= 0.75:
+    if not isinstance(age, (int, float)) or not math.isfinite(age) or not 0 <= age <= max_age_s:
         result["reason"] = "vision_snapshot_stale"
         return result
     if (len(pixel) != 2 or any(not isinstance(v, (int, float)) or not math.isfinite(v) for v in pixel)
