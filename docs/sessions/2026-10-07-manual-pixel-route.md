@@ -71,3 +71,16 @@
 
 - `PASS (read-only inventory)`: Git 제외 `.local/fixed-slot-waypoints/` 35건의 메타데이터에서 `PARK` 7·`SOURCE1_HOVER` 2·`BASKET4_HOVER` 26건을 확인했고 모두 `use_for_replay=false`다. 이 묶음에는 ID5/ID6 목적지 waypoint와 연속 집기·투입 궤적이 없다. 기존 A 수동 시연 관찰 자료와 정지 waypoint를 자동 재생 증거로 혼동하지 않는다.
 - `BLOCKED (automatic motion)`: 세 병 고정 슬롯 시각 판정은 통과했지만 A/C는 픽업 ROI 밖이고 검증된 TCP/World→Base·연속 경로·ID5/6 투입 경로가 없다. 현장 추가 teach와 별도 안전·동작 승인 전에는 LeLab 자동 제어·관절 재생을 시작하지 않는다.
+
+## 현장 안전 확인 보고와 동작 전 읽기 전용 상태
+
+- `USER REPORT`: 사용자가 현장 안전 확인 완료를 보고했다. 이 보고는 특정 모터 동작·자동 제어 시험의 명시 승인과 구별한다.
+- `PASS (read-only)`: LeLab 8000 health ok, `teleoperation_active=false`, `recording_active=false`, `inference_active=false`다. recording 내부 `current_phase=preparing`/`session_ended=false`는 완료 세션 증거가 아니다. 8031 `/health`는 프레임 age 0.245초, 한 클래스 검출 3개, ArUco ID0–6, `robot_enabled=false`; B만 기존 픽업 ROI 안이다.
+- `USER APPROVAL / PREFLIGHT`: 사용자가 C 한 병의 기존 LeLab 수동 텔레옵 비접촉 상공 도달 시험을 승인했다. 8031 신선한 정면 영상에서 C 슬롯 상자 하나(x≈309 px)·ID0–6만 확인했고 A/B는 영상 검출에서 빠졌다. Jetson SSH에서 `lelab.service` active/running, canonical follower `5AE6058306`→ACM0·leader `5AE6085272`→ACM1, root `fuser -v`의 두 포트 점유 출력 없음 확인 후 세션을 종료했다. LeLab 텔레옵·녹화·추론은 시험 시작 전 모두 inactive였다. 사용자가 시작 자세를 맞추고 텔레옵을 직접 켰으며 API active=true, Mac 8030 정면/사선/손목·관절 수신 신선, `robot_control=false`를 확인했다. 에이전트는 버스·모터·설정·토크를 조작하지 않았다.
+
+## C 단독 상공 비접촉 접근 결과와 종료 불일치
+
+- `USER/VIDEO`: 사용자가 리더를 천천히 움직여 C 위에서 공기 간격을 남기고 정지했다고 보고했다. 현재 정면·사선 화면에서도 그리퍼가 C 상공에 있고 약통 검출 상자가 유지됐다. 영상만으로 실제 간격을 독립 실측한 것은 아니며 접촉·집기 시도는 하지 않았다.
+- `LOCAL OBSERVATION`: `observe_teleop_trace.py --camera-evidence --max-seconds 120`이 Git 제외 `.local/teleop-traces/20261007T134310_742830Z_d309ec55/`에 관절 2,298개·정면 492장·사선 493장을 저장했다. 제한 시간으로 `stop_reason=max_duration`; 퇴피 전체가 포함됐는지는 `NOT_VERIFIED`. 카메라/관절은 Mac 수신시각 근사이며 노출시각 동기 영상·제어급 궤적이 아니다. 원본 `use_for_replay=false`, `robot_enabled=false`, `motion_authorized=false`를 유지했다.
+- `FIRST STOP REPORT MISMATCH / RECOVERED`: 사용자는 비접촉 퇴피·종료를 보고했으나 즉시 읽은 LeLab `/teleoperation-status`는 active=true였고 8030 관절 수신도 신선했다. 이를 사용자에게 즉시 알리고 더 움직이지 않은 채 직접 재종료하도록 요청했다. 두 번째 종료 보고 뒤 API active=false를 확인했다. 첫 종료를 성공으로 기록하지 않는다.
+- `OFFLINE AUDIT`: `audit_teleop_trace.py`가 관절 파일 SHA·시간 순서·정면/사선 JPEG 492/493장의 무결성을 검증했다. `URDF_LIMIT_MISMATCH` exit 2: Elbow 상한 초과 792/2,298, 최대 0.114689 rad. 과거와 같은 URDF/방송 불일치이며 물리 하드스톱 위반 증거는 아니다. 자동 재생·ArUco 기반 집기에는 사용하지 않는다. 접촉·집기·자동 동작 `NOT_RUN`.
