@@ -6,7 +6,7 @@
 
 - `INCIDENT/RESOLVED (8031 frozen UI)`: 첫 로컬 저장 화면의 브라우저 스크립트에 잘못 출력된 문자열 줄바꿈이 있어 전체 스크립트 구문 오류가 났다. 사용자의 화면은 고정 사진이 깨지고 상태가 `읽는 중…`에 멈췄다. 8031 서버·정면/사선 카메라 health 자체는 정상이었다. 문자열 이스케이프를 수정하고 정확한 Mac 8031 임시 프로세스만 재시작했다. 실제 브라우저를 새로고침해 상태 갱신·라벨 미선택 초기화·`고정 프레임 …`과 사진 표시를 확인했다. 회귀 단위 테스트를 추가했고 웹 테스트 11개 통과. 8000/8030·USB·모터는 변경하지 않았다.
 - `PASS (first real saves, review only)`: 21:50 KST 읽기 전용 감사 시 C 라벨 저장 폴더 2개를 확인했다. 각 `ceiling.jpg` SHA-256이 `metadata.json`과 일치하고 `review_status=FOR_REVIEW`다. 신원은 사용자 선택에 따른 것이며 이 두 장을 자동 분류 정확도나 학습 준비 완료로 보지 않는다. A/B 수량은 촬영 진행 중 재확인 필요하다.
-- `NOT_PUSHED (UI bug fix)`: 위 8031 브라우저 구문 오류 수정과 기록은 아직 GitHub에 반영 전이다. 기존 저장 기능 커밋 `74f3307` 및 그 상태 기록 `d93fb7e`는 push 됐다.
+- `PUSHED (UI bug fix 77e8d30)`: 8031 브라우저 구문 오류 수정·회귀 검사·사고 기록을 기존 `fix/usb-recording` 브랜치에 올렸다. 원본 사진은 Git 제외다.
 - `FIRST FAILURE (capture not saved)`: 사용자가 A/B/C를 위치·회전을 바꿔 여러 번 `현재 프레임 고정` 후 약통 가운데를 클릭했지만, 기존 8031 화면은 판정만 하고 파일 저장은 하지 않았다. Mac 작업 폴더와 다운로드·바탕화면을 확인했고, 새 촬영 파일은 발견되지 않았다. 사용자가 찍었다고 보고한 장수는 저장된 학습 사진 수로 계산하지 않는다.
 - `IMPLEMENTED/PASS (local review capture)`: 8031에 별도의 `사진·라벨 로컬 저장` 버튼을 추가했다. 명시적 `--allow-manual-capture` 옵션에서만 활성화하며, 동일 프레임의 주석 없는 정면 JPEG와 사람 확인 A/B/C·클릭점·검출/마커 판정·SHA-256을 Git 제외 `.local/medicine-manual-captures/`에 기록한다. 같은 프레임 중복 저장은 거부한다. 결과는 `SAVED_FOR_REVIEW`이며 `training_ready=false`, `robot_enabled=false`, `motion_authorized=false`다. 브라우저 복원 시 라벨은 다시 미선택으로 초기화한다.
 - `PASS (temporary live, no capture yet)`: 8031 임시 서버를 변경 코드로 다시 실행했다. `/health`에서 `ok=true`, 정면 age 0.324 s, 사선 age 0.171 s, `manual_capture_enabled=true`, `robot_enabled=false`를 확인했다. 현 시점 실제 저장 파일은 0건이다. 관련 단위 테스트 18개·Python 구문·diff 검사 통과. 실제 사람이 A/B/C를 확인해 누른 라이브 저장과 저장본 재로딩 검수는 `NOT_RUN`; 사용자 재촬영 대기다.
