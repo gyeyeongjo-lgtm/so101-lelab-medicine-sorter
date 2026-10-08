@@ -2,6 +2,11 @@
 
 업데이트: 2026-10-08
 
+## 2026-10-08 URDF 제한과 follower 범위 재대조
+
+- `PASS (offline reconciliation) / AUTO MOTION BLOCKED`: 현 C 수동 기록의 Elbow 최대 +96.571°는 URDF +90°를 6.571° 넘지만 캘리브레이션 파일 끝까지 0.440°만 남고, Wrist_Pitch 최대 +100.264°는 URDF +95°를 5.264° 넘지만 파일 끝까지 0.352°만 남는다. Wrist_Roll은 반대로 URDF ±160°가 파일 ±156.352°보다 넓다. 이전 Elbow/Wrist_Pitch 장치 레지스터는 파일과 일치했다. 사용자의 수동 무간섭 보고는 유지하되 URDF 전체 무시·캘리브레이션 끝값을 자동 목표로 복사하지 않는다. 오프라인 설계는 계속 가능하다. [대조 기록](sessions/2026-10-08-urdf-limit-reconciliation.md). 모터·설정 변경 `NOT_RUN`, 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`.
+- `INSTALLED PATH VERIFIED (read-only)`: Jetson 설치 LeLab 0.1.0/LeRobot 0.6.0의 수동 텔레옵 `get_action()`→`send_action()` 경로에 URDF 한계 검사가 없고, 기본 `max_relative_target=None`이다. 설치 `MotorsBus._unnormalize()`의 `DEGREES` 분기는 캘리브레이션 min/max clamp 없이 raw 목표를 계산한다. 모터 펌웨어가 범위 밖 목표를 어떻게 처리하는지는 미검증. 따라서 URDF만 무시·수정해도 자동 명령 제한 문제가 해결되지 않는다. [소스 근거](sessions/2026-10-08-urdf-limit-reconciliation.md).
+
 ## 2026-10-08 C 투입 후 YOLO 완료 판정 실패 — 두 시연 교차 확인
 
 - `PASS (offline 3-view phase review) / REPLAY BLOCKED`: 현 C 시연의 정면·사선·손목 대표 사진에서 접근→들어 올림→빨강 ID4 진입→그리퍼 벌림→퇴피와 C 잔류를 확인했다. 병은 비스듬히 놓였으며 바닥 접촉 시점·테두리 최소 간격은 측정할 수 없다. 영상과 관절은 Mac 수신시각 근접 표본일 뿐 동기 waypoint가 아니다. 추가 8000 API 읽기 전용 재조회는 첫 셸 TCP 실패·브라우저 URL 차단 후 접근을 재시도해 `teleoperation_active=false` 확인. [단계별 검토](sessions/2026-10-08-c-transfer-phase-review.md). 새 동작 `NOT_RUN`, 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`.
