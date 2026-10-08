@@ -8,6 +8,8 @@ python3 scripts/observe_teleop_trace.py --lelab-url http://192.168.50.20:8000 --
 
 새 현장 안전 확인과 해당 수동 시험의 명시 승인을 받은 뒤에만 실행한다. `--camera-evidence`는 Mac 8030이 먼저 실행 중이고 정면·사선 프레임이 신선하며 `robot_control=false`일 때만 시작한다. 기존 8030의 캐시 JPEG를 약 5 Hz로 복사하므로 LeLab 카메라 스트림을 추가로 열지 않는다. JPEG 헤더의 원래 Mac 수신시각을 보존하고 같은 프레임은 중복 저장하지 않는다. 사선 등 채널이 끊기면 그 부분 자료를 남기되 안전 경로로 승인하지 않는다.
 
+손목 화면도 필요하고 Mac 8030의 손목 캐시가 신선하면 `--camera-evidence --include-wrist`를 함께 사용한다. 기존 두 카메라 기본값은 유지된다. 손목 영상이 포함돼도 그리퍼·입구의 실제 접촉·3D 여유나 자동 재생 안전이 입증되는 것은 아니며, 손목 캐시가 stale이면 기록 시작 전에 거부한다.
+
 최대 180초 또는 텔레옵 종료 중 먼저 발생한 때 멈춘다. 상태·연결 오류도 기록하고 중단한다. `joints.jsonl`, 정면·사선 JPEG, 해시 index 및 `manifest.json`은 Git-ignore `.local/`에만 보관한다. 영상 시각은 Mac 최초 수신시각이며 실제 모터 명령이나 카메라 노출 시각이 아니다. 약 5 Hz 표본은 연속 영상이 아니므로 manifest의 `camera_video_recorded`와 `camera_evidence_complete`는 false다. 이 자료는 충돌 여유의 증명이 아니며 자동 재생을 승인할 수 없다.
 
 관절 기록의 원본 해시·설치 URDF 범위를 오프라인 검사하려면 다음 명령을 사용한다. 기본 한계 파일은 2026-10-05 Jetson 설치 URDF SHA `443d38d7...f67236`에서 읽은 값이다. 이 검사에서 범위 초과가 없더라도 자동 재생을 허가하지 않는다.

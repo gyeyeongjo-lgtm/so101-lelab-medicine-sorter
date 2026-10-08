@@ -10,7 +10,7 @@ from unittest.mock import patch
 import websocket
 
 from scripts.observe_teleop_trace import (CameraEvidence, TraceAudit, cached_camera_worker,
-                                         check_camera_source, record)
+                                         check_camera_source, record, selected_camera_names)
 from scripts.teach_capture_web import CaptureState, JOINT_NAMES
 
 
@@ -21,6 +21,13 @@ def joint_message(source_unix, pitch=0.0):
 
 
 class TraceAuditTests(unittest.TestCase):
+    def test_optional_wrist_evidence_preserves_two_camera_default(self):
+        self.assertEqual(selected_camera_names(False, False), ())
+        self.assertEqual(selected_camera_names(True, False), ("ceiling", "oblique"))
+        self.assertEqual(selected_camera_names(True, True), ("ceiling", "oblique", "wrist"))
+        with self.assertRaisesRegex(ValueError, "requires --camera-evidence"):
+            selected_camera_names(False, True)
+
     def test_camera_evidence_writes_receive_time_and_hash_once(self):
         jpeg = b"\xff\xd8test\xff\xd9"
 
@@ -42,6 +49,26 @@ class TraceAuditTests(unittest.TestCase):
             index = json.loads((folder / "ceiling" / "frames.jsonl").read_text())
             self.assertEqual(index["sha256"], hashlib.sha256(jpeg).hexdigest())
             self.assertEqual((folder / "ceiling" / index["filename"]).read_bytes(), jpeg)
+
+    def test_camera_evidence_can_record_three_cached_channels(self):
+        jpeg = b"\xff\xd8three-cameras\xff\xd9"
+
+        def one_frame(state, name, _base_url, _stop):
+            state.add_frame(name, jpeg, 1_000_000_000, 2_000_000_000)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            folder = Path(temporary)
+            with patch("scripts.observe_teleop_trace.cached_camera_worker", side_effect=one_frame):
+                evidence = CameraEvidence("http://127.0.0.1:8030", folder,
+                                          ("ceiling", "oblique", "wrist"))
+                evidence.start()
+                for thread in evidence.threads:
+                    thread.join(timeout=1)
+                with patch("scripts.observe_teleop_trace.time.monotonic_ns", return_value=1_000_000_000):
+                    evidence.sample()
+                summary = evidence.finish()
+            self.assertEqual(set(summary), {"ceiling", "oblique", "wrist"})
+            self.assertTrue(all(item["frame_count"] == 1 for item in summary.values()))
 
     def test_camera_source_must_be_fresh_loopback_and_read_only(self):
         class Response:

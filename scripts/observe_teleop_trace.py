@@ -29,6 +29,15 @@ else:
 DEFAULT_CAMERA_SOURCE_URL = "http://127.0.0.1:8030"
 
 
+def selected_camera_names(camera_evidence: bool, include_wrist: bool) -> tuple[str, ...]:
+    """Keep the old two-camera CLI behavior unless wrist evidence is explicit."""
+    if include_wrist and not camera_evidence:
+        raise ValueError("--include-wrist requires --camera-evidence")
+    if not camera_evidence:
+        return ()
+    return ("ceiling", "oblique", "wrist") if include_wrist else ("ceiling", "oblique")
+
+
 def teleop_active(base_url: str) -> bool:
     with urllib.request.urlopen(base_url + "/teleoperation-status", timeout=2) as response:
         status = json.load(response)
@@ -278,6 +287,8 @@ def main() -> int:
     parser.add_argument("--max-seconds", type=int, default=180)
     parser.add_argument("--camera-evidence", action="store_true",
                         help="Sample ceiling and oblique cached Mac 8030 JPEGs into the ignored trace folder")
+    parser.add_argument("--include-wrist", action="store_true",
+                        help="Also sample cached wrist JPEGs; requires --camera-evidence and a fresh wrist stream")
     parser.add_argument("--camera-source-url", default=DEFAULT_CAMERA_SOURCE_URL,
                         help="Loopback Mac cached-camera origin (default: http://127.0.0.1:8030)")
     args = parser.parse_args()
@@ -287,8 +298,9 @@ def main() -> int:
     if not 1 <= args.max_seconds <= 300:
         parser.error("--max-seconds must be 1–300")
     try:
+        camera_names = selected_camera_names(args.camera_evidence, args.include_wrist)
         result = record(args.lelab_url.rstrip("/"), args.output_root, args.max_seconds,
-                        ("ceiling", "oblique") if args.camera_evidence else (),
+                        camera_names,
                         args.camera_source_url)
     except (OSError, RuntimeError, ImportError, ValueError) as error:
         parser.exit(2, f"trace not started: {error}\n")
