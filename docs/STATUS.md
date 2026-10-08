@@ -10,6 +10,7 @@
 - `PASS (offline) / FAIL (YOLO-only verification)`: 현 C 시연 정면 251장 중 227장에 약통 후보가 있었지만 마지막 C가 빨강 바구니 안에 보이는 사진은 검출 0개다. 이전 C 시연도 첫 20/20장 검출, 마지막 20/20장 검출 0개였다. 현재 모델의 검출 0개는 빈 바구니·투입 실패의 증거가 아니다.
 - `MARKER COVERAGE`: 현 시연 ID0/1/3/4/5/6은 251/251, ID2는 249/251장으로 동작 중 2장에 네 기준점 homography가 불가했다. 시작/끝 픽셀 변화는 사후 진단일 뿐 완료 판정기로 채택하지 않는다. [상세](sessions/2026-10-08-c-transfer-vision-qa.md). 로봇 동작·자동 재생 `NOT_RUN`, 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`.
 - `PREPARED (offline cap candidate only)`: ID4 상대 흰 뚜껑 후보 진단을 추가했다. C 종료 2건은 각 20/20, 빨강이 빈 A/B 종료 2건은 각 0/20이지만, 사후 선택한 네 장면이라 독립 성능은 미검증이다. `completion_verified=false`·`motion_authorized=false` 고정, 관련 감사 시험 39개 통과. 첫 `.venv` 단위 시험 지정 경로 오류 뒤 discover 재실행 통과.
+- `FAIL (candidate as completion signal)`: 네 기존 시연의 모든 정면 프레임을 재검사하니 A/B 빨강 빈 장면은 0/367·0/594, 이전/현 C는 157/578·45/251 후보였다. **현 C index 206은 그리퍼가 아직 C를 잡은 상태인데도 후보가 참**이다. 이 신호를 투입 완료·그리퍼 퇴피 판정으로 쓰지 않는다. [전체 구간 결과](sessions/2026-10-08-c-transfer-vision-qa.md).
 
 ## 2026-10-08 현 배치 C→빨강 수동 1회 — 3시야 기록·자동 재생 차단
 
