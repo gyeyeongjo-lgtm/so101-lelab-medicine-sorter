@@ -2,6 +2,12 @@
 
 업데이트: 2026-10-08
 
+## 2026-10-08 빈 C→빨강 ID4 수동 공중 경로 — 부분 관찰
+
+- `PASS (user-operated empty manual route) / PARTIAL TRACE`: 사용자가 C를 작업 범위 밖에 둔 채 출발 상공→높은 중간 공중→빨강 ID4 상공→퇴피를 비접촉으로 직접 조작했고 접촉·이상 없음 및 종료를 보고했다. 첫 UI 시작 보고 때 서버는 inactive여서 실제 active 확인 뒤 관찰을 시작했다. `.venv` 관찰기 실행은 `websocket` 누락으로 시작 전 실패, 확인된 시스템 Python으로 재실행. 관절 2,319개·3시야 492/491/493장 SHA/시각 감사 통과. 120초 제한으로 빨강 상공 도달 직후 기록이 끝나 퇴피는 기록되지 않았다.
+- `TRANSFER_HOVER CANDIDATE / REPLAY BLOCKED`: 중간 공중 정지 한 건 3시야·관절 저장, 마커 배치 안정. 사선상 손끝과 빨강 뒤 테두리가 겹쳐 보여 사용자 현장 실제 공기 간격 확인을 받았으나 최소 간격은 측정되지 않았다. 두 과거 빈 정지값과 이번 경로의 최근접 관절 차이는 C 출발 최대 13.451°, 빨강 상공 최대 5.011°로 반복 자세 일치가 아니다. URDF Elbow 초과 403개는 초기 0–20.773초에 한정(최대 약 3.582°), 캘리브레이션 파일 범위는 모두 포함(최소 여유 약 3.429°). 자동 이동·집기·재생 `NOT_RUN/BLOCKED`.
+- `STOP VERIFIED`: 사용자 종료 뒤 서버 `teleoperation_active=false`; 이번에는 별도 종료 API를 호출하지 않았다. [상세](sessions/2026-10-08-empty-c-id4-manual-path-observation.md). 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`.
+
 ## 2026-10-08 빈 장면 C 출발·빨강 ID4 상공 후보 두 자세
 
 - `PASS (manual noncontact observations) / REPLAY BLOCKED`: 사용자가 C를 작업 범위 밖으로 치우고 빈 그리퍼로 빨강 ID4 상공, 이어 빈 C 고정 출발 자리 상공을 각각 별도 현장 승인·기존 LeLab 텔레옵으로 비접촉 정지했다. Mac 8030에 `BASKET4_HOVER`·새 `SOURCE_C_HOVER` 각 1건을 Git 제외 로컬 저장. 3시야 SHA·15개 안정 관절값·수신시각 간격 확인. 앞선 실제 C 집기 포함 `SOURCE_C_HOVER`는 계속 채택 거부다.
