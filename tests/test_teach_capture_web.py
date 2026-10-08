@@ -12,6 +12,7 @@ from scripts.teach_capture_web import (
     CaptureServer,
     CaptureState,
     JOINT_NAMES,
+    PAGE,
     WAYPOINT_NAMES,
     camera_stream_url,
     iter_jpegs,
@@ -113,10 +114,18 @@ class TeachCaptureTests(unittest.TestCase):
     def test_fixed_slot_waypoint_is_separate_and_never_replay_authorized(self):
         state, now = ready_state()
         self.assertEqual(WAYPOINT_NAMES,
-                         {"PARK", "SOURCE1_HOVER", "TRANSFER_HOVER", "BASKET4_HOVER", "BASKET4_RELEASE"})
+                         {"PARK", "SOURCE1_HOVER", "TRANSFER_HOVER", "BASKET4_HOVER", "BASKET4_RELEASE",
+                          "SOURCE_A_HOVER", "SOURCE_B_HOVER", "SOURCE_C_HOVER",
+                          "BASKET5_HOVER", "BASKET6_HOVER"})
         selected = state.select("SOURCE1_HOVER", now_ns=now, capture_kind="waypoint")
         release = state.select("BASKET4_RELEASE", now_ns=now, capture_kind="waypoint")
         self.assertEqual(release["point"], "BASKET4_RELEASE")
+        self.assertEqual(state.select("SOURCE_C_HOVER", now_ns=now, capture_kind="waypoint")["point"],
+                         "SOURCE_C_HOVER")
+        self.assertEqual(state.select("BASKET5_HOVER", now_ns=now, capture_kind="waypoint")["point"],
+                         "BASKET5_HOVER")
+        self.assertEqual(state.select("BASKET6_HOVER", now_ns=now, capture_kind="waypoint")["point"],
+                         "BASKET6_HOVER")
         with self.assertRaisesRegex(ValueError, "waypoint must"):
             state.select("P5", now_ns=now, capture_kind="waypoint")
         with self.assertRaisesRegex(ValueError, "point must"):
@@ -130,6 +139,13 @@ class TeachCaptureTests(unittest.TestCase):
             self.assertFalse(metadata["use_for_replay"])
             self.assertFalse(metadata["robot_enabled"])
             self.assertFalse(metadata["motion_authorized"])
+
+    def test_waypoint_page_exposes_every_capture_only_label(self):
+        html = PAGE.decode("utf-8")
+        for label in WAYPOINT_NAMES:
+            self.assertIn(f"<option>{label}</option>", html)
+        self.assertIn("재생 불가", html)
+        self.assertNotIn("/move-arm", html)
 
     def test_waypoint_http_requires_teleop_and_two_user_confirmations(self):
         state, _ = ready_state()

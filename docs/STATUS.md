@@ -2,6 +2,11 @@
 
 업데이트: 2026-10-08
 
+## 2026-10-08 현 고정 배치용 경유 자세 캡처 준비
+
+- `OLD WAYPOINTS REJECTED FOR CURRENT LAYOUT`: 보유 35개(PARK 7·SOURCE1_HOVER 2·BASKET4_HOVER 26)를 현 배치 기준과 오프라인 대조하니 25개는 필수 마커 부족, 10개는 마커 배치 변경으로 일치 확인 0개다. 옛 경로 재생 금지 유지.
+- `PREPARED (repo only)`: 접촉점 기반 TCP가 미검증이므로 고정 슬롯의 비접촉 teach 대안을 준비했다. 읽기 전용 캡처기에 A/B/C 출발·ID5/6 바구니 상공 라벨을 추가하고 기존 라벨·제어 차단을 보존했다. 회귀 시험 14/14 통과; 첫 제한 환경 시험의 로컬 포트 권한 오류 4건은 허용된 동일 시험에서 해소했다. 실행 중인 Mac 8030/8031은 재시작하지 않아 **새 라벨은 아직 라이브 미적용**이다. [상세](sessions/2026-10-08-fixed-slot-teach-prep.md). 로봇 이동·추론·재생 `NOT_RUN`, 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`.
+
 ## 2026-10-08 URDF 제한과 follower 범위 재대조
 
 - `PASS (offline reconciliation) / AUTO MOTION BLOCKED`: 현 C 수동 기록의 Elbow 최대 +96.571°는 URDF +90°를 6.571° 넘지만 캘리브레이션 파일 끝까지 0.440°만 남고, Wrist_Pitch 최대 +100.264°는 URDF +95°를 5.264° 넘지만 파일 끝까지 0.352°만 남는다. Wrist_Roll은 반대로 URDF ±160°가 파일 ±156.352°보다 넓다. 이전 Elbow/Wrist_Pitch 장치 레지스터는 파일과 일치했다. 사용자의 수동 무간섭 보고는 유지하되 URDF 전체 무시·캘리브레이션 끝값을 자동 목표로 복사하지 않는다. 오프라인 설계는 계속 가능하다. [대조 기록](sessions/2026-10-08-urdf-limit-reconciliation.md). 모터·설정 변경 `NOT_RUN`, 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`.
