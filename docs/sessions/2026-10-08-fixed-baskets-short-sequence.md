@@ -14,4 +14,9 @@
 
 ## 결론·다음 게이트
 
-`PASS (marker-only screen stability) / FAIL (body-color candidate repeatability) / MOTION BLOCKED`. ID4·ID5·ID6의 화면상 신원·대략 위치는 마커로 읽을 수 있지만, 색 상자를 입구 네 모서리나 중심으로 사용할 수 없다. 확대 사진에서도 앞쪽 입구 경계 일부가 마커판에 가려져 정확한 입구 주석을 독립 확인하지 못했다. 기존 손목 JPEG 25장의 마커 0건·손목 intrinsic 부재는 이미 [TCP 사전 점검](2026-10-02-tcp-preflight.md)에 기록돼 있어 재검사를 반복하지 않았다. 다음 현장 단계는 바구니 입구 기준점의 가시성·실측과 별개로 TCP/World→Base 검증 방법을 정하는 것이다. 자동 좌표·모션 `NOT_RUN`, `basket_pose_authorized=false`, `robot_enabled=false`, `motion_authorized=false`. 감사 관련 테스트 36개 통과. 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`.
+### 다른 두 카메라의 가시성
+
+- 기존 8030 캐시에서 사선·손목 JPEG 각 한 장을 같은 Git 제외 폴더에 보존했다(SHA-256 사선 `d100ef52585990fda70f7604ebdce75654ffbd02b77651db9d906cde378f75b2`, 손목 `7433c565bbddc117c077639bb1c226b1d1baaab749381c4c147914e7ea705de1`). 사선 영상에는 세 바구니의 입구가 더 보이지만 원본 ArUco 검출은 ID2/4, 밝기 균등화 후에도 ID2/4/6뿐이다. 작업대 기준 ID0–3 네 점을 사선 사진 한 장에서 모두 얻지 못했다. 기존 C920/4 intrinsic 파일은 있으나 이 사진만으로 높이 보정된 독립 입구 좌표를 검증할 수 없다.
+- 손목 영상은 그리퍼와 작업대 근처만 보여 세 바구니 입구가 시야 밖이다. 기존 손목 JPEG 25장의 마커 0건·손목 intrinsic 부재는 이미 [TCP 사전 점검](2026-10-02-tcp-preflight.md)에 기록돼 있어 재검사를 반복하지 않았다. 현재 두 추가 시야는 정면 사진의 가린 모서리를 수치적으로 복원해 주지 않는다.
+
+`PASS (marker-only screen stability) / FAIL (body-color candidate repeatability) / MOTION BLOCKED`. ID4·ID5·ID6의 화면상 신원·대략 위치는 마커로 읽을 수 있지만, 색 상자를 입구 네 모서리나 중심으로 사용할 수 없다. 확대 사진에서도 앞쪽 입구 경계 일부가 마커판에 가려져 정확한 입구 주석을 독립 확인하지 못했다. 다음 현장 단계는 바구니 입구 기준점의 가시성·실측과 별개로 TCP/World→Base 검증 방법을 정하는 것이다. 자동 좌표·모션 `NOT_RUN`, `basket_pose_authorized=false`, `robot_enabled=false`, `motion_authorized=false`. 감사 관련 테스트 36개 통과. 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`.

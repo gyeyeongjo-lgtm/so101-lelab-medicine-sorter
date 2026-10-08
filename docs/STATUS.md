@@ -7,6 +7,7 @@
 - `PASS (read-only marker sequence)`: 조명 조정 후 기존 Mac 8030 캐시에서 0.5초 간격 정면 20장을 Git 제외 `.local/basket-opening-captures/20261008-stability-V43cES/`에 저장했다. 20개 모두 새 프레임, ID0–6 검출, 기준 대비 작업대/바구니 마커 최대 이동 0.985/0.220 px, 밝기 중앙값 232–233이다.
 - `FIRST FAILURE / CORRECTED CLASSIFICATION`: 최초 비교는 20/20 `VISUAL_LAYOUT_CHANGED`였으나 실제 불일치는 몸체 HSV 상자 최대 중심 8.139 px·크기 18 px 변화다. 마커 일치 상태에서 이를 바구니 이동으로 단정하지 않도록 `BODY_CANDIDATE_UNSTABLE`로 분리했고 재감사 20/20이 이 상태다. 색 상자를 입구 중심·로봇 목표로 사용하지 않는다. 관련 감사 테스트 36개 통과.
 - `BLOCKED`: 입구 안쪽 네 모서리·높이, TCP/World→Base와 실제 여유는 `NOT_VERIFIED`; 자동 모션 `NOT_RUN`. [상세](sessions/2026-10-08-fixed-baskets-short-sequence.md). 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`.
+- `MULTI-VIEW LIMIT`: 추가 사선 사진에서는 ID0–3 중 ID2만 검출됐고 손목 사진에는 바구니가 보이지 않는다. 현 사진들만으로 입구의 독립 3D 좌표를 계산하지 않는다.
 
 ## 2026-10-08 조명 복구 후 고정 배치 재확인
 
