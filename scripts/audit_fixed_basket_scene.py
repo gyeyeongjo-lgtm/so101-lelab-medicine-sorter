@@ -114,7 +114,15 @@ def compare_measurements(reference: dict, current: dict) -> dict:
     # These exploratory pixel bounds only detect gross scene changes; they are not safety margins.
     diagnostic_match = (marker_match and all(drift <= 3 for drift in body_center_drift.values())
                         and all(change <= 4 for change in body_size_change.values()))
-    return {"status": "VISUAL_LAYOUT_MATCH_DIAGNOSTIC" if diagnostic_match else "VISUAL_LAYOUT_CHANGED",
+    if diagnostic_match:
+        status = "VISUAL_LAYOUT_MATCH_DIAGNOSTIC"
+    elif marker_match:
+        # Color components can expand/contract under JPEG and exposure changes
+        # while every marker stays put. This is not evidence of basket motion.
+        status = "BODY_CANDIDATE_UNSTABLE"
+    else:
+        status = "MARKER_LAYOUT_CHANGED"
+    return {"status": status,
             "max_reference_marker_drift_px": round(reference_drift, 3),
             "basket_marker_drift_px": basket_drift,
             "max_basket_marker_drift_px": max(basket_drift.values()),

@@ -27,8 +27,15 @@ class FixedBasketSceneTests(unittest.TestCase):
 
     def test_moved_basket_does_not_match(self):
         result = compare_measurements(scene(), scene(id5=(391.0, 346.0), bbox=(356, 258, 73, 102)))
-        self.assertEqual(result["status"], "VISUAL_LAYOUT_CHANGED")
+        self.assertEqual(result["status"], "MARKER_LAYOUT_CHANGED")
         self.assertFalse(result["visual_layout_match_diagnostic"])
+
+    def test_stable_markers_with_unstable_body_candidate_does_not_claim_motion(self):
+        result = compare_measurements(scene(), scene(bbox=(348, 258, 73, 115)))
+        self.assertEqual(result["status"], "BODY_CANDIDATE_UNSTABLE")
+        self.assertTrue(result["marker_layout_match_diagnostic"])
+        self.assertFalse(result["visual_layout_match_diagnostic"])
+        self.assertFalse(result["motion_authorized"])
 
     def test_missing_marker_or_body_is_indeterminate(self):
         current = scene(bbox=None)
