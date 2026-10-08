@@ -24,6 +24,7 @@
 - `LIMIT`: C는 사선 사진에서 비스듬히 놓였고 내부 벽에 기대어 보인다. 정상 종료는 **바구니 안에 남음**이지 **수직으로 서 있음**을 뜻하지 않는다. 병 바닥 접촉 정확한 시점, 그리퍼·병과 테두리의 최소 공기 간격, 병·벽 접촉력과 이후 안정성은 사진으로 실측할 수 없다. 사용자 무간섭 보고를 이 영상 분석이 독립 검증한 것으로 확대하지 않는다.
 - `REPLAY BLOCKED`: 수신시각 근접 표본을 waypoint로 내보내지 않는다. 설치 URDF Elbow/Wrist_Pitch 한계 초과, 캘리브레이션 파일 경계 근접, 픽업 ROI 불일치, TCP/World→Base 및 바구니 실제 3D 입구·연속 경로 미검증은 그대로다. `training_ready=false`, `use_for_replay=false`, `robot_enabled=false`, `motion_authorized=false`; 자동 이동·추론 실행 `NOT_RUN`.
 - GitHub 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`. 원본 JPEG·관절·파생 검출 JSON은 Git 제외 경로에만 보존한다.
+- `LIVE RECHECK PASS AFTER ACCESS RETRY`: 추가 검토 시점의 일반 Mac 셸 읽기 전용 API 조회는 TCP 연결 실패, in-app browser의 API URL 직접 열기는 클라이언트 차단이었다. 홈 UI의 `Ready`는 canonical 상태로 간주하지 않았다. 허용된 별도 읽기 전용 셸 재조회에서 LeLab 8000 `/teleoperation-status`가 `teleoperation_active=false`를 반환했다. 최초 접속 실패는 네트워크 접근 경로 문제였으며 서비스 재시작·제어 API는 실행하지 않았다.
 
 ## 다음 단계
 
