@@ -50,6 +50,40 @@ class TeleopTraceAuditTests(unittest.TestCase):
             self.assertEqual(result["sample_count"], 2)
             self.assertFalse(result["use_for_replay"])
 
+    def test_limit_violation_is_split_at_first_pose_departure_without_discarding_samples(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            trace, limits = write_fixture(Path(temporary), elbow=1.2)
+            positions = []
+            for elbow, rotation in ((1.2, 0.0), (1.2, 0.0), (1.1, 0.02), (0.9, 0.02)):
+                pose = {name: 0.0 for name in JOINT_NAMES}
+                pose.update(Elbow=elbow, Rotation=rotation)
+                positions.append(pose)
+            raw = ("\n".join(json.dumps({
+                "source_unix": 1.0 + index * 0.05,
+                "received_unix_ns": 1_000_000_000 + index * 50_000_000,
+                "joints_rad": pose,
+            }) for index, pose in enumerate(positions)) + "\n").encode()
+            (trace / "joints.jsonl").write_bytes(raw)
+            manifest_file = trace / "manifest.json"
+            manifest = json.loads(manifest_file.read_text())
+            manifest["sample_count"] = 4
+            manifest["joint_file_sha256"] = hashlib.sha256(raw).hexdigest()
+            manifest_file.write_text(json.dumps(manifest))
+
+            result = audit(trace, limits)
+            self.assertEqual(result["status"], "URDF_LIMIT_MISMATCH")
+            self.assertEqual(result["sample_count"], 4)
+            self.assertEqual(result["first_pose_departure_index"], 2)
+            self.assertEqual(result["violations"]["Elbow"]["above"], 3)
+            self.assertEqual(result["violation_context"]["Elbow"], {
+                "before_first_pose_departure": 2,
+                "at_or_after_first_pose_departure": 1,
+                "first_index": 0,
+                "last_index": 2,
+                "last_elapsed_s": 0.1,
+            })
+            self.assertFalse(result["use_for_replay"])
+
     def test_rejects_modified_trace(self):
         with tempfile.TemporaryDirectory() as temporary:
             trace, limits = write_fixture(Path(temporary), elbow=0.2, corrupt_hash=True)

@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "unit": "mm",
+  "status": "PENDING_VERIFIED_TCP_TEACH_AND_HOLDOUT",
+  "workspace_config_sha256": null,
+  "tcp_offset_gripper_link_mm": null,
+  "tcp_offset_verified": false,
+  "points": [],
+  "required_measurement": "Four spatially separated table XY to measured robot TCP XY contacts plus one independent hold-out; each needs verified TCP/contact and synchronized image-joint evidence"
+}

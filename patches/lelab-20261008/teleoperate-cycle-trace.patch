@@ -1,0 +1,104 @@
+--- a/lelab/teleoperate.py
++++ b/lelab/teleoperate.py
+@@ -14,8 +14,10 @@
+
+ import logging
+ import math
++import os
+ import threading
+ import time
++from pathlib import Path
+ from typing import Any
+
+ from pydantic import BaseModel
+@@ -25,5 +27,6 @@
+
+ from .utils.config import setup_calibration_files
+ from .utils.devices import safe_disconnect_device
++from .teleop_cycle_trace import CycleTrace
+
+ logger = logging.getLogger(__name__)
+@@ -46,4 +49,4 @@
+
+-def get_joint_positions_from_robot(robot) -> dict[str, float]:
++def get_joint_positions_from_robot(robot, feedback=None) -> dict[str, float]:
+     """
+     Extract current joint positions from the robot and convert to URDF joint format.
+@@ -73,3 +76,3 @@
+     try:
+-        observation = robot.get_observation()
++        observation = robot.get_observation() if feedback is None else {f"{k}.pos": v for k, v in feedback.items()}
+
+@@ -131,6 +134,11 @@
+
+     robot = None
+     teleop_device = None
++    cycle_trace = None
+     try:
++        trace_root = os.environ.get("LELAB_TELEOP_TRACE_ROOT")
++        if trace_root:
++            cycle_trace = CycleTrace(Path(trace_root) / str(time.time_ns()))
++            logger.info("Teleop cycle trace: %s", cycle_trace.session_dir)
+         logger.info(
+             f"Starting teleoperation with leader port: {request.leader_port}, follower port: {request.follower_port}"
+@@ -203,11 +213,19 @@
+             logger.info("Starting teleoperation loop...")
+             try:
+                 last_broadcast_time = 0
+                 broadcast_interval = 0.05  # 20 FPS
++                stop_reason = "teleoperation_inactive"
+
+                 while teleoperation_active:
+-                    action = teleop_device.get_action()
+-                    robot.send_action(action)
++                    if cycle_trace is None:
++                        action = teleop_device.get_action()
++                        robot.send_action(action)
++                    else:
++                        row = cycle_trace.capture_cycle(
++                            teleop_device.get_action,
++                            robot.send_action,
++                            lambda: robot.bus.sync_read("Present_Position"),
++                        )
+
+                     current_time = time.time()
+                     if current_time - last_broadcast_time >= broadcast_interval:
+@@ -214,3 +230,5 @@
+                         try:
+-                            joint_positions = get_joint_positions_from_robot(robot)
++                            joint_positions = get_joint_positions_from_robot(
++                                robot, feedback=row["follower_feedback"] if cycle_trace is not None else None
++                            )
+                             joint_data = {
+@@ -226,8 +244,15 @@
+
+                     time.sleep(0.001)
+             except Exception as e:
++                stop_reason = "worker_error"
+                 logger.error(f"Error during teleoperation loop: {e}")
+             finally:
++                if cycle_trace is not None:
++                    try:
++                        result = cycle_trace.finish(stop_reason=stop_reason)
++                        logger.info("Teleop cycle trace result: %s", result)
++                    except Exception as e:
++                        logger.error("Failed to finalize teleop cycle trace: %s", e)
+                 _safe_disconnect(robot)
+                 _safe_disconnect(teleop_device)
+                 logger.info("Teleoperation stopped")
+@@ -245,6 +270,7 @@
+             "message": "Teleoperation started successfully",
+             "leader_port": request.leader_port,
+             "follower_port": request.follower_port,
++            "trace_session_dir": str(cycle_trace.session_dir) if cycle_trace is not None else None,
+         }
+
+     except Exception as e:
+@@ -252,5 +278,7 @@
+         _safe_disconnect(robot)
+         _safe_disconnect(teleop_device)
+         teleoperation_active = False
++        if cycle_trace is not None and not cycle_trace.closed:
++            cycle_trace.finish(stop_reason="startup_error")
+         current_robot = None
+         current_teleop = None

@@ -41,10 +41,25 @@ class FixedSlotCommandTests(unittest.TestCase):
         self.assertFalse(result["robot_coordinates_included"])
 
     def test_other_colors_and_subset(self):
+        self.assertEqual(parse_command("C를 빨강 바구니에 옮겨"), {"C": "red"})
         result = decide_fixed_slot_command(self.snapshot,
                                            parse_command("C를 초록색; A를 파란색"), self.slots)
         self.assertEqual([(r["bottle_label"], r["target_marker_id"])
                           for r in result["routes"]], [("C", 5), ("A", 6)])
+
+    def test_grouped_command_preserves_order_and_does_not_add_unmentioned_bottles(self):
+        assignments = parse_command("A, B를 빨강에 넣고 C는 파랑에 넣어라.")
+        self.assertEqual(list(assignments.items()),
+                         [("A", "red"), ("B", "red"), ("C", "blue")])
+        self.assertEqual(parse_command("C는 파랑에 넣어라"), {"C": "blue"})
+
+    def test_duplicate_conflict_and_unknown_label_are_distinct(self):
+        with self.assertRaisesRegex(ValueError, "duplicate_bottle_assignment"):
+            parse_command("A를 빨강, A도 빨강")
+        with self.assertRaisesRegex(ValueError, "conflicting_bottle_assignment"):
+            parse_command("A를 빨강, A를 파랑")
+        with self.assertRaisesRegex(ValueError, "unknown_bottle_label"):
+            parse_command("D를 빨강")
 
     def test_rejects_ambiguous_or_unsupported_text(self):
         for command in ("", "A를 빨강, A를 파랑", "A를 보라색", "A를 빨강 B는 아무데나"):

@@ -73,10 +73,18 @@ def audit_calibration_trace(trace_dir: Path, calibration_file: Path,
     for joint, values in positions.items():
         bound = bounds[joint]
         max_abs = max(map(abs, values))
+        raw_min, raw_max = calibration["arm_ranges_raw"][joint]
+        midpoint = (raw_min + raw_max) / 2
+        implied_raw = [midpoint + value * (calibration["resolution_steps"] - 1) / (2 * math.pi)
+                       for value in values]
         envelope[joint] = {
             "calibration_half_range_deg": round(math.degrees(bound), 6),
             "observed_min_deg": round(math.degrees(min(values)), 6),
             "observed_max_deg": round(math.degrees(max(values)), 6),
+            "observed_min_implied_raw": round(min(implied_raw), 6),
+            "observed_max_implied_raw": round(max(implied_raw), 6),
+            "max_raw_quantization_residual_steps": round(
+                max(abs(value - round(value)) for value in implied_raw), 9),
             "minimum_file_margin_deg": round(math.degrees(bound - max_abs), 6),
             "outside_file_range_samples": sum(abs(value) > bound for value in values),
             "within_near_limit_samples": sum(

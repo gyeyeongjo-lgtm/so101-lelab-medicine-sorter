@@ -1,0 +1,15 @@
+{
+  "status": "PENDING_PHYSICAL_VALIDATION",
+  "unit": "deg",
+  "follower_calibration_sha256": "2f74c1303b2fce03576eff539329e1185a652e2d551caa1ec82b026dafe29c2e",
+  "source": "2026-10-10 installed follower servo calibration raw range; 4096 steps; 2 degree numerical reserve",
+  "joint_bounds_deg": {
+    "Rotation": [-116.374, 116.374],
+    "Pitch": [-99.846, 99.846],
+    "Elbow": [-95.011, 95.011],
+    "Wrist_Pitch": [-98.615, 98.615],
+    "Wrist_Roll": [-154.352, 154.352]
+  },
+  "physical_clearance_verified": false,
+  "motion_authorized": false
+}

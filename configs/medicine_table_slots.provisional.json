@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "status": "PROVISIONAL_FIXED_LAYOUT_NOT_OBJECT_CLASSIFIER",
+  "unit": "mm",
+  "source": "median YOLO box centers projected through ID0-3 homography from 81 retained 2026-10-07 manual captures; labels used only to establish slot anchors, never runtime identity",
+  "max_distance_mm": 45.0,
+  "minimum_runner_up_gap_mm": 25.0,
+  "slots": {
+    "A": [76.557, 351.317],
+    "B": [179.722, 336.457],
+    "C": [289.6, 327.939]
+  },
+  "capture_count_by_slot": {"A": 23, "B": 35, "C": 23},
+  "layout_must_be_rechecked_before_motion": true
+}

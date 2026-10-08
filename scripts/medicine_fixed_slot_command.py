@@ -22,26 +22,31 @@ COLOR_WORDS = {
     "파란색": "blue", "파랑": "blue",
 }
 COMMAND = re.compile(
-    r"(?P<label>[ABC])\s*(?:를|을|도)?\s*"
+    r"(?P<labels>[A-Z](?:\s*[,，]\s*[A-Z])*)\s*(?:를|을|는|은|도)?\s*"
     r"(?P<color>빨간색|빨강|초록색|초록|파란색|파랑)"
-    r"\s*(?:바구니|박스)?",
+    r"\s*(?:바구니|박스)?\s*(?:에|으로)?\s*(?:넣어라|넣고|넣어|옮겨라|옮겨)?",
     re.IGNORECASE,
 )
 
 
 def parse_command(command: str) -> dict[str, str]:
-    """Accept explicit clauses such as 'A를 빨간색, B도 빨간색 박스'."""
+    """Accept ordered clauses, including 'A, B를 빨강에 넣고 C는 파랑에 넣어라'."""
     if not isinstance(command, str) or not command.strip():
         raise ValueError("empty_command")
     matches = list(COMMAND.finditer(command))
-    if not matches or COMMAND.sub("", command).strip(" \t\r\n,;，；"):
+    if not matches or COMMAND.sub("", command).strip(" \t\r\n,;，；.!?。"):
         raise ValueError("unsupported_command_words")
     assignments = {}
     for match in matches:
-        label = match.group("label").upper()
-        if label in assignments:
-            raise ValueError("duplicate_bottle_assignment")
-        assignments[label] = COLOR_WORDS[match.group("color")]
+        color = COLOR_WORDS[match.group("color")]
+        for label in re.split(r"\s*[,，]\s*", match.group("labels").upper()):
+            if label not in {"A", "B", "C"}:
+                raise ValueError("unknown_bottle_label")
+            if label in assignments:
+                reason = ("duplicate_bottle_assignment" if assignments[label] == color
+                          else "conflicting_bottle_assignment")
+                raise ValueError(reason)
+            assignments[label] = color
     return assignments
 
 

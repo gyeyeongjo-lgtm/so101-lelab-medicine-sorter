@@ -90,6 +90,15 @@ class CalibrationTraceEnvelopeTests(unittest.TestCase):
         self.assertEqual(document["arm_ranges_raw"]["Elbow"], [880, 3087])
         self.assertAlmostEqual(math.degrees(bounds["Elbow"]), 97.010989, places=5)
 
+    def test_observed_radians_reverse_to_expected_raw_grid(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            elbow_rad = (2500 - 2000) * 2 * math.pi / 4095
+            trace, calibration, urdf = fixture(Path(temporary), elbow_rad=elbow_rad)
+            result = audit_calibration_trace(trace, calibration, urdf)
+            envelope = result["envelope"]["Elbow"]
+            self.assertEqual(envelope["observed_max_implied_raw"], 2500)
+            self.assertEqual(envelope["max_raw_quantization_residual_steps"], 0)
+
     def test_source_has_no_robot_control_routes(self):
         source = (Path(__file__).resolve().parents[1] /
                   "scripts/audit_calibration_trace_envelope.py").read_text()

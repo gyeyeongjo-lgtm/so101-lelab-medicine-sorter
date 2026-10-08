@@ -15,6 +15,7 @@ from pathlib import Path
 
 JOINT_NAMES = ("Rotation", "Pitch", "Elbow", "Wrist_Pitch", "Wrist_Roll", "Jaw")
 CAMERA_NAMES = frozenset({"ceiling", "oblique", "wrist"})
+POSE_DEPARTURE_THRESHOLD_RAD = 0.01
 
 
 def audit_camera_evidence(trace_dir: Path, manifest: dict) -> dict[str, int]:
@@ -61,7 +62,15 @@ def audit(trace_dir: Path, limits_file: Path) -> dict:
     if digest != manifest.get("joint_file_sha256"):
         raise ValueError("joint trace SHA-256 does not match manifest")
     violations = {name: {"below": 0, "above": 0, "max_excess_rad": 0.0} for name in JOINT_NAMES}
+    violation_context = {
+        name: {"before_first_pose_departure": 0, "at_or_after_first_pose_departure": 0,
+               "first_index": None, "last_index": None, "last_elapsed_s": None}
+        for name in JOINT_NAMES
+    }
     first_source = previous_source = None
+    first_pose = None
+    first_pose_departure_index = None
+    first_pose_departure_elapsed_s = None
     previous_receive = None
     duplicate_or_reverse_source = 0
     non_increasing_receive = 0
@@ -85,20 +94,38 @@ def audit(trace_dir: Path, limits_file: Path) -> dict:
                 max_receive_gap_ms = max(max_receive_gap_ms, (received - previous_receive) / 1e6)
         if first_source is None:
             first_source = source
+            first_pose = {name: float(positions[name]) for name in JOINT_NAMES}
+        if first_pose_departure_index is None and any(
+                abs(float(positions[name]) - first_pose[name]) > POSE_DEPARTURE_THRESHOLD_RAD
+                for name in JOINT_NAMES):
+            first_pose_departure_index = count
+            first_pose_departure_elapsed_s = round(source - first_source, 3)
         previous_source, previous_receive = source, received
         for name in JOINT_NAMES:
             value = float(positions[name])
             if not math.isfinite(value):
                 raise ValueError(f"nonfinite {name} position")
             lower, upper = limits["joints"][name]
+            outside = False
             if value < lower:
+                outside = True
                 violations[name]["below"] += 1
                 violations[name]["max_excess_rad"] = max(
                     violations[name]["max_excess_rad"], lower - value)
             elif value > upper:
+                outside = True
                 violations[name]["above"] += 1
                 violations[name]["max_excess_rad"] = max(
                     violations[name]["max_excess_rad"], value - upper)
+            if outside:
+                context = violation_context[name]
+                phase = ("before_first_pose_departure" if first_pose_departure_index is None
+                         else "at_or_after_first_pose_departure")
+                context[phase] += 1
+                if context["first_index"] is None:
+                    context["first_index"] = count
+                context["last_index"] = count
+                context["last_elapsed_s"] = round(source - first_source, 3)
         count += 1
     if count != manifest.get("sample_count") or count == 0:
         raise ValueError("trace sample count is empty or disagrees with manifest")
@@ -119,12 +146,16 @@ def audit(trace_dir: Path, limits_file: Path) -> dict:
         "duplicate_or_reverse_source_times": duplicate_or_reverse_source,
         "non_increasing_receive_times": non_increasing_receive,
         "violations": violations,
+        "first_pose_departure_threshold_rad": POSE_DEPARTURE_THRESHOLD_RAD,
+        "first_pose_departure_index": first_pose_departure_index,
+        "first_pose_departure_elapsed_s": first_pose_departure_elapsed_s,
+        "violation_context": violation_context,
         "verified_camera_frames": camera_counts,
         "camera_evidence_complete": camera_complete and manifest.get("camera_evidence_complete", False),
         "use_for_replay": False,
         "robot_enabled": False,
         "motion_authorized": False,
-        "caution": "URDF vs broadcast mismatch is not proof of physical hard-stop violation; neither outcome certifies safe motion",
+        "caution": "Pose departure is a threshold on broadcasts, not proven physical motion. URDF mismatch is not proof of a hard-stop violation; neither outcome certifies safe motion",
     }
 
 

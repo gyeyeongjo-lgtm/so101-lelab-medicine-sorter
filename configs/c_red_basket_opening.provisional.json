@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "marker_id": 4,
+  "color": "red",
+  "unit": "mm",
+  "opening_offset_from_marker_table_mm": [-2.269, 98.737],
+  "opening_offset_verified": false,
+  "source": "Visual estimate of opening center pixel (313,290) against ID4 center (307.5,346) in saved 2026-10-07 C ceiling frame, projected through ID0-3 table homography; marker height and opening center were not physically measured",
+  "required_single_measurement": "Confirm red basket opening center relative to ID4 in table XY after layout is fixed; also measure safe release height separately before place"
+}
