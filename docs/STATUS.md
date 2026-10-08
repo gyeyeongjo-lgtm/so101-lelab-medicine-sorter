@@ -2,6 +2,12 @@
 
 업데이트: 2026-10-08
 
+## 2026-10-08 C 투입 후 YOLO 완료 판정 실패 — 두 시연 교차 확인
+
+- `PASS (offline) / FAIL (YOLO-only verification)`: 현 C 시연 정면 251장 중 227장에 약통 후보가 있었지만 마지막 C가 빨강 바구니 안에 보이는 사진은 검출 0개다. 이전 C 시연도 첫 20/20장 검출, 마지막 20/20장 검출 0개였다. 현재 모델의 검출 0개는 빈 바구니·투입 실패의 증거가 아니다.
+- `MARKER COVERAGE`: 현 시연 ID0/1/3/4/5/6은 251/251, ID2는 249/251장으로 동작 중 2장에 네 기준점 homography가 불가했다. 시작/끝 픽셀 변화는 사후 진단일 뿐 완료 판정기로 채택하지 않는다. [상세](sessions/2026-10-08-c-transfer-vision-qa.md). 로봇 동작·자동 재생 `NOT_RUN`, 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`.
+- `PREPARED (offline cap candidate only)`: ID4 상대 흰 뚜껑 후보 진단을 추가했다. C 종료 2건은 각 20/20, 빨강이 빈 A/B 종료 2건은 각 0/20이지만, 사후 선택한 네 장면이라 독립 성능은 미검증이다. `completion_verified=false`·`motion_authorized=false` 고정, 관련 감사 시험 39개 통과. 첫 `.venv` 단위 시험 지정 경로 오류 뒤 discover 재실행 통과.
+
 ## 2026-10-08 현 배치 C→빨강 수동 1회 — 3시야 기록·자동 재생 차단
 
 - `PASS (user-operated manual)`: 이전 성공 장면과 현 배치를 대조하니 빨강 ID4 마커가 약 9.467px 이동해 옛 경로 재사용이 부적절했다. 사용자가 새 배치에서 안전·수동 1회를 승인하고 직접 C를 빨강 ID4에 넣어 퇴피·종료했다. 시작/끝 정면 영상과 현장 보고가 부합하며 종료 API는 텔레옵 inactive다.
