@@ -25,6 +25,7 @@
 - `REPLAY BLOCKED`: 수신시각 근접 표본을 waypoint로 내보내지 않는다. 설치 URDF Elbow/Wrist_Pitch 한계 초과, 캘리브레이션 파일 경계 근접, 픽업 ROI 불일치, TCP/World→Base 및 바구니 실제 3D 입구·연속 경로 미검증은 그대로다. `training_ready=false`, `use_for_replay=false`, `robot_enabled=false`, `motion_authorized=false`; 자동 이동·추론 실행 `NOT_RUN`.
 - GitHub 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`. 원본 JPEG·관절·파생 검출 JSON은 Git 제외 경로에만 보존한다.
 - `LIVE RECHECK PASS AFTER ACCESS RETRY`: 추가 검토 시점의 일반 Mac 셸 읽기 전용 API 조회는 TCP 연결 실패, in-app browser의 API URL 직접 열기는 클라이언트 차단이었다. 홈 UI의 `Ready`는 canonical 상태로 간주하지 않았다. 허용된 별도 읽기 전용 셸 재조회에서 LeLab 8000 `/teleoperation-status`가 `teleoperation_active=false`를 반환했다. 최초 접속 실패는 네트워크 접근 경로 문제였으며 서비스 재시작·제어 API는 실행하지 않았다.
+- `CAMERA STATUS PASS`: 8030 관찰기의 첫 `/status` 요청은 경로가 없어 HTTP 404였고, 실제 `/api/status` 재조회는 정면/사선/손목 age 20.2/16.1/23.6 ms, 오류 모두 null, `robot_control=false`를 반환했다. 관절 age는 약 1,356,676 ms로 텔레옵 종료 후 오래된 방송이므로 현재 자세로 사용하지 않는다. 새 사진 저장·카메라 장치 추가 열기 `NOT_RUN`.
 
 ## 다음 단계
 
