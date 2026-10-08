@@ -6,6 +6,7 @@
 
 - `PASS (camera-only)`: 사용자 C 배치 보고 뒤 8031에서 천장 프레임 148058을 C로 클릭·로컬 저장했다. 사진에는 C 후보 한 개와 ID0–6이 보였고, C→빨강 ID4는 `DRY_RUN_ROUTE_ONLY`였다. 저장 자료는 Git 제외이며 `training_ready=false`다.
 - `PASS (marker diagnostic) / BODY CANDIDATE UNSTABLE`: 고정 바구니 기준 대비 마커 최대 이동은 작업대 0.088px·바구니 0.073px, 몸체 색 상자 최대 크기 차이는 9px다. `pickup_roi_match=false`이고 입구·로봇 좌표·경로는 미검증이다. 자동 모션 `NOT_RUN`. 첫 시스템 Python에는 `cv2`가 없어 감사 실패 후 기존 `.venv`에서 성공했다. [상세](sessions/2026-10-08-c-fixed-slot-capture.md). 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`.
+- `PASS (dry-run only)`: 현재 C 한 병에 `C를 빨강` 명령 미리보기를 실행해 C 슬롯→ID4 판정을 확인했다. 픽업 ROI는 불일치하고 `grasp_authorized=false`다. 명령 저장·모터 동작 `NOT_RUN`.
 
 ## 2026-10-08 고정 바구니 20프레임 감사 — 마커 안정·색 상자 실패
 
