@@ -6,6 +6,7 @@
 
 - `PASS (offline 3-view phase review) / REPLAY BLOCKED`: 현 C 시연의 정면·사선·손목 대표 사진에서 접근→들어 올림→빨강 ID4 진입→그리퍼 벌림→퇴피와 C 잔류를 확인했다. 병은 비스듬히 놓였으며 바닥 접촉 시점·테두리 최소 간격은 측정할 수 없다. 영상과 관절은 Mac 수신시각 근접 표본일 뿐 동기 waypoint가 아니다. 추가 8000 API 읽기 전용 재조회는 첫 셸 TCP 실패·브라우저 URL 차단 후 접근을 재시도해 `teleoperation_active=false` 확인. [단계별 검토](sessions/2026-10-08-c-transfer-phase-review.md). 새 동작 `NOT_RUN`, 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`.
 - `CAMERA STATUS PASS`: 8030 실제 `/api/status`의 정면/사선/손목 age는 20.2/16.1/23.6 ms, 오류 null, `robot_control=false`다. 첫 잘못된 `/status` 경로는 404였고 재조회로 바로잡았다. 관절 데이터는 텔레옵 종료 뒤 오래돼 현 자세 증거가 아니다.
+- `LIVE FINAL CHECK`: 8000 health `ok`, 텔레옵·녹화·추론 active=false. 녹화 내부 `preparing`·`session_ended=false`는 정리 완료의 증거가 아니다. 제어 API·새 모터 동작 `NOT_RUN`.
 
 - `PASS (offline) / FAIL (YOLO-only verification)`: 현 C 시연 정면 251장 중 227장에 약통 후보가 있었지만 마지막 C가 빨강 바구니 안에 보이는 사진은 검출 0개다. 이전 C 시연도 첫 20/20장 검출, 마지막 20/20장 검출 0개였다. 현재 모델의 검출 0개는 빈 바구니·투입 실패의 증거가 아니다.
 - `MARKER COVERAGE`: 현 시연 ID0/1/3/4/5/6은 251/251, ID2는 249/251장으로 동작 중 2장에 네 기준점 homography가 불가했다. 시작/끝 픽셀 변화는 사후 진단일 뿐 완료 판정기로 채택하지 않는다. [상세](sessions/2026-10-08-c-transfer-vision-qa.md). 로봇 동작·자동 재생 `NOT_RUN`, 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`.
