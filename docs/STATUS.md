@@ -2,10 +2,15 @@
 
 업데이트: 2026-10-08
 
+## 2026-10-08 C 비접촉 teach 시도 — 라벨 채택 거부
+
+- `LIVE OBSERVER UPDATED`: 사용자의 C 배치 뒤 Mac 8030 관찰기만 새 라벨 코드로 재시작했다. 첫 detached 시작은 실패했고 foreground 세션에서 복구했다. 일시적 사선·손목 503 뒤 세 카메라 및 8031 판정 입력 정상, 로봇 제어 없음. Jetson LeLab 서비스·모터·USB는 변경하지 않았다.
+- `REJECTED_FOR_USE`: 사용자 현장 승인과 비접촉 보고에 따라 `SOURCE_C_HOVER` 1건을 Git 제외 로컬에 저장했으나, 이어진 별도 비접촉 이동 중 영상에 C가 그리퍼에 들려 출발 위치 밖으로 이동했고 사용자도 잡거나 이동했다고 확인했다. 따라서 첫 저장본의 비접촉 의미·출발 위치 불변은 독립 검증되지 않아 경로에 채택하지 않는다. `BASKET4_HOVER` 저장 `NOT_RUN`; 자동 재생 금지. 첫 종료 보고 뒤 서버는 여전히 active였고 재종료 후 inactive를 확인했다. [상세](sessions/2026-10-08-c-noncontact-teach-attempt.md). 다음은 C를 치운 빈 장면의 ID4 상공 비접촉 시험이다. 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`.
+
 ## 2026-10-08 현 고정 배치용 경유 자세 캡처 준비
 
 - `OLD WAYPOINTS REJECTED FOR CURRENT LAYOUT`: 보유 35개(PARK 7·SOURCE1_HOVER 2·BASKET4_HOVER 26)를 현 배치 기준과 오프라인 대조하니 25개는 필수 마커 부족, 10개는 마커 배치 변경으로 일치 확인 0개다. 옛 경로 재생 금지 유지.
-- `PREPARED (repo only)`: 접촉점 기반 TCP가 미검증이므로 고정 슬롯의 비접촉 teach 대안을 준비했다. 읽기 전용 캡처기에 A/B/C 출발·ID5/6 바구니 상공 라벨을 추가하고 기존 라벨·제어 차단을 보존했다. 회귀 시험 14/14 통과; 첫 제한 환경 시험의 로컬 포트 권한 오류 4건은 허용된 동일 시험에서 해소했다. 실행 중인 Mac 8030/8031은 재시작하지 않아 **새 라벨은 아직 라이브 미적용**이다. [상세](sessions/2026-10-08-fixed-slot-teach-prep.md). 로봇 이동·추론·재생 `NOT_RUN`, 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`.
+- `PREPARED (at that stage, repo only)`: 접촉점 기반 TCP가 미검증이므로 고정 슬롯의 비접촉 teach 대안을 준비했다. 읽기 전용 캡처기에 A/B/C 출발·ID5/6 바구니 상공 라벨을 추가하고 기존 라벨·제어 차단을 보존했다. 회귀 시험 14/14 통과; 첫 제한 환경 시험의 로컬 포트 권한 오류 4건은 허용된 동일 시험에서 해소했다. 이 준비 당시 Mac 8030/8031은 재시작하지 않았으며, 이후 라이브 적용·시험 결과는 위 최신 항목에 기록했다. [상세](sessions/2026-10-08-fixed-slot-teach-prep.md). 자동 재생 `NOT_RUN`, 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`.
 
 ## 2026-10-08 URDF 제한과 follower 범위 재대조
 
