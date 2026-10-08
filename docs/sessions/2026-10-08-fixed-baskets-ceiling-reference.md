@@ -27,6 +27,13 @@
 - `ceiling_third.jpg` SHA-256 `e098342b6193d131df9f20f7b741f772cd82c9e0e3bd4aa875eae7154dc31bf6`: 밝기 중앙값 52, 몸체 후보 전부 없음, ID3 검출 실패로 `INDETERMINATE`다. 조명 변화에서 HSV 몸체 판정이 취약하며 기준 유지까지 확정할 수 없다.
 - 비교기의 2/3/4 px 임계값과 밝기 100 게이트는 화면 변화 탐지용일 뿐 물리 위치 오차·충돌 안전 여유가 아니다. 재현 명령: `.venv/bin/python -m scripts.audit_fixed_basket_scene --reference .local/basket-opening-captures/20261008T022818_PV95dh/ceiling.jpg --current .local/basket-opening-captures/20261008T022818_PV95dh/ceiling_check.jpg`.
 
+## 조명 복구 후 재촬영 (2026-10-08 14:03–14:04 KST)
+
+- 사용자 조명 완료 보고 후 LeLab 8000 텔레옵 inactive, Mac 8030 정면/사선/손목 캐시 나이 36.0/25.1/26.5 ms·오류 null·`robot_control=false`를 확인했다. 8031 `/health`도 정면/사선 fresh, ID0–6 검출, `robot_enabled=false`였다. 이전 마무리 시 8030 접속 실패와 달리 이번에는 이미 실행 중이었으며 서비스를 새로 시작하지 않았다.
+- 기존 8030 캐시에서 640×480 정면 JPEG 두 장을 Git 제외 `.local/basket-opening-captures/20261008-light-check-IXdKBV/`에 저장했다. 첫째 SHA-256 `9f16ef656fea342796b2ddb425418f13d1537e03c64cc86d486a191443240e56`, 둘째 `8401a6de274def02654fdf3db15e3019fb78f870cdbe0bbcb735cf6c94dfc257`. 수신시각 원본 헤더도 로컬에만 보존했다.
+- 작업대 밝기 중앙값은 235/234로 기존 밝은 기준 233에 근접했다. 두 장 모두 ID0–6 및 ID4/5/6 색 성분 몸체 후보가 검출됐다. 기준 대비 ID0–3 최대 중심 이동 0.210/0.221 px, ID4/5/6 최대 0.075/0.099 px, 몸체 bbox 중심 최대 1.000/1.581 px다. 둘 다 `VISUAL_LAYOUT_MATCH_DIAGNOSTIC`이며 왼쪽 ID4·가운데 ID5·오른쪽 ID6 배치가 화면상 유지된다.
+- 이는 **두 시점의 읽기 전용 화면 일치**다. 노출 변화·가림에 대한 일반적 강건성, 입구 내부 네 모서리·높이, 실제 3D 충돌 여유 또는 로봇 목표 검증은 아니다. 모터·토크·USB·LeLab 제어/서비스 변경 및 자동 이동 `NOT_RUN`.
+
 ## 치수와 간섭 위험의 오프라인 대조
 
 - 사용자 실측: 바구니 바깥 138×98×58 mm, 테두리 두께 5 mm, 짧은 안쪽 입구 약 85 mm. 균일 테두리 가정으로 긴 안쪽 폭은 약 128 mm지만 **실측 확정값은 아니다**. 이번 천장 영상에서 세 바구니의 긴 축은 대체로 화면 상하 방향이다.

@@ -2,6 +2,11 @@
 
 업데이트: 2026-10-08
 
+## 2026-10-08 조명 복구 후 고정 배치 재확인
+
+- `PASS (read-only, two frames)`: 사용자 조명 조정 후 기존 Mac 8030 캐시에서 정면 JPEG 두 장을 Git 제외 `.local/basket-opening-captures/20261008-light-check-IXdKBV/`에 저장했다. 밝기 중앙값 235/234(기준 233), 두 장 모두 ID0–6과 세 바구니 몸체 색 후보 검출. 기준 대비 ID0–3 최대 이동 0.210/0.221 px, ID4/5/6 최대 0.075/0.099 px로 두 장 모두 `VISUAL_LAYOUT_MATCH_DIAGNOSTIC`다.
+- `LIVE READ-ONLY`: LeLab 8000 텔레옵 inactive, 8030 세 카메라 캐시 fresh/오류 null/`robot_control=false`, 8031 `robot_enabled=false`를 확인했다. 카메라·로봇 서비스/USB/모터/토크 변경과 자동 이동 `NOT_RUN`. 이 화면 일치는 바구니 입구·3D 좌표·경로 승인이 아니다. [상세](sessions/2026-10-08-fixed-baskets-ceiling-reference.md). 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`.
+
 ## 2026-10-08 사용자 고정 바구니 배치 — 새 천장 기준·조명 실패 기록
 
 - `USER REPORTED`: 모든 바구니 자세는 현재 배치로 고정한다. 움직이는 바구니의 동적 pose 추적은 보류하고, 현 사진을 화면상 기준으로 삼되 배치가 달라지면 재검증한다.
