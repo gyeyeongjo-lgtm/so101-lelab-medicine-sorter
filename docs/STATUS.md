@@ -2,6 +2,12 @@
 
 업데이트: 2026-10-08
 
+## 2026-10-08 빈 장면 C 출발·빨강 ID4 상공 후보 두 자세
+
+- `PASS (manual noncontact observations) / REPLAY BLOCKED`: 사용자가 C를 작업 범위 밖으로 치우고 빈 그리퍼로 빨강 ID4 상공, 이어 빈 C 고정 출발 자리 상공을 각각 별도 현장 승인·기존 LeLab 텔레옵으로 비접촉 정지했다. Mac 8030에 `BASKET4_HOVER`·새 `SOURCE_C_HOVER` 각 1건을 Git 제외 로컬 저장. 3시야 SHA·15개 안정 관절값·수신시각 간격 확인. 앞선 실제 C 집기 포함 `SOURCE_C_HOVER`는 계속 채택 거부다.
+- `SCENE MATCH / PATH NOT VERIFIED`: 두 정지 사진 간 마커 최대 이동 작업대 0.228 px·바구니 0.089 px. 저장된 파일 범위 안의 끝점이지만 Elbow 차이는 약 69.890°다. 바구니 상공 화면상 중앙·실제 높이·연속 경로·충돌 여유는 독립 검증되지 않았으므로 자동 재생/집기 `NOT_RUN/BLOCKED`다.
+- `STOP VERIFIED`: 두 번 모두 사용자 화면 종료 표시 후 서버에는 active가 남아, 안전 퇴피·팔 정지 현장 보고 뒤 공식 종료 API 각 1회로 `teleoperation_active=false`를 확인했다. LeLab 녹화·추론도 inactive. [상세](sessions/2026-10-08-empty-scene-c-id4-waypoints.md). 이슈 API `NOT_RUN`, 원격 push `NOT_PUSHED`.
+
 ## 2026-10-08 C 비접촉 teach 시도 — 라벨 채택 거부
 
 - `LIVE OBSERVER UPDATED`: 사용자의 C 배치 뒤 Mac 8030 관찰기만 새 라벨 코드로 재시작했다. 첫 detached 시작은 실패했고 foreground 세션에서 복구했다. 일시적 사선·손목 503 뒤 세 카메라 및 8031 판정 입력 정상, 로봇 제어 없음. Jetson LeLab 서비스·모터·USB는 변경하지 않았다.
