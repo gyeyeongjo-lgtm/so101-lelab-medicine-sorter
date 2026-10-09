@@ -1,0 +1,10 @@
+--- teleoperate.py
++++ teleoperate.py
+@@ -252,5 +252,6 @@
+                         if os.environ.get("LELAB_TEMP_WRIST_ALIGN") == "1":
+                             sent_action = guarded_elbow_send(robot, action, previous_elbow_target_deg, logger)
+-                            previous_elbow_target_deg = sent_action["elbow_flex.pos"]
++                            if sent_action is not None:
++                                previous_elbow_target_deg = sent_action["elbow_flex.pos"]
+                         else:
+                             robot.send_action(action)

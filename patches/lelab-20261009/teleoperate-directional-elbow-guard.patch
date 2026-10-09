@@ -1,0 +1,43 @@
+--- teleoperate.py
++++ teleoperate.py
+@@ -27,7 +27,8 @@
+
+ from .utils.config import setup_calibration_files
+ from .utils.devices import safe_disconnect_device
+ from .teleop_cycle_trace import CycleTrace
++from .temporary_elbow_direction_guard import guarded_elbow_send
+
+ logger = logging.getLogger(__name__)
+
+@@ -213,7 +214,7 @@
+             try:
+                 wrist_offset_deg = 0.0
+                 elbow_offset_deg = 0.0
+-                elbow_start_deg = None
++                previous_elbow_target_deg = None
+                 first_action = None
+                 if os.environ.get("LELAB_TEMP_WRIST_ALIGN") == "1":
+                     if cycle_trace is not None:
+@@ -231,7 +232,7 @@
+                         raise RuntimeError("Temporary wrist offset exceeds 15 degree cap")
+                     first_action["wrist_flex.pos"] += wrist_offset_deg
+                     first_action["elbow_flex.pos"] += elbow_offset_deg
+-                    elbow_start_deg = follower_start["elbow_flex"]
++                    previous_elbow_target_deg = follower_start["elbow_flex"]
+                     logger.warning("Temporary alignment active: wrist %.3f deg, elbow %.3f deg", wrist_offset_deg, elbow_offset_deg)
+
+                 last_broadcast_time = 0
+@@ -248,8 +249,10 @@
+                             action["elbow_flex.pos"] += elbow_offset_deg
+                         if os.environ.get("LELAB_TEMP_WRIST_ALIGN") == "1" and not -95.0 <= action["wrist_flex.pos"] <= 95.0:
+                             raise RuntimeError("Temporary wrist target outside URDF limit")
+-                        if os.environ.get("LELAB_TEMP_WRIST_ALIGN") == "1" and action["elbow_flex.pos"] > elbow_start_deg + 0.5:
+-                            raise RuntimeError("Temporary elbow target exceeds starting position by 0.5 degree")
+-                        robot.send_action(action)
++                        if os.environ.get("LELAB_TEMP_WRIST_ALIGN") == "1":
++                            sent_action = guarded_elbow_send(robot, action, previous_elbow_target_deg, logger)
++                            previous_elbow_target_deg = sent_action["elbow_flex.pos"]
++                        else:
++                            robot.send_action(action)
+                     else:
+                         row = cycle_trace.capture_cycle(

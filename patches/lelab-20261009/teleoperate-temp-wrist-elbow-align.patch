@@ -1,0 +1,40 @@
+--- teleoperate.py.temp-wrist-align
++++ teleoperate.py.temp-wrist-elbow-align
+@@ -214,15 +214,22 @@
+                 wrist_offset_deg = 0.0
++                elbow_offset_deg = 0.0
++                elbow_start_deg = None
+                 first_action = None
+                 if os.environ.get("LELAB_TEMP_WRIST_ALIGN") == "1":
+                     if cycle_trace is not None:
+                         raise RuntimeError("Temporary wrist alignment cannot record a cycle")
+                     first_action = dict(teleop_device.get_action())
+                     follower_start = robot.bus.sync_read("Present_Position")
+-                    for joint in ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_roll", "gripper"):
++                    for joint in ("shoulder_pan", "shoulder_lift", "wrist_roll", "gripper"):
+                         if abs(first_action[f"{joint}.pos"] - follower_start[joint]) > 2.5:
+-                            raise RuntimeError(f"Temporary wrist alignment blocked by {joint} mismatch")
++                            raise RuntimeError(f"Temporary alignment blocked by {joint} mismatch")
++                    elbow_offset_deg = follower_start["elbow_flex"] - first_action["elbow_flex.pos"]
++                    if abs(elbow_offset_deg) > 3.5:
++                        raise RuntimeError("Temporary elbow offset exceeds 3.5 degree cap")
+                     wrist_offset_deg = follower_start["wrist_flex"] - first_action["wrist_flex.pos"]
+-                    if not 0.0 < abs(wrist_offset_deg) <= 15.0:
+-                        raise RuntimeError("Temporary wrist offset outside approved 0–15 degree range")
++                    if abs(wrist_offset_deg) > 15.0:
++                        raise RuntimeError("Temporary wrist offset exceeds 15 degree cap")
+                     first_action["wrist_flex.pos"] += wrist_offset_deg
+-                    logger.warning("Temporary wrist alignment active: offset %.3f deg", wrist_offset_deg)
++                    first_action["elbow_flex.pos"] += elbow_offset_deg
++                    elbow_start_deg = follower_start["elbow_flex"]
++                    logger.warning("Temporary alignment active: wrist %.3f deg, elbow %.3f deg", wrist_offset_deg, elbow_offset_deg)
+@@ -238,6 +245,9 @@
+                         else:
+                             action = teleop_device.get_action()
+                             action["wrist_flex.pos"] += wrist_offset_deg
++                            action["elbow_flex.pos"] += elbow_offset_deg
+                         if os.environ.get("LELAB_TEMP_WRIST_ALIGN") == "1" and not -95.0 <= action["wrist_flex.pos"] <= 95.0:
+                             raise RuntimeError("Temporary wrist target outside URDF limit")
++                        if os.environ.get("LELAB_TEMP_WRIST_ALIGN") == "1" and action["elbow_flex.pos"] > elbow_start_deg + 0.5:
++                            raise RuntimeError("Temporary elbow target exceeds starting position by 0.5 degree")
+                         robot.send_action(action)

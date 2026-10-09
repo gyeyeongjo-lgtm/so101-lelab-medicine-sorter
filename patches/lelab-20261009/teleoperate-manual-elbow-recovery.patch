@@ -1,0 +1,95 @@
+--- teleoperate.py
++++ teleoperate.py
+@@ -28,7 +28,7 @@
+ from .utils.config import setup_calibration_files
+ from .utils.devices import safe_disconnect_device
+ from .teleop_cycle_trace import CycleTrace
+-from .temporary_elbow_direction_guard import guarded_elbow_send
++from .temporary_elbow_direction_guard import guarded_elbow_send, guarded_elbow_recovery_send
+
+ logger = logging.getLogger(__name__)
+
+@@ -137,7 +137,12 @@
+     teleop_device = None
+     cycle_trace = None
+     try:
++        recovery_mode = os.environ.get("LELAB_TEMP_ELBOW_RECOVERY") == "1"
++        if recovery_mode and os.environ.get("LELAB_TEMP_WRIST_ALIGN") != "1":
++            raise RuntimeError("Manual Elbow recovery requires temporary joint alignment")
+         trace_root = os.environ.get("LELAB_TELEOP_TRACE_ROOT")
++        if recovery_mode and trace_root:
++            raise RuntimeError("Manual Elbow recovery cannot record a cycle")
+         if trace_root:
+             cycle_trace = CycleTrace(Path(trace_root) / str(time.time_ns()))
+             logger.info("Teleop cycle trace: %s", cycle_trace.session_dir)
+@@ -191,14 +196,36 @@
+
+         # Write calibration to motors' memory
+         logger.info("Writing calibration to motors...")
+-        robot.bus.write_calibration(robot.calibration)
++        if recovery_mode:
++            if not robot.bus.is_calibrated or not teleop_device.bus.is_calibrated:
++                raise RuntimeError("Manual Elbow recovery requires loaded calibration")
++            logger.warning("Manual Elbow recovery: follower calibration/configuration writes and torque toggle skipped")
++        else:
++            robot.bus.write_calibration(robot.calibration)
+         teleop_device.bus.write_calibration(teleop_device.calibration)
+
+         # Connect cameras and configure motors
+         logger.info("Connecting cameras and configuring motors...")
+         for cam in robot.cameras.values():
+             cam.connect()
+-        robot.configure()
++        if recovery_mode:
++            torque = robot.bus.sync_read("Torque_Enable", normalize=False)
++            present = robot.bus.sync_read("Present_Position")
++            time.sleep(0.5)
++            second_present = robot.bus.sync_read("Present_Position")
++            if set(torque) != set(present) or set(second_present) != set(present):
++                raise RuntimeError("Manual Elbow recovery follower registers incomplete")
++            if any(value != 1 for value in torque.values()):
++                raise RuntimeError("Manual Elbow recovery requires existing follower torque ON")
++            if not 90.0 < second_present["elbow_flex"] <= 91.0:
++                raise RuntimeError("Manual Elbow recovery requires Elbow in (90, 91] degrees")
++            if any(not math.isfinite(present[joint]) or not math.isfinite(second_present[joint])
++                   or abs(second_present[joint] - present[joint]) > 0.25 for joint in present):
++                raise RuntimeError("Manual Elbow recovery follower is not stationary")
++            logger.warning("Manual Elbow recovery preflight: elbow=%.3f; no follower configure/torque change",
++                           second_present["elbow_flex"])
++        else:
++            robot.configure()
+         teleop_device.configure()
+         logger.info("Successfully connected to both devices")
+
+@@ -221,6 +248,12 @@
+                         raise RuntimeError("Temporary wrist alignment cannot record a cycle")
+                     first_action = dict(teleop_device.get_action())
+                     follower_start = robot.bus.sync_read("Present_Position")
++                    if recovery_mode:
++                        for joint in ("shoulder_pan", "shoulder_lift", "elbow_flex",
++                                      "wrist_flex", "wrist_roll", "gripper"):
++                            tolerance = 2.5 if joint == "gripper" else 2.0
++                            if abs(first_action[f"{joint}.pos"] - follower_start[joint]) > tolerance:
++                                raise RuntimeError(f"Manual Elbow recovery alignment blocked by {joint}")
+                     for joint in ("shoulder_pan", "shoulder_lift", "wrist_roll", "gripper"):
+                         if abs(first_action[f"{joint}.pos"] - follower_start[joint]) > 2.5:
+                             raise RuntimeError(f"Temporary alignment blocked by {joint} mismatch")
+@@ -250,7 +283,8 @@
+                         if os.environ.get("LELAB_TEMP_WRIST_ALIGN") == "1" and not -95.0 <= action["wrist_flex.pos"] <= 95.0:
+                             raise RuntimeError("Temporary wrist target outside URDF limit")
+                         if os.environ.get("LELAB_TEMP_WRIST_ALIGN") == "1":
+-                            sent_action = guarded_elbow_send(robot, action, previous_elbow_target_deg, logger)
++                            sender = guarded_elbow_recovery_send if recovery_mode else guarded_elbow_send
++                            sent_action = sender(robot, action, previous_elbow_target_deg, logger)
+                             if sent_action is not None:
+                                 previous_elbow_target_deg = sent_action["elbow_flex.pos"]
+                         else:
+@@ -279,7 +313,7 @@
+                         except Exception as e:
+                             logger.error(f"Error broadcasting joint data: {e}")
+
+-                    time.sleep(0.001)
++                    time.sleep(0.02 if recovery_mode else 0.001)
+             except Exception as e:
+                 stop_reason = "worker_error"
+                 logger.error(f"Error during teleoperation loop: {e}")

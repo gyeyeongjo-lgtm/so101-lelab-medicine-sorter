@@ -1,0 +1,9 @@
+--- teleoperate.py
++++ teleoperate.py
+@@ -33,3 +33,6 @@
+ logger = logging.getLogger(__name__)
+
++logger.warning("Five-point manual guard startup: LELAB_TEMP_WRIST_ALIGN=%s guard=guarded_elbow_send",
++               os.environ.get("LELAB_TEMP_WRIST_ALIGN", "unset"))
++
+ # Global variables for teleoperation state
