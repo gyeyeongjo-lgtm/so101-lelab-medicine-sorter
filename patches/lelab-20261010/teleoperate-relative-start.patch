@@ -1,0 +1,90 @@
+--- a/lelab/teleoperate.py
++++ b/lelab/teleoperate.py
+@@ -31,4 +31,13 @@
+ from .teleop_cycle_trace import CycleTrace
+ from .temporary_elbow_direction_guard import guarded_elbow_send
++from .relative_start_teleop import (
++    calibrated_action_bounds,
++    capture_origins,
++    first_relative_target,
++    out_of_range_targets,
++    oversized_arm_steps,
++    relative_target,
++    teleop_mode,
++)
+
+ logger = logging.getLogger(__name__)
+@@ -214,9 +223,31 @@
+             logger.info("Starting teleoperation loop...")
+             try:
++                mode = teleop_mode(os.environ)
++                relative_mode = mode == "relative_start"
+                 wrist_offset_deg = 0.0
+                 elbow_offset_deg = 0.0
+                 previous_elbow_target_deg = None
+                 first_action = None
+-                if os.environ.get("LELAB_TEMP_WRIST_ALIGN") == "1":
++                origins = None
++                servo_bounds = None
++                first_relative_target_pending = False
++                last_relative_hold = None
++                previous_relative_target = None
++                if relative_mode:
++                    if cycle_trace is not None:
++                        raise RuntimeError("relative_start cannot record an absolute teleop cycle")
++                    origins = capture_origins(
++                        teleop_device.get_action,
++                        lambda: robot.bus.sync_read("Present_Position"),
++                    )
++                    servo_bounds = calibrated_action_bounds(robot)
++                    first_relative_target_pending = True
++                    previous_elbow_target_deg = origins.follower["elbow_flex.pos"]
++                    previous_relative_target = dict(origins.follower)
++                    logger.warning(
++                        "relative_start origins captured from fresh calibrated values; "
++                        "static wrist/elbow offsets are disabled"
++                    )
++                elif os.environ.get("LELAB_TEMP_WRIST_ALIGN") == "1":
+                     if cycle_trace is not None:
+                         raise RuntimeError("Temporary wrist alignment cannot record a cycle")
+@@ -244,7 +275,39 @@
+
+                 while teleoperation_active:
+                     if cycle_trace is None:
+-                        if first_action is not None:
++                        if relative_mode:
++                            leader_now = teleop_device.get_action()
++                            if first_relative_target_pending:
++                                action = first_relative_target(origins)
++                                first_relative_target_pending = False
++                            else:
++                                action = relative_target(leader_now, origins)
++                            violations = out_of_range_targets(action, servo_bounds)
++                            if violations:
++                                signature = tuple(sorted(violations.items()))
++                                if signature != last_relative_hold:
++                                    logger.warning(
++                                        "relative_start HOLD: follower targets outside calibrated servo range: %s",
++                                        violations,
++                                    )
++                                last_relative_hold = signature
++                            else:
++                                step_violations = oversized_arm_steps(
++                                    action, previous_relative_target
++                                )
++                                if step_violations:
++                                    raise RuntimeError(
++                                        "relative_start arm command step exceeds 2 degrees: "
++                                        f"{step_violations}"
++                                    )
++                                last_relative_hold = None
++                                sent_action = guarded_elbow_send(
++                                    robot, action, previous_elbow_target_deg, logger
++                                )
++                                if sent_action is not None:
++                                    previous_elbow_target_deg = sent_action["elbow_flex.pos"]
++                                    previous_relative_target = dict(action)
++                        elif first_action is not None:
+                             action, first_action = first_action, None
+                         else:
+                             action = teleop_device.get_action()
