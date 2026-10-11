@@ -1,0 +1,59 @@
+--- a/lelab/teleoperate.py
++++ b/lelab/teleoperate.py
+@@ -32,6 +32,7 @@
+ from .relative_start_teleop import (
+     calibrated_action_bounds,
+     capture_origins,
++    dispatch_guarded_relative_action,
+     first_relative_target,
+     out_of_range_targets,
+     oversized_arm_steps,
+@@ -301,26 +302,31 @@
+                                         f"{step_violations}"
+                                     )
+                                 last_relative_hold = None
+-                                sent_action = guarded_elbow_send(
+-                                    robot, action, previous_elbow_target_deg, logger
++                                dispatch = dispatch_guarded_relative_action(
++                                    action,
++                                    previous_elbow_target_deg,
++                                    previous_relative_target,
++                                    lambda candidate, previous: guarded_elbow_send(
++                                        robot, candidate, previous, logger
++                                    ),
+                                 )
++                                previous_elbow_target_deg = dispatch.previous_elbow_target_deg
++                                previous_relative_target = dispatch.previous_relative_target
++                        else:
++                            if first_action is not None:
++                                action, first_action = first_action, None
++                            else:
++                                action = teleop_device.get_action()
++                                action["wrist_flex.pos"] += wrist_offset_deg
++                                action["elbow_flex.pos"] += elbow_offset_deg
++                            if os.environ.get("LELAB_TEMP_WRIST_ALIGN") == "1" and not -95.0 <= action["wrist_flex.pos"] <= 95.0:
++                                raise RuntimeError("Temporary wrist target outside URDF limit")
++                            if os.environ.get("LELAB_TEMP_WRIST_ALIGN") == "1":
++                                sent_action = guarded_elbow_send(robot, action, previous_elbow_target_deg, logger)
+                                 if sent_action is not None:
+                                     previous_elbow_target_deg = sent_action["elbow_flex.pos"]
+-                                    previous_relative_target = dict(action)
+-                        elif first_action is not None:
+-                            action, first_action = first_action, None
+-                        else:
+-                            action = teleop_device.get_action()
+-                            action["wrist_flex.pos"] += wrist_offset_deg
+-                            action["elbow_flex.pos"] += elbow_offset_deg
+-                        if os.environ.get("LELAB_TEMP_WRIST_ALIGN") == "1" and not -95.0 <= action["wrist_flex.pos"] <= 95.0:
+-                            raise RuntimeError("Temporary wrist target outside URDF limit")
+-                        if os.environ.get("LELAB_TEMP_WRIST_ALIGN") == "1":
+-                            sent_action = guarded_elbow_send(robot, action, previous_elbow_target_deg, logger)
+-                            if sent_action is not None:
+-                                previous_elbow_target_deg = sent_action["elbow_flex.pos"]
+-                        else:
+-                            robot.send_action(action)
++                            else:
++                                robot.send_action(action)
+                     else:
+                         row = cycle_trace.capture_cycle(
+                             teleop_device.get_action,
