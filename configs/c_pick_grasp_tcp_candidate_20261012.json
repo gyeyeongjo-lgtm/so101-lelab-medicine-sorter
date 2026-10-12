@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "status": "OFFLINE_CANDIDATE_ONLY",
+  "urdf_sha256": "443d38d756e01bac7d3455b24430047ddc6427105e0d3454b2003116f5f67236",
+  "calibration_pin_tcp_offset_gripper_mm": [-51.748354423376675, -73.03374105992054, -54.53173724769001],
+  "pick_grasp_tcp_offset_gripper_mm": [-4.748354423376675, -12.03374105992054, -124.53173724769001],
+  "pick_grasp_tcp_y_uncertainty_mm": [-13.03374105992054, -11.03374105992054],
+  "c_robot_xy_mm": [-62.635354, -295.315566],
+  "pre_approach_z_mm": 100.0,
+  "approach_z_mm": 80.0,
+  "saved_follower_joints_deg": [-0.13186813186813187, 17.36263736263736, 15.868131868131869, 10.76923076923077, 14.197802197802197],
+  "saved_follower_pose_source": "last stored read-only settled snapshot; not fresh at planning time",
+  "demonstrated_c_grasp_feedback_joints_deg": [18.065934065934066, -11.296703296703297, 60.0, -32.30769230769231, -11.56043956043956],
+  "demonstrated_c_grasp_source": ".local/teleop-cycle-traces/2026-10-09-c-red/cycles.jsonl seq=60668 feedback; human-confirmed C grasp/slight lift",
+  "servo_bounds_deg": [
+    [-116.374, 116.374],
+    [-99.846, 99.846],
+    [-95.011, 95.011],
+    [-98.615, 98.615],
+    [-154.352, 154.352]
+  ],
+  "maximum_joint_step_deg": 1.0,
+  "wrist_delay_fraction": 0.10,
+  "table_contact_reference_z_mm": 54.659,
+  "motion_authorized": false
+}

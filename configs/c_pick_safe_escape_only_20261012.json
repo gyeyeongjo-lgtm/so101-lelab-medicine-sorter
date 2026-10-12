@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "scope": "c_pick_safe_escape_only",
+  "confirmed_fresh_arm_deg": {
+    "shoulder_pan": -0.04395604395604396,
+    "shoulder_lift": 18.153846153846153,
+    "elbow_flex": 14.813186813186814,
+    "wrist_flex": 10.68131868131868,
+    "wrist_roll": 14.10989010989011
+  },
+  "confirmed_fresh_raw": {
+    "shoulder_pan": 2101,
+    "shoulder_lift": 2161,
+    "elbow_flex": 2152,
+    "wrist_flex": 2202,
+    "wrist_roll": 2025,
+    "gripper": 446
+  },
+  "confirmed_start_tolerance_deg": 0.5,
+  "escape_direction": {
+    "shoulder_pan": 1,
+    "shoulder_lift": -1,
+    "elbow_flex": -1,
+    "wrist_flex": -1,
+    "wrist_roll": 1
+  },
+  "maximum_joint_step_deg": 1.0,
+  "final_tolerance_deg": 0.5,
+  "final_timeout_s": 5.0,
+  "pick_grasp_tcp_offset_gripper_mm": [-4.748354423376675, -12.03374105992054, -124.53173724769001],
+  "table_contact_reference_z_mm": 54.659,
+  "minimum_commanded_table_proxy_margin_mm": 0.0,
+  "urdf_sha256": "443d38d756e01bac7d3455b24430047ddc6427105e0d3454b2003116f5f67236",
+  "follower_port": "/dev/ttyACM1",
+  "follower_serial_short": "5AE6058306",
+  "full_mesh_collision_status": "NOT_VERIFIED",
+  "motion_authorized": false
+}

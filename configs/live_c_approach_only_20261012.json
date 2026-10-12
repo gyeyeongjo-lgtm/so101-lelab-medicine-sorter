@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "scope": "live_c_approach_only",
+  "source_frame_sha256": "9c4eb1fd9efbaf0dc013072f01a83dc5597bd1da50dea1070443cde171f867e3",
+  "c_detection_confidence": 0.797704,
+  "c_robot_xy_mm": [-62.635354, -295.315566],
+  "target_robot_xyz_mm": [-62.635354, -295.315566, 80.0],
+  "target_arm_deg": {
+    "shoulder_pan": -0.096486,
+    "shoulder_lift": 17.400979,
+    "elbow_flex": 14.407074,
+    "wrist_flex": 10.648771,
+    "wrist_roll": 14.577178
+  },
+  "required_start_arm_deg": {
+    "shoulder_pan": -0.21978021978021978,
+    "shoulder_lift": 12.351648351648352,
+    "elbow_flex": 16.13186813186813,
+    "wrist_flex": 13.406593406593407,
+    "wrist_roll": 13.758241758241759
+  },
+  "start_gate_tolerance_deg": 1.0,
+  "staged_reference_start_arm_deg": null,
+  "staged_intermediate_arm_deg": [],
+  "ik_position_residual_mm": 0.023209,
+  "tcp_offset_gripper_mm": [-51.748354423376675, -73.03374105992054, -54.53173724769001],
+  "table_metric_scale": 0.8941815920521514,
+  "urdf_sha256": "443d38d756e01bac7d3455b24430047ddc6427105e0d3454b2003116f5f67236",
+  "follower_port": "/dev/ttyACM1",
+  "follower_serial_short": "5AE6058306",
+  "maximum_joint_step_deg": 1.0,
+  "refine_last_waypoints": 0,
+  "final_refinement_factor": 1,
+  "final_waypoint_timeout_s": 5.0,
+  "execution_mode": "bounded_continuous_following",
+  "following_cadence_s": 0.2,
+  "following_error_limits_deg": {
+    "shoulder_pan": 2.5,
+    "shoulder_lift": 2.5,
+    "elbow_flex": 4.0,
+    "wrist_flex": 2.5,
+    "wrist_roll": 2.5
+  },
+  "following_no_progress_timeout_s": 1.0,
+  "following_progress_epsilon_deg": 0.1,
+  "holds_fresh_gripper_position": true,
+  "orientation_solved": false,
+  "collision_checked": false,
+  "motion_authorized": false
+}
