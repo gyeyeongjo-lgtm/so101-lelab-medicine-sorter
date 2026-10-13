@@ -2,6 +2,14 @@
 
 업데이트: 2026-10-13
 
+## 2026-10-13 GRIPPER OPEN ONLY 실기 1 — 시작 자세 불일치로 송신 전 차단
+
+- 사용자 현장 확인과 `RUN GRIPPER OPEN ONLY` 승인 후 live runner를 시작했으나, 첫 target 전에 fresh arm pose가 저장 기준과 `Pan +0.088 / Lift +1.143 / Elbow +1.055 / Flex -4.659 / Roll +0.000 deg` 달라 `staged_reference_start_mismatch`로 fail-closed 차단했다. 특히 Flex가 전용 `0.5 deg` start tolerance를 초과했다. tolerance를 넓히지 않았고 자동 재시도하지 않았다.
+- `GRIPPER_OPEN_LIVE=BLOCKED_BEFORE_SEND`; arm target send `0`, gripper target send `0`이다. gripper 목표 raw `985`는 기록되지 않았다.
+- 종료 후 write/torque API가 차단된 도구로 follower를 0.2초 간격 3회 읽었고 모두 동일했다. fresh arm은 `[+11.824176,-21.054945,+72.219780,-31.692308,-14.197802] deg`, gripper `22.276622%`; Goal은 `[+11.472527,-21.494505,+71.340659,-32.923077,-14.197802] deg`, gripper `22.766218%`다. raw Present는 `2236/1715/2805/1720/1703/777`, Goal은 `2232/1710/2795/1706/1703/785`다.
+- Moving all `0`, Torque all `1`, Load diagnostic `[28,32,52,68,0,-44]`, Temperature `[35,35,35,37,34,39] C`다. fresh GRASP TCP FK는 `[-46.465817,-292.231151,+93.372621] mm`; full mesh/environment는 `NOT_VERIFIED`다. 현재 gripper가 저장 기준 `2.264382%`와 다른 이유는 이번 실기로 확정하지 않는다.
+- read-only motor/torque write `0/0`, follower port release 뒤 privileged `fuser` owner output 없음, teleoperation/recording/inference inactive, SSH 종료를 확인했다. `GRIPPER_OPEN_PASS=false`, CURRENT→C/APPROACH/GRASP/LIFT 모두 `NOT_RUN`. 상세: [세션](sessions/2026-10-13-gripper-open-only-attempt1.md). 다음 재시험은 fresh pose 기반 one-shot plan을 오프라인 재생성하고 사용자가 정지·finger sweep 비접촉·주변 clear를 다시 확인한 뒤 새로 승인해야 한다.
+
 ## 2026-10-13 CURRENT pose gripper-open-only 실기 준비 완료
 
 - recovery/HOME/PICK_READY 추가 개발은 중단하고 C 실제 PICK을 critical path로 유지했다. 팔은 직전 STOPPED pose `[+11.736264,-22.197802,+71.164835,-27.032967,-14.197802]°`에 유지하며, 이 저장값은 live current로 가정하지 않고 실행 직전 fresh feedback으로 다시 gate한다.
