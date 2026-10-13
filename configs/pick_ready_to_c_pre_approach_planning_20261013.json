@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "urdf_sha256": "443d38d756e01bac7d3455b24430047ddc6427105e0d3454b2003116f5f67236",
+  "pick_ready_joints_deg": [-4.263736263736264, -68.7032967032967, 68.87912087912088, 8.131868131868131, -23.516483516483518],
+  "pick_ready_pose_source": "configs/poses.yaml PICK_READY; three identical fresh post-stop samples recorded 2026-10-13T13:24:50+09:00",
+  "pre_approach_joints_deg": [14.845130, -16.993354, 70.591582, -37.176891, -12.536328],
+  "target_robot_xyz_mm": [-62.635354, -295.315566, 100.0],
+  "grasp_tcp_offset_gripper_mm": [-4.748354423376675, -12.03374105992054, -124.53173724769001],
+  "c_robot_xy_mm": [-62.635354, -295.315566],
+  "demonstrated_c_grasp_joints_deg": [18.065934065934066, -11.296703296703297, 60.0, -32.30769230769231, -11.56043956043956],
+  "servo_bounds_deg": [
+    [-116.374, 116.374],
+    [-99.846, 99.846],
+    [-95.011, 95.011],
+    [-98.615, 98.615],
+    [-154.352, 154.352]
+  ],
+  "lift_relief_deltas_deg": [2.0, 4.0, 6.0],
+  "wrist_delay_fractions": [0.25, 0.35, 0.45],
+  "coupled_fractions": [0.25, 0.5, 0.75],
+  "minimum_effective_raw_delta": 18,
+  "maximum_joint_step_deg": 1.0,
+  "table_reference_z_mm": 54.659,
+  "load_evidence": {
+    "source": "docs/sessions/2026-10-12-safe-escape-deadband-candidates.md",
+    "observed_rule": "10-14 raw stalled; 18 raw began motion; 20-23 raw repeatedly moved",
+    "policy": "relative PICK_READY Lift relief only; HOME absolute Lift anchors and failed HOME path are excluded"
+  },
+  "motion_authorized": false
+}

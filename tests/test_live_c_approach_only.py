@@ -1,4 +1,5 @@
 import io
+import json
 from pathlib import Path
 import tempfile
 import time
@@ -8,6 +9,7 @@ from unittest.mock import patch
 from scripts.live_c_approach_only import (
     RUN_PHRASE, SCOPE, load_approach_plan, run,
 )
+from scripts.live_c_approach import load_plan as load_generic_plan
 from scripts.staged_cycle_execution import Feedback, JOINT_UNITS
 
 
@@ -94,6 +96,33 @@ class LiveCApproachOnlyTests(unittest.TestCase):
             "wrist_roll": 14.577178,
         })
         self.assertEqual(plan["staged_intermediate_arm_deg"], [])
+
+    def test_generic_runner_loader_does_not_admit_legacy_scope(self):
+        with self.assertRaisesRegex(ValueError, "approach_plan_contract_mismatch"):
+            load_generic_plan(PLAN)
+
+    def test_legacy_scope_requires_exact_string_request(self):
+        with self.assertRaisesRegex(ValueError, "approach_plan_contract_mismatch"):
+            load_generic_plan(PLAN, expected_scope=(SCOPE,))
+
+    def test_legacy_scope_rejects_modern_execution_metadata(self):
+        raw = json.loads(PLAN.read_text())
+        staged = dict(raw["required_start_arm_deg"])
+        changes = (
+            {"start_pose_name": "HOME"},
+            {"wrist_lead_phase": "WRIST_LEAD_2DEG"},
+            {
+                "staged_reference_start_arm_deg": staged,
+                "staged_intermediate_arm_deg": [staged],
+            },
+        )
+        for change in changes:
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "plan.json"
+                path.write_text(json.dumps({**raw, **change}))
+                with self.assertRaisesRegex(
+                        ValueError, "legacy_approach_only_contract_invalid"):
+                    load_approach_plan(path)
 
     def test_dry_run_never_opens_transport(self):
         opened = []

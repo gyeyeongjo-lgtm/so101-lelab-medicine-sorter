@@ -22,6 +22,7 @@ else:
 
 
 ARM_NAMES = tuple(name for name in JOINT_UNITS if name != "gripper")
+MAX_TEMPERATURE_C = 55
 
 
 @dataclass(frozen=True)
@@ -32,6 +33,7 @@ class FollowingTelemetry:
     present_raw: Mapping[str, int]
     moving: Mapping[str, int]
     present_load: Mapping[str, int]
+    temperature_c: Mapping[str, int] | None = None
 
 
 class ContinuousFollowingCycle(StagedCycle):
@@ -101,6 +103,7 @@ class ContinuousFollowingCycle(StagedCycle):
             "following_error": errors,
             "moving": None if telemetry is None else dict(telemetry.moving),
             "present_load": None if telemetry is None else dict(telemetry.present_load),
+            "temperature_c": None if telemetry is None else dict(telemetry.temperature_c),
             "action": action,
             "detail": detail,
         }
@@ -114,14 +117,23 @@ class ContinuousFollowingCycle(StagedCycle):
             raise RuntimeError("following_telemetry_unavailable")
         sample = reader()
         now = time.monotonic()
+        if not isinstance(sample, FollowingTelemetry):
+            raise RuntimeError("following_feedback_invalid_or_stale")
         mappings = (sample.positions, sample.goal_raw, sample.present_raw,
                     sample.moving, sample.present_load)
-        if (not isinstance(sample, FollowingTelemetry) or
-                any(set(mapping) != set(JOINT_UNITS) for mapping in mappings) or
+        if (any(set(mapping) != set(JOINT_UNITS) for mapping in mappings) or
                 not sample.received_monotonic <= now or
                 now - sample.received_monotonic > self.feedback_max_age_s or
                 any(not math.isfinite(float(sample.positions[name])) for name in JOINT_UNITS)):
             raise RuntimeError("following_feedback_invalid_or_stale")
+        if (not isinstance(sample.temperature_c, Mapping) or
+                set(sample.temperature_c) != set(JOINT_UNITS) or
+                any(type(sample.temperature_c[name]) is not int
+                    for name in JOINT_UNITS)):
+            raise RuntimeError("following_temperature_invalid")
+        if any(sample.temperature_c[name] > MAX_TEMPERATURE_C
+               for name in JOINT_UNITS):
+            raise RuntimeError("following_temperature_limit_exceeded")
         return sample
 
     def _validate_path(self, goals: list[dict[str, float]]) -> None:
@@ -198,8 +210,11 @@ class ContinuousFollowingCycle(StagedCycle):
         deadline = send_finished + self.final_timeout_s
         while not self._stop.is_set():
             now = time.monotonic()
-            reached = all(abs(sample.positions[name] - goal[name]) <= self.tolerances[name]
-                          for name in JOINT_UNITS)
+            reached = (
+                all(abs(sample.positions[name] - goal[name]) <= self.tolerances[name]
+                    for name in JOINT_UNITS)
+                and all(sample.moving[name] == 0 for name in JOINT_UNITS)
+            )
             if reached:
                 if stable_since is None:
                     stable_since = now

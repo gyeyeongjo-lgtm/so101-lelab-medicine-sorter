@@ -379,6 +379,14 @@ class SO101FollowerTransport:
                 key: bus.sync_read(register, normalize=False, num_retry=2)
                 for key, register in registers.items()
             }
+            # Temperature is read per axis.  A prior grouped status read on
+            # this hardware returned a mismatched packet, so the live safety
+            # gate must not depend on that grouped status path.
+            values["temperature_c"] = {
+                name: int(bus.read(
+                    "Present_Temperature", name, normalize=False, num_retry=2))
+                for name in JOINT_UNITS
+            }
             if any(set(item) != set(JOINT_UNITS) for item in values.values()):
                 raise ValueError("following_telemetry_shape_mismatch")
             positions = {}
@@ -392,6 +400,50 @@ class SO101FollowerTransport:
                 present_raw={name: int(value) for name, value in values["present_raw"].items()},
                 moving={name: int(value) for name, value in values["moving"].items()},
                 present_load={name: int(value) for name, value in values["present_load"].items()},
+                temperature_c={name: int(value)
+                               for name, value in values["temperature_c"].items()},
+            )
+        finally:
+            self._busy = False
+
+    def read_escape_telemetry(self) -> FollowingTelemetry:
+        """Read per-axis escape telemetry, including temperature, without a write.
+
+        Individual reads are deliberate: a prior grouped status read returned
+        an incorrect packet on this hardware.  No value from a failed group
+        read is used as an escape decision.
+        """
+        self.lease.ensure_exclusive()
+        self._busy = True
+        try:
+            bus = self.robot.bus
+            registers = {
+                "goal_raw": "Goal_Position",
+                "present_raw": "Present_Position",
+                "moving": "Moving",
+                "present_load": "Present_Load",
+                "temperature_c": "Present_Temperature",
+            }
+            values = {
+                key: {
+                    name: int(bus.read(
+                        register, name, normalize=False, num_retry=2))
+                    for name in JOINT_UNITS
+                }
+                for key, register in registers.items()
+            }
+            positions = {}
+            for name, raw in values["present_raw"].items():
+                motor_id = bus.motors[name].id
+                positions[name] = float(bus._normalize({motor_id: raw})[motor_id])
+            return FollowingTelemetry(
+                positions=positions,
+                received_monotonic=time.monotonic(),
+                goal_raw=values["goal_raw"],
+                present_raw=values["present_raw"],
+                moving=values["moving"],
+                present_load=values["present_load"],
+                temperature_c=values["temperature_c"],
             )
         finally:
             self._busy = False

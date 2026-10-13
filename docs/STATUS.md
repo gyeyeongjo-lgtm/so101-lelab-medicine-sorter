@@ -1,6 +1,253 @@
 # 현재 상태
 
-업데이트: 2026-10-12
+업데이트: 2026-10-13
+
+## 2026-10-13 CURRENT→C PRE APPROACH 짧은 경로 OFFLINE READY·gripper blocker
+
+- canonical PICK_READY 복귀를 중단하고, 직전 STOPPED 뒤 read-only 3회가 동일했던 current arm `[+11.736264,-22.197802,+71.164835,-27.032967,-14.197802]°`에서 기존 C PRE_APPROACH endpoint로 직접 이어지는 짧은 전용 경로를 생성했다. live runner는 이 snapshot을 현재값으로 대체하지 않고 first target 전 fresh feedback/start tolerance를 다시 검사한다.
+- start→target delta는 `[+3.108866,+5.204448,-0.573253,-10.143924,+1.661474]°`다. `DIRECT_COUPLED/WRIST_LEAD_2DEG/WRIST_LEAD_3DEG`를 비교해, 직전 forward 실기의 Wrist terminal lag를 반영한 exact `WRIST_LEAD_2DEG`를 선택했다. Flex `-1°×2` 뒤 actual feedback에서 coupled remainder를 다시 생성한다.
+- nominal `11` waypoint, max step `1.0°`; GRASP TCP는 `[-45.732137,-290.790629,+89.193802]→[-46.253094,-293.298410,+95.151348]→[-62.635356,-295.315566,+100.000001] mm`다. TCP Z는 전 구간 단조 증가(min `+0.537511 mm/step`), C XY distance는 `17.498394→0.000002259 mm`로 단조 감소한다.
+- minimum TCP table-point margin `+34.534802 mm`, non-base link-origin margin `+40.222700 mm`, self centerline `64.775222 mm` PASS, servo margin `23.846165°`, final TCP error `0.000002570 mm`다. table 값은 TCP-point proxy이고 finger/link full mesh/environment는 계속 `NOT_VERIFIED`다.
+- runner는 Wrist 두 target만 보낸 뒤 fresh direction/`±0.5°`/Moving settle/non-command drift `≤1°`/actual FK Z 증가/Temperature `≤55°C`/freshness gate를 통과해야 coupled target을 만든다. FAIL이면 no further target·현재 Goal/torque 유지·STOP이다. live FK URDF SHA 검증과 strict final tolerance(Pan/Flex/Roll `0.5°`, Lift/Elbow `1.5°`)도 적용했다.
+- **live blocker:** current gripper `2.264382%`는 기존 `c_grasp_open=35.0%`보다 닫힌 쪽이고 직전 실기에서 finger-tip contact가 있었다. runner는 initial/verified/pre-send fresh gripper가 `35.0%` 미만이면 arm `SEND=0`으로 차단한다. 별도 gripper-open-only 계획·finger sweep 현장 clearance·승인 전에는 `RUN CURRENT TO C PRE APPROACH`를 요청하지 않는다.
+- 관련 테스트 `61/61`, py_compile/JSON/diff-check/local explicit dry-run PASS. Jetson 새 `/home/jetson3/so101-current-to-c-pre-approach-20261013/`에만 사본을 배치했고 설치 Python `3.14.7` py_compile·explicit dry-run, local/remote SHA 8개 일치를 확인했다. dry-run은 `no port opened; no send_action`; hardware command `0`이다. 상세: [세션](sessions/2026-10-13-current-to-c-pre-approach-ready.md).
+- Git 사전검증에서 공용 plan loader가 기존 `live_c_approach_only` wrapper scope를 거부하는 회귀 4건을 발견했다. legacy wrapper가 정확한 문자열 scope를 요청할 때만 load-only 호환을 허용했고 generic runner/CLI scope는 넓히지 않았다. 날짜별 누적 관련 회귀는 `119/119 PASS`; 전체 discovery는 `419`개 중 변경 코드 회귀 없이 환경 의존 오류 `11`개(`cv2` 미설치 7, sandbox localhost bind 제한 4)만 남았다.
+- 날짜별 Git 동기화 단위는 2026-10-12 커밋 `90bab23`과 `Record 2026-10-13 PICK_READY and C approach work`로 고정했다. 원본 `.jsonl` 로그·자격증명·데이터셋은 제외했고, 이번 범위와 무관한 ArUco SVG 3개와 ChArUco PDF 1개 삭제도 포함하지 않는다.
+
+## 2026-10-13 C PRE APPROACH→PICK_READY 복귀 실기 2 — waypoint 9 no-progress FAIL·STOPPED
+
+- 사용자 승인 `RUN C PRE APPROACH TO PICK READY` 범위에서 수정된 기존 stage 계약으로 복귀 실기 2를 시작했다. fresh start는 저장된 `C_PRE_APPROACH_ACTUAL_ATTEMPT1`과 정확히 일치했고 복귀 경로는 `61` waypoint였다.
+- waypoint `1–9` target만 송신했다. waypoint `9/61`에서 Shoulder Lift target/present following error가 `2.633962°`였고 Moving은 all `0`이었다. controller는 `following_limit_exceeded`로 PAUSE한 뒤 약 1초 동안 진전이 없어 `following_no_progress_timeout`으로 ABORT했다. 후속 `52` target은 보내지 않았고 자동 재시도하지 않았다.
+- 원본 로그는 `.local/pick-ready-20261013/c_pre_approach_to_pick_ready_attempt2.jsonl`, SHA `7e5617b7…9712`, `11`행(`SEND 9 / PAUSE 1 / ABORT 1`)이다. 원본 로그는 ignored 로컬 증거이며 커밋하지 않는다.
+- 사용자 `STOPPED` 뒤 read-only 3회는 `[+11.736264,-22.197802,+71.164835,-27.032967,-14.197802]°`로 동일했다. Goal-Present는 `[-0.087912,-2.637363,-0.879121,0,-0.263736]°`, Moving all `0`, Load diagnostic `[0,132,52,0,24,0]`, max Temperature `40°C`, Torque all `1`이다.
+- current GRASP TCP는 `[-45.732137,-290.790629,+89.193802] mm`, run start 대비 `[+14.909815,+2.861907,-4.414077] mm`; C XY distance `17.498394 mm`, table point proxy `+34.534802 mm`, self centerline `64.775222 mm` PASS, servo margin `23.846165°`다. full mesh/environment는 `NOT_VERIFIED`다.
+- `PICK_READY_RETURN_PASS=false`, `physical_stop=FEEDBACK_AND_HUMAN_CONFIRMED`; follower port는 해제되어 privileged `fuser rc=1` 무점유다. tolerance/gate/gain/torque/TCP/endpoint는 변경하지 않았다. retry는 `NOT_RUN/NOT_AUTHORIZED`; 상세: [세션](sessions/2026-10-13-c-pre-approach-to-pick-ready-attempt2.md). `NOT_COMMITTED/NOT_PUSHED`.
+
+## 2026-10-13 C PRE APPROACH→PICK_READY 복귀 실기 1 — pre-send stage contract ABORT·STOPPED
+
+- 사용자 승인 `RUN C PRE APPROACH TO PICK READY` 범위에서 복귀 실기 1을 시작했다. teleoperation/recording/inference inactive와 follower 단독 ownership을 확인했고, fresh start는 저장된 `C_PRE_APPROACH_ACTUAL_ATTEMPT1`과 정확히 일치했다. 이 fresh feedback으로 복귀 경로 `61` waypoint를 정상 생성했다.
+- 첫 target 송신 전 `ContinuousFollowingCycle.start_stage()`에 return 전용 내부 stage 이름 `return_to_pick_ready`를 전달했다. 기존 controller 계약의 첫 stage는 `STAGES[0]=approach`이므로 `stage_order_or_cycle_complete`가 발생해 fail-closed ABORT했다.
+- following log 파일은 생성되지 않았고 `SEND=0`, Goal write/motor command `0`이다. 따라서 로봇은 C PRE_APPROACH actual pose에서 움직이지 않았으며 `PICK_READY_RETURN_PASS=false`다. 이번 결과는 return path tracking 실패가 아니라 **첫 송신 전 runner↔기존 stage-machine 계약 불일치**다.
+- 사용자가 `정지이고 비접촉상태임`과 `STOPPED`를 확인해 `physical_stop=FEEDBACK_AND_HUMAN_CONFIRMED`다. 종료 후 teleoperation/recording/inference는 모두 false이고 privileged follower `fuser rc=1`로 무점유다.
+- 새 framework나 stage를 추가하지 않았다. 외부 return scope, 승인·완료 문구와 marker는 그대로 두고, fresh one-shot controller의 내부 stage만 기존 `approach`로 매핑했다. return scope가 내부 `approach`를 사용하면서도 `PICK_READY_REACHED/PICK_READY_RETURN_PASS`만 출력하는 회귀를 추가했다.
+- 수정 후 live runner `27/27`, staged cycle `10/10`, continuous following `10/10` PASS다. Jetson 설치 Python py_compile과 exact dry-run도 `no port opened; no send_action`으로 PASS했고, runner local/remote SHA는 `a8bdda8e…bff13`으로 일치한다.
+- actual retry는 `NOT_RUN/NOT_AUTHORIZED`, hardware command `0`이다. 상세: [세션](sessions/2026-10-13-c-pre-approach-to-pick-ready-attempt1.md). 수정본 재시도는 정지·비접촉·주변 clear를 다시 확인하고 `RUN C PRE APPROACH TO PICK READY`를 새로 승인받은 뒤에만 한다. `NOT_COMMITTED/NOT_PUSHED`.
+
+## 2026-10-13 C PRE APPROACH→PICK_READY 복귀 경로 OFFLINE READY
+
+- 직전 실기 종료 actual pose `[+14.549451,-16.571429,+70.725275,-35.912088,-12.879121]°`에서 canonical PICK_READY `[-4.263736,-68.703297,+68.879121,+8.131868,-23.516484]°`로만 복귀하는 전용 경로를 만들었다. 기존 성공 stage coordination을 역방향으로 사용하되 nominal endpoint가 아니라 fresh actual start에서 첫 구간을 다시 생성했다.
+- 경로는 `61` waypoint, segment `14/16/16/13/2`, max step `1.0°`다. GRASP TCP Z는 `93.607879→184.960142 mm`로 매 waypoint 단조 증가하고 최저 증가량은 `+0.397176 mm`; C XY distance는 `2.596020→94.924111 mm`로 물체에서 후퇴한다.
+- min TCP/table proxy `+38.948879 mm`, non-base link-origin margin `+40.222700 mm`, self centerline `64.775222 mm` PASS, servo margin `24.285725°`다. full mesh/environment는 `NOT_VERIFIED`다.
+- runner는 별도 scope `live_c_return_to_pick_ready_only`, 승인 문구 `RUN C PRE APPROACH TO PICK READY`, 완료 확인 `PICK_READY CONFIRMED`, marker `PICK_READY_RETURN_PASS`를 사용한다. 독립 리뷰에서 기존 공통 arm final tolerance `1.6°`가 canonical PICK_READY 복귀 검증을 느슨하게 만드는 blocker를 발견해, return scope만 Pan/Flex/Roll `0.5°`, Lift/Elbow `1.5°`, gripper `2.0 pp`로 fail-closed 분리했다. start drift/fresh feedback/ownership/servo/Temperature/following/no-progress/final Moving gate를 유지하고 Load는 diagnostic only다.
+- 새 회귀 포함 live runner `26/26`, continuous following `10/10`, exclusive transport `13/13`, py_compile·JSON·exact dry-run·diff-check PASS다. Jetson 별도 `/home/jetson3/so101-c-pre-approach-return-pick-ready-20261013/`에 6개 실행 파일/config를 배치했고 설치 Python py_compile·dry-run, local/remote SHA 6개 일치를 확인했다. dry-run은 `no port opened; no send_action`; 세 control false, canonical follower `/dev/ttyACM1=5AE6058306`, privileged `fuser rc=1` 무점유다.
+- 이 준비 뒤 복귀 실기 1은 첫 target 전 stage 계약 불일치로 `SEND=0` ABORT했고, 위 최신 섹션처럼 runner를 국소 수정·재검증했다. 수정본 actual retry는 `NOT_RUN/NOT_AUTHORIZED`, hardware command `0`, `PICK_READY_RETURN_PASS=false`다. 상세: [준비 세션](sessions/2026-10-13-c-pre-approach-to-pick-ready-ready.md), [실기 1 세션](sessions/2026-10-13-c-pre-approach-to-pick-ready-attempt1.md). `NOT_COMMITTED/NOT_PUSHED`.
+
+## 2026-10-13 PICK_READY→C PRE APPROACH 실기 1 — human geometry FAIL·STOPPED
+
+- 사용자 승인 `RUN PICK READY TO C PRE APPROACH` 범위에서 fresh start가 canonical PICK_READY와 일치한 뒤 C PRE_APPROACH까지만 실행했다. 63/63 target을 송신했고 로그는 `SEND 63 / final PAUSE 2 / ABORT 0`, max Temperature `37°C`, max absolute following error `1.491318°`, final Moving all `0`이었다.
+- final stable feedback은 `[+14.461538,-16.571429,+70.725275,-35.912088,-12.879121]°`; target 대비 오차는 `[-0.383592,+0.421925,+0.133693,+1.264803,-0.342793]°`다. controller tracking 완료와 실제 gripper geometry acceptance를 분리한다.
+- 사용자는 현장에서 `FAIL — 거의 비슷했고 gripper 두 finger 끝이 C에 닿음`으로 판정했다. 두 finger 사이 opening center의 C 정렬을 실제 확인하지 못했으므로 `PRE_APPROACH_PASS=false`; APPROACH/GRASP/LIFT/PLACE는 모두 `NOT_RUN`이다. 이 관찰만으로 GRASP TCP, C XY, calibration, endpoint를 수정하지 않았고 fingertip/full mesh geometry는 `NOT_VERIFIED`다.
+- 사용자 `STOPPED` 뒤 read-only 3회는 `[+14.549451,-16.571429,+70.725275,-35.912088,-12.879121]°`로 동일했다. Moving all `0`, max Temperature `37°C`, Torque all `1`; actual GRASP TCP `[-60.641952,-293.652536,+93.607879] mm`, nominal endpoint까지 `6.899170 mm`, C XY까지 `2.596020 mm`다. `physical_stop=FEEDBACK_AND_HUMAN_CONFIRMED`.
+- 원본 로그 `.local/pick-ready-20261013/pick_ready_to_c_pre_approach_attempt1.jsonl`, SHA `d84aa86c…935`, 65행. 원본 로그는 커밋하지 않는다. 상세: [세션](sessions/2026-10-13-pick-ready-to-c-pre-approach-attempt1.md). `NOT_COMMITTED/NOT_PUSHED`.
+
+## 2026-10-13 PICK_READY→C PRE_APPROACH 오프라인 경로 READY
+
+- 기록된 PICK_READY `[-4.263736,-68.703297,+68.879121,+8.131868,-23.516484]°`에서 고정 C PREAPPROACH endpoint `[+14.845130,-16.993354,+70.591582,-37.176891,-12.536328]°`까지 새 경로를 생성했다. 과거 HOME→C 실패 경로와 HOME 절대 Lift anchor는 재사용하지 않았다.
+- 상대 Lift relief `+2/+4/+6°`와 Wrist delay `25/35/45%`의 9개 후보를 비교해 가장 작은 `RELIEF_PLUS_2P0_WRIST_DELAY_25`를 선정했다. 첫 stage는 Lift만 `+2°` 움직여 예상 `23 raw`로 실측 최소 유효 `18 raw`를 넘고, 이후 Lift/Elbow 결합과 delayed Wrist를 적용한다.
+- 추천 경로는 `63` waypoint, max step `1.0°`; GRASP TCP는 `[+30.308815,-276.029085,+184.960142]→[-62.635356,-295.315566,+100.000001] mm`, C XY distance `94.924111→0.000002 mm`다. TCP Z는 단조 하강하며 min table point margin `+45.341001 mm`, non-base link-origin margin `+40.222700 mm`, self centerline `64.775222 mm` PASS, servo margin `24.419418°`다. endpoint tool/jaw error는 `3.089708/0.673228°`, final target error `0.000002570 mm`; full mesh/environment는 `NOT_VERIFIED`다.
+- runner는 `PICK_READY`와 전용 승인 문구, recorded start 기준 축별 tolerance(Pan/Flex/Roll `0.5°`, Lift/Elbow `1.5°`)를 fail-closed로 지원한다. 독립 리뷰에서 continuous-following의 온도 read/gate와 final Moving settle 누락을 찾아 실행 전에 보완했다. 이제 모든 fresh telemetry에서 6축 `Temperature<=55°C`를 검사하고 최종 PASS에는 `Moving all 0`이 필요하다. 기존 ownership/fresh feedback/servo/following/no-progress/physical-stop gate는 유지했고 Load는 diagnostic only, PIN TCP는 calibration only다.
+- 관련 테스트는 record `5/5`, planner `5/5`, live `22/22`, continuous following `10/10`, exclusive transport `13/13`, escape 회귀 `8/8`, Wrist escape 회귀 `4/4` PASS. local exact dry-run은 `no port opened; no send_action`이다. Jetson 별도 `/home/jetson3/so101-pick-ready-c-pre-approach-20261013/`에 보완본을 다시 배치했고 설치 Python py_compile·dry-run 및 local/Jetson SHA 일치를 확인했다. service/USB/Goal/Torque/motor command `0`.
+- 실제 이동은 `NOT_RUN/NOT_AUTHORIZED`, APPROACH/GRASP/LIFT도 `NOT_RUN`, `NOT_COMMITTED/NOT_PUSHED`. 상세: [세션](sessions/2026-10-13-pick-ready-to-c-pre-approach-ready.md). 다음 승인 문구는 `RUN PICK READY TO C PRE APPROACH` 하나다.
+
+## 2026-10-13 PICK_READY/VISION_READY canonical 기록 PASS
+
+- 사용자 승인 `RUN SUPERVISED TELEOP TO PICK_READY`로 canonical 8000의 기존 `relative_start` teleoperation을 사용해 사용자가 PICK_READY를 만들었다. `PICK_READY REACHED` 뒤 teleoperation을 먼저 종료했고 API inactive와 leader `/dev/ttyACM0`, follower `/dev/ttyACM1`의 privileged 무점유를 확인했다.
+- 사용자가 `STOPPED·전체 링크 비접촉·주변 clear·camera view clear`를 확인한 뒤 write·torque API가 차단된 도구로 follower를 3회 직접 읽었다. 세 Present 표본은 모두 `[-4.263736,-68.703297,+68.879121,+8.131868,-23.516484]°`, raw `[2053,1173,2767,2173,1597,447]`로 동일했고 Moving all `0`, Torque all `1`, 최고 온도 `36°C`였다.
+- 새 GRASP TCP FK는 `[+30.308815,-276.029085,+184.960142] mm`다. table `Z=54.659 mm` 대비 `+130.301142 mm`, 기존 PICK_READY 기준 `Z>=154.659 mm` 대비 `+30.301142 mm`로 PASS다. Lift lower/upper calibration margin은 `33.142857/170.549451°`, Elbow는 `165.890110/28.131868°`다. 새 edge threshold는 만들지 않았다.
+- record runner의 motor write/torque change는 `0/0`, 종료 뒤 port release와 세 control inactive를 재확인했다. Present_Load `[0,64,64,52,20,0]`은 diagnostic only다. `configs/poses.yaml`에 `PICK_READY=RECORDED`로 저장했고 YAML/schema·raw↔degree·FK·margin·telemetry 검산 및 관련 테스트 `5/5`, py_compile, diff-check PASS다.
+- A/B/C 및 RED/GREEN/BLUE 자동 경로, 9개 조합, full mesh/environment는 계속 `NOT_VERIFIED`다. 상세: [세션](sessions/2026-10-13-pick-ready-recorded.md). 다음 작업은 과거 HOME→C 실패 경로를 재사용하지 않고 PICK_READY→C PRE_APPROACH를 새로 오프라인 생성·검증하는 것이다. `NOT_COMMITTED/NOT_PUSHED`.
+
+## 2026-10-12 긴급 일정 전략 — PICK_READY/VISION_READY supervised 기록 준비 완료
+
+- 2026-10-17 시연 성공을 최우선으로 두고 HOME→object 자동 최적화와 HOME↔SAFE_HIGH 자동 왕복을 critical path에서 제외했다. canonical runtime start는 새 `PICK_READY`, alias는 `VISION_READY`다. HOME은 storage/parking, SAFE_HIGH는 recovery/fallback/optional transport-safe pose로 보존한다.
+- 현재 pose는 직전 HOME→C 실패 뒤 `[+4.879121,-40.571429,+78.461538,-5.494505,-12.615385]°`, GRASP TCP Z `68.470056 mm`인 낮은 중간 자세이므로 PICK_READY로 저장하지 않는다. `PICK_READY=NOT_RECORDED`; 사용자의 supervised relative-start teleop으로 새 자세를 만든 뒤에만 canonical 값을 기록한다.
+- live 준비를 read-only 확인했다. canonical 8000 LeLab service는 active/running, `LELAB_TELEOP_MODE=relative_start`; teleoperation/recording/inference inactive다. leader `/dev/ttyACM0=5AE6085272`, follower `/dev/ttyACM1=5AE6058306`, 8002/8003 listener와 관련 제어 worker는 없다.
+- 다음 live 범위는 canonical 8000 단일 ownership, `/move-arm` 1회, fresh relative origins, 사용자 무입력 3초 startup stillness 확인 뒤 사람이 leader로 PICK_READY를 만드는 것뿐이다. Torque OFF 수동 이동, 자동 waypoint, HOME/SAFE_HIGH 이동, pick은 포함하지 않는다. 시작 jump·예상 밖 movement·contact·feedback fault 시 즉시 stop한다.
+- PICK_READY는 기존 table `Z=54.659 mm`와 기존 `table+100 mm` clearance 기준을 재사용해 GRASP TCP Z `>=154.659 mm`를 요구한다. Elbow/Lift의 양쪽 calibration margin은 실제 값으로 보고하고 임의의 새 numeric edge threshold는 만들지 않는다. A/B/C 접근성, 세 바구니 이동 방해 없음, camera view, 전체 링크 비접촉은 사용자가 현장에서 확인하며 9개 조합 경로는 아직 `NOT_VERIFIED`다.
+- 도달 후 teleop을 먼저 stop/disconnect하고 follower Present 3회를 read-only 측정한다. joint raw/degree mean·std, FK GRASP TCP, Temperature mean/max/std, recorded_at, note를 `configs/poses.yaml`에 `PICK_READY=RECORDED`로 병합한다. Load는 diagnostic only, Temperature `<=55°C`, Moving all `0`, feedback freshness를 유지한다.
+- pose helper를 `PICK_READY`와 temperature 기록에 확장하되 기존 HOME+SAFE_HIGH return-pair 계약을 보존했다. `configs/poses.yaml`에 `runtime_start_pose=PICK_READY`, 역할 metadata, `PICK_READY=NOT_RECORDED`를 추가했고 plan은 `configs/pick_ready_record_plan_20261012.json`에 고정했다. 관련 회귀 `15/15`, py_compile, JSON/YAML validation, diff-check PASS.
+- 실제 teleop/motor/Goal/Torque/service/USB 변경은 `0`, `PICK_READY_RECORD=NOT_RUN/NOT_AUTHORIZED`. 기록 성공 직후 별도 지시를 기다리지 않고 PICK_READY→C PRE_APPROACH 오프라인 path/test를 시작하되 실제 command 전에 다시 승인받는다. 상세: [세션](sessions/2026-10-12-pick-ready-supervised-teleop-plan.md). 다음 승인 문구는 `RUN SUPERVISED TELEOP TO PICK_READY`다. `NOT_COMMITTED/NOT_PUSHED`.
+
+## 2026-10-12 HOME→C PRE_APPROACH 실기 1 — waypoint 29 no-progress FAIL·STOPPED
+
+- 사용자 승인 `RUN HOME TO C PRE APPROACH` 범위로 C PRE_APPROACH까지만 실행했다. 첫 원격 시작은 `sudo`가 TTY password read를 거부해 follower port open·Goal·motor command 전에 종료됐고, 같은 승인 범위에서 `sudo -S` ownership gate로 다시 시작했다.
+- preflight는 LeLab health 정상, teleoperation/recording/inference inactive, follower `/dev/ttyACM1=5AE6058306`, privileged fuser 무점유, local/Jetson runner/config SHA 일치였다. fresh start `[-2.593407,-63.956044,+77.406593,+18.241758,-12.615385]°`가 기존 HOME tolerance를 통과해 `START_POSE_CONFIRMED=HOME`; fresh start 기준 경로는 `60` waypoint였다.
+- first Lift-only relief는 waypoint 4에서 완료됐다. waypoint 18 `COUPLED_TRANSITION` 시 Elbow target/present error는 `+2.934522°`; `WRIST_COUPLED` 진행 중 waypoint `29/60` target `[+5.191654,-40.800604,+74.364178,-6.693373,-12.580091]°`에서 Elbow error가 `+4.097361°`로 continuous following limit `4.0°`를 넘었다.
+- controller는 `following_limit_exceeded`로 PAUSE한 뒤 약 1초 동안 Elbow 진전이 없어 `following_no_progress_timeout` ABORT했다. 29개 target만 송신했고 후속 31개 target, APPROACH, grasp, lift, place는 실행하지 않았다. tolerance/gate/endpoint/TCP/calibration은 변경하지 않았고 자동 재시도하지 않았다.
+- post-stop read-only 3회 Present는 `[+4.879121,-40.571429,+78.461538,-5.494505,-12.615385]°`로 동일했다. Goal-Present는 Pan/Lift/Elbow/Flex/Roll `[+0.263736,-0.263736,-4.131868,-1.230769,0]°`; Moving all `0`, Load diagnostic `[-24,+24,+200,+68,0]`, max Temperature `45°C`, Torque all `1`이다.
+- actual final GRASP TCP는 `[-10.546107,-262.235242,+68.470056] mm`, C XY 잔여 `61.705733 mm`, table point proxy margin `+13.811056 mm`, self-collision centerline proxy `53.946249 mm` PASS다. waypoint 29 nominal target TCP Z `91.972426 mm`보다 실제가 낮은 것은 Elbow/Flex tracking lag와 일치한다. full mesh/environment는 `NOT_VERIFIED`다.
+- 사용자의 `STOPPED`와 feedback 정지로 `physical_stop=FEEDBACK_AND_HUMAN_CONFIRMED`; post-run LeLab 세 control inactive, follower privileged fuser 무점유다. 원본 로그 `.local/home-c-pre-approach-20261012/home_to_c_pre_approach_attempt1.jsonl`, SHA `df364bd5…de1`, `31`행(`SEND 29 / PAUSE 1 / ABORT 1`). `PRE_APPROACH_PASS=false`, 다음 live command `NONE`; [세션](sessions/2026-10-12-home-to-c-pre-approach-attempt1.md). `NOT_COMMITTED/NOT_PUSHED`.
+
+## 2026-10-12 이전 전략 — HOME→C PRE_APPROACH 오프라인 준비 완료 (SUPERSEDED)
+
+> HOME은 보관 자세로 유지하지만 더 이상 canonical runtime start가 아니다. 아래 경로는 재실행하지 않는 historical evidence다.
+
+- canonical `START_POSE`를 기록된 HOME `[-2.593407,-65.274725,+77.406593,+17.890110,-12.615385]°`로 확정했다. SAFE_HIGH는 recovery/fallback/optional transport-safe pose로 보존하며, 직전 SAFE_HIGH→C 실패 경로와 HOME↔SAFE_HIGH 자동화는 C→RED critical path에서 제외했다.
+- write/torque API를 차단한 read-only fresh 3회에서 Present는 `[-2.593407,-63.956044,+77.406593,+18.241758,-12.615385]°`로 동일했다. canonical HOME 대비 `[0,+1.318681,0,+0.351648,0]°`; 기존 HOME tolerance Pan/Flex/Roll `0.5°`, Lift/Elbow `1.5°`를 통과해 `HOME_NEAR=true`다. Moving all `0`, Torque all `1`, max Temperature `43°C`, Elbow Goal-Present `-2.021978°`, Load diagnostic `104`다. viewer motor/Goal/Torque command는 `0`이고 종료 뒤 follower port를 해제했다.
+- 기존 실측 `10–14 raw 정체 / 18 raw movement 시작 / 20–23 raw 반복 movement`와 성공한 Lift-first·Shoulder–Elbow coupling·delayed Wrist 로그를 사용해 `HOME→LIFT_RELIEF→COUPLED_TRANSITION→WRIST_COUPLED→C_PRE_APPROACH` 후보를 생성했다. `LIFT_NEG65P0`는 예상 `3 raw`로 evidence gate FAIL, `LIFT_NEG60P0`와 `LIFT_NEG55P0`는 각각 `60/117 raw`로 PASS다.
+- 최소 유효 변화인 `LIFT_NEG60P0`를 추천한다. `62` waypoint, max step `0.983339°`, GRASP TCP Z `99.167→81.035→87.655→93.013→97.103→100.000 mm`, C XY distance `93.008→95.372→71.684→47.701→23.718→0.000002 mm`다. 최저 TCP/table proxy margin `+26.376347 mm`, non-base link-origin margin `+40.222700 mm`, self-collision centerline proxy `55.827804 mm`, servo margin `17.604407°`; full mesh/environment는 `NOT_VERIFIED`다.
+- endpoint는 새 PICK GRASP TCP `[-4.748354,-12.033741,-124.531737] mm`, 기존 C XY, 기존 pre-approach 관절값을 그대로 쓴다. final GRASP TCP는 `[-62.635356,-295.315566,+100.000001] mm`, C XY error `0.000002 mm`, full/tool/jaw orientation error `3.090410/3.089708/0.673228°`다. table→robot, C XY, PIN calibration TCP, GRASP TCP는 변경하지 않았다.
+- `scripts/plan_home_to_c_pre_approach.py`, planning request와 live config를 추가하고 기존 `live_c_approach.py`에 HOME 전용 승인 문구와 기존 HOME 축별 start tolerance를 추가했다. start pose와 승인 문구는 서로 일치할 때만 허용한다. SAFE_HIGH 지원은 recovery/historical 용도로 보존했다. 관련 회귀 `53/53`, py_compile, exact dry-run, diff-check PASS다.
+- Jetson의 기존 실기 폴더와 서비스는 수정하지 않고 `/home/jetson3/so101-home-c-pre-approach-20261012/`에 별도 runner/config 사본을 배포했다. 설치 LeLab Python py_compile·dry-run PASS, local/Jetson SHA 일치; serial/USB/Goal/Torque/motor command `0`이다.
+- actual HOME→C 이동은 `NOT_RUN/NOT_AUTHORIZED`, full mesh/environment는 `NOT_VERIFIED`, `NOT_COMMITTED/NOT_PUSHED`. 상세: [세션](sessions/2026-10-12-home-to-c-pre-approach-ready.md). 다음 live 승인 문구는 `RUN HOME TO C PRE APPROACH` 하나다.
+
+## 2026-10-12 SAFE_HIGH→C PRE_APPROACH 실기 시도 1 — START_POSE gate 차단
+
+- 사용자 승인 `RUN SAFE HIGH TO C PRE APPROACH`로 새 runner를 시작했다. 실행 전 LeLab teleoperation/recording/inference inactive, follower `/dev/ttyACM1=5AE6058306`, privileged `fuser rc=1` 무점유, runner/config SHA 일치를 확인했다.
+- fresh feedback은 저장 SAFE_HIGH가 아니었다. SAFE_HIGH 대비 차이는 Pan/Lift/Elbow/Flex/Roll `[-3.868,-86.857,+150.681,-24.879,+2.637]°`로, 축별 `1.0°` start tolerance를 크게 초과했다. 자세는 직전 HOME-near feedback과 일치하는 방향이다.
+- `staged_reference_start_mismatch`가 controller/path 생성 전에 발생해 first target, Goal write, continuous-following log가 모두 `0`이다. `START_POSE_CONFIRMED`, `PRE_APPROACH_PASS`는 발생하지 않았다. grasp/approach/lift/place도 `NOT_RUN`이다.
+- 종료 뒤 LeLab 세 제어 inactive, live runner 없음, following log 부재, privileged follower `fuser rc=1` 무점유를 확인했다. motor/Torque/Goal 변경 `0`; 현장 human stop 재확인은 이번 시도에서 입력받지 않았으므로 `physical_stop=FEEDBACK_ONLY_NO_COMMAND`, full mesh/environment는 `NOT_VERIFIED`다.
+- 다음 단계는 사용자가 supervised relative-start teleop으로 follower를 기록 SAFE_HIGH에 둔 뒤 teleop 종료·비접촉·정지를 확인하는 것이다. 같은 자동 명령을 현재 pose에서 재실행하지 않는다. 상세: [세션](sessions/2026-10-12-safe-high-to-c-pre-approach-attempt1.md). `NOT_COMMITTED/NOT_PUSHED`.
+
+## 2026-10-12 이전 전략 — SAFE_HIGH를 START_POSE로 사용, C pre-approach 준비 완료 (SUPERSEDED)
+
+> 이후 canonical START_POSE가 HOME으로 정정됐다. 아래 내용은 삭제하지 않은 historical/recovery 기록이며 현재 critical path가 아니다.
+
+- deadline critical path에서 HOME↔SAFE_HIGH 자동 왕복과 teleop trace/replay 작업을 제외했다. HOME 기록은 보존하지만 production start에는 쓰지 않는다. 직전 teleop trace 확장 시도는 Jetson에 배포되지 않았고 로컬 미완성 diff만 제거했다. 기존 trace 계획 문서는 historical record다.
+- 기록된 SAFE_HIGH `[+1.274725,+22.901099,-73.274725,+43.120879,-15.252747]°`, GRASP TCP `[+2.090996,-389.902432,+364.853599] mm`를 canonical `START_POSE/VISION_READY`로 고정했다. live 시 fresh feedback이 전 축 `1.0°` 이내여야 `START_POSE_CONFIRMED=SAFE_HIGH`가 된다.
+- 새 PICK GRASP TCP `[-4.748354,-12.033741,-124.531737] mm`와 기존 C XY `[-62.635354,-295.315566] mm`를 유지했다. PIN TCP는 calibration 전용이며 새 plan에는 `CALIBRATION_ONLY`로 명시했다.
+- SAFE_HIGH→C PRE_APPROACH endpoint는 `[+14.845130,-16.993354,+70.591582,-37.176891,-12.536328]°`, FK GRASP TCP `[-62.635356,-295.315566,+100.000001] mm`, C pre-approach position error `0.000002570 mm`다. orientation error는 full/tool/jaw `3.090411/3.089709/0.673228°`다.
+- 실행기와 동일한 3-stage bounded interpolation은 `146` waypoint, 최대 step `0.989329°`, TCP Z `364.853599→337.611770→277.731591→189.929233→100.000001 mm`로 단조 하강한다. min TCP/table proxy margin `+45.341001 mm`, min non-base link-origin/table margin `+40.222700 mm`, self-collision centerline proxy `64.775222 mm`, calibration servo margin `21.736275°`다. full mesh/environment는 `NOT_VERIFIED`다.
+- `configs/live_c_pre_approach_from_safe_high_20261012.json`을 추가하고 기존 `live_c_approach.py`에 allowlisted 승인 문구와 SAFE_HIGH fresh-start 표기만 확장했다. 새 framework는 만들지 않았다. 직접 관련 unit test `19/19`, trace 회귀 포함 선택 test `38/38`, py_compile, dry-run, diff-check PASS. dry-run은 `no port opened; no send_action`; 실제 motor/Goal/Torque command `0`이다.
+- Jetson의 기존 실기 폴더와 서비스는 수정하지 않고 `/home/jetson3/so101-safe-high-c-pre-approach-20261012/`에 runner/의존 모듈/config 사본만 배포했다. 설치 LeLab Python py_compile·dry-run PASS, local/Jetson SHA는 runner `664ec12c…f33`, config `efd8e294…064`로 일치한다. 원격 dry-run도 motor port/Goal/Torque write `0`이다.
+- 다음 live 승인 문구는 `RUN SAFE HIGH TO C PRE APPROACH` 하나다. 실제 실행은 아직 `NOT_RUN/NOT_AUTHORIZED`; 성공 전 approach/grasp/lift/RED place는 실행하지 않는다. 상세: [세션](sessions/2026-10-12-safe-high-to-c-pre-approach-ready.md). `NOT_COMMITTED/NOT_PUSHED`.
+
+## 2026-10-12 supervised HOME→SAFE_HIGH teleop trace 계획
+
+- `HOME_SAFE_HIGH_HOME_ONCE=FAIL`과 synthetic 78-waypoint 재실행 금지를 기준선으로 고정했다. 다음 경로는 사람이 실제 성공시킨 relative-start joint coordination에서만 추출한다.
+- Jetson 설치를 read-only 확인했다. `lelab.service`는 active/running이지만 teleoperation/recording/inference는 모두 inactive다. `LELAB_TELEOP_MODE=relative_start`; 설치 `teleoperate.py`는 기존 CycleTrace·trace root·fresh relative origin 경로를 포함한다. trace root/ticket은 현재 설정되지 않아 기록은 비활성이다.
+- canonical 8000 teleop worker 하나만 두 포트를 소유하고 같은 worker 안의 기존 CycleTrace를 확장한다. 별도 follower reader나 새 control framework는 만들지 않는다. 기존 leader/sent-command/fresh-feedback에 Goal/Present raw, Moving, Load diagnostic, Temperature, FK GRASP TCP XYZ를 같은 cycle row로 추가하는 계획이다.
+- live 전 physical stop·전체 비접촉·단일 owner·privileged fuser 무점유·fresh HOME tolerance를 확인한다. 시작 후 leader 무입력 3초 동안 first target=follower origin, Moving=0, command drift 없음, Present raw span encoder 1 count 이내를 요구한다. 실패 시 본 이동을 시작하지 않는다.
+- 사용자가 HOME→SAFE_HIGH를 supervised relative-start로 이동하고 endpoint에서 비접촉을 확인한 뒤 teleop을 종료한다. 종료 후 fresh Present 3회, 기존 SAFE_HIGH tolerance/GRASP TCP Z, trace 오류 0·SHA를 모두 통과해야 `HOME_TO_SAFE_HIGH_TELEOP_TRACE=PASS`다.
+- 역방향은 trace reverse가 아니라 별도 supervised SAFE_HIGH→HOME 기록·승인을 요구한다. simplification과 automatic one-way 시험은 두 실제 trace 단계 뒤에만 진행한다.
+- 기존 relative-start `14/14`, CycleTrace `5/5`, py_compile, diff-check PASS. 이번에는 code 설치/service restart/port open/motor/Goal/Torque command `0`; 계획만 작성했다. [세션](sessions/2026-10-12-home-to-safe-high-teleop-trace-plan.md). `NOT_COMMITTED/NOT_PUSHED`.
+
+## 2026-10-12 HOME→SAFE_HIGH→HOME 실기 1 — waypoint 1 FAIL·STOPPED
+
+- 사용자 승인 `RUN HOME SAFE_HIGH HOME ONCE`로 왕복 1회를 시작했다. 첫 시도는 command 전에 `port_ownership_unknown`으로 차단됐다. 실제 follower 점유가 아니라 `sudo -n fuser` 인증 캐시 부재로 privileged scan을 완료하지 못한 것이 원인이며 Goal/Torque/serial open은 `0`이었다.
+- USB `/dev/ttyACM1=5AE6058306`, LeLab 세 제어 inactive, privileged `fuser rc=1/unowned`를 확인하고 동일 승인 범위에서 ownership gate를 유지한 채 다시 시작했다.
+- 156개 중 첫 `SAFE_HIGH_EXCEPT_PAN` target 하나만 보냈다. Lift `+1.160208°` 요청에 `+1.318681°`(`113.659%`), Wrist Flex `+0.331984°` 요청에 `+0.351648°`(`105.923%`) 움직였지만 Elbow `-1.982649°` 요청에는 `0°`(`0%`)로 움직이지 않았다.
+- after Present는 `[-2.593407,-63.956044,+77.406593,+18.241758,-12.615385]°`, Goal/Present raw는 `[2072,1225,2841,2287,1720,446] / [2072,1227,2864,2288,1721,446]`이다. Elbow error `+1.982649°`, Moving `0`, Load diagnostic `104`; 최고 온도 `52°C`다.
+- GRASP TCP는 `[20.324187,-253.265255,99.167465]→[20.241125,-251.432048,93.640789] mm`, Z `-5.526677 mm`, table margin `+38.981789 mm`로 악화됐다. self-collision centerline proxy는 `55.827804 mm`; full mesh/environment는 `NOT_VERIFIED`다.
+- `movement_ok=false`와 `table_proxy_ok=false`로 waypoint 1에서 즉시 ABORT했고 후속 155개 target과 3회 반복은 실행하지 않았다. 사용자의 `STOPPED`와 feedback 정지 검증으로 `physical_stop=FEEDBACK_AND_HUMAN_CONFIRMED`; 종료 후 follower privileged `fuser rc=1`, 세 LeLab 제어 inactive다.
+- HOME FK 민감도는 Lift `-3.482535`, Elbow `-5.062734`, Wrist Flex `-2.741795 mm/deg`다. 명목 coupled step은 Elbow 감소가 따라와야 Z가 증가하지만 실물 Elbow가 정체해 Lift/Wrist의 Z 감소만 나타났다. 기존 경로 재실행 금지, `NEXT_LIVE_COMMAND=NONE`; [세션](sessions/2026-10-12-home-safe-high-home-attempt1.md). `NOT_COMMITTED/NOT_PUSHED`.
+
+## 2026-10-12 HOME→SAFE_HIGH→HOME 1회 dry-run 준비 완료
+
+- 기록된 HOME `[-2.593407,-65.274725,+77.406593,+17.890110,-12.615385]°`와 SAFE_HIGH `[+1.274725,+22.901099,-73.274725,+43.120879,-15.252747]°`를 기준으로 왕복 1회만 준비했다. 실제 왕복과 3회 반복은 `NOT_RUN/NOT_AUTHORIZED`다.
+- 기존 `safe_home_return.py`를 확장하고 thin runner `live_home_safe_high_home_once.py`를 추가했다. 순서는 `SAFE_HIGH_EXCEPT_PAN→PAN_ALIGNMENT→HOME_EXCEPT_PAN→HOME_PAN_ALIGNMENT`로 양방향 arm-first/Pan-last다.
+- waypoint별 fresh feedback, intended direction, 50% movement, non-commanded drift `<=1°`, settle, Temperature `<=55°C`, calibration bounds, table/self-collision proxy를 검사한다. Elbow Goal/Present/error/Moving/Load를 별도 기록하며 Present_Load는 diagnostic only다. 첫 실패 뒤 추가 target이나 자동 recovery는 없다.
+- 오프라인 결과는 HOME→SAFE_HIGH `78`, SAFE_HIGH→HOME `78`, 총 `156` waypoint, max joint step `1.982648930°`, GRASP TCP Z `99.167465…364.853599 mm`, minimum table proxy `+44.508465 mm`, self-collision centerline proxy `55.827804 mm`, calibration servo margin `19.604396°`다. outbound/return Z 단조성과 exact HOME endpoint, offline constraints를 통과했다. full mesh/environment는 `NOT_VERIFIED`다.
+- final HOME tolerance는 Pan/Flex/Roll `0.5°`, Lift/Elbow `1.5°`, gripper `1.0 pp`다. 기록 당시 Elbow Goal-Present `-3.692308°`는 tolerance를 확대하지 않고 실제 1회에서 수렴 여부를 확인한다.
+- 로컬 `unittest 10/10`, py_compile, dry-run, diff-check PASS. Jetson은 기존 시험 폴더를 수정하지 않고 `/home/jetson3/so101-home-roundtrip-20261012/`에 별도 배포했다. 첫 원격 dry-run의 누락 의존성 `safe_escape_verification` 실패를 기록하고 보완한 뒤 설치 Python/URDF dry-run PASS 및 핵심 SHA 일치를 확인했다.
+- local/Jetson dry-run 모두 `hardware command=0`, serial open/Goal/Torque write `0`. 상세: [세션](sessions/2026-10-12-home-safe-high-home-once-ready.md). `NOT_COMMITTED/NOT_PUSHED`.
+
+## 2026-10-12 supervised HOME adjustment — HOME RECORDED
+
+- 사용자가 원했던 초기 HOME 외형은 Elbow `+95.868132°`, calibration upper margin `1.142857°`로 servo edge에 너무 가까워 canonical로 저장하지 않고 `HOME_USER_DESIRED` reference로만 보존했다.
+- 사용자가 LeLab supervised teleop으로 Elbow를 완화한 뒤 `STOPPED·비접촉 확인`을 보고했다. canonical 8000 teleoperation을 1회 종료하고 inactive를 확인했다. 종료 후 motor/Goal write와 Torque 변경은 `0`.
+- 과거 `/dev/ttyACM0` 고정 read-only 도구는 현재 USB 매핑과 불일치해 serial identity gate에서 포트를 열기 전 중단됐다. 현재 LeLab robot record의 leader ACM0/follower ACM1과 follower serial `5AE6058306`을 재확인한 후, write/torque API를 fail-closed한 read-only 도구로 fresh follower 3회를 읽었다.
+- 3회 raw는 모두 `2072/1212/2864/2284/1721/446`, calibrated arm은 `[-2.593407,-65.274725,+77.406593,+17.890110,-12.615385]°`, gripper `2.019584%`로 동일했다. 전 축 Moving=0, Torque=1, 최고 온도 `45°C`; `physical_stop=FEEDBACK_AND_HUMAN_CONFIRMED`.
+- Elbow upper calibration margin은 `19.604396°`로 확대됐다. GRASP TCP는 `[+20.324187,-253.265255,+99.167465] mm`, table reference 대비 `+44.508465 mm`, self-collision centerline proxy `55.827804 mm`다. full mesh/environment는 `NOT_VERIFIED`.
+- Elbow Goal-Present는 `-3.692308°`, Load diagnostic은 `+180`이다. Load는 검증된 absolute threshold가 없어 PASS gate에 쓰지 않는다. 정지 전 WebSocket의 Elbow `59.296703°`는 canonical로 쓰지 않고 정지 후 direct Present를 저장했다.
+- `configs/poses.yaml`은 `HOME=RECORDED`, `SAFE_HIGH=RECORDED`. HOME↔SAFE_HIGH 자동 경로/실기는 아직 `NOT_RUN/NOT_AUTHORIZED`; [세션](sessions/2026-10-12-home-adjusted-recorded.md). `NOT_COMMITTED/NOT_PUSHED`.
+
+## 2026-10-12 SAFE_HIGH→HOME supervised teleop 시도 1 — startup guard FAIL·STOPPED
+
+- 사용자 승인으로 canonical 8000 relative-start 텔레옵을 한 번 시작했다. 사전점검은 8000/8002 teleop inactive, 8003 없음, canonical USB leader ACM0/follower ACM1, manager `LELAB_TELEOP_MODE=relative_start`였다. HOME 자동 waypoint·Torque 변경·서비스 재시작은 없었다.
+- 20:35:54 양 장치 연결과 `relative_start origins captured`를 확인했으나 `/ws/joint-data`가 3초 동안 표본을 내지 않아 방송 기반 startup stillness 판정은 불가능했다. 20:36:03 Wrist Flex target `37.582418→35.560440°`, step `-2.021978°`가 2° guard를 초과해 worker가 자동 ABORT·양 장치 disconnect했다.
+- 20:36:30/31 Mac에서 stop 직후 예상하지 않은 두 번째 `/move-arm` 요청이 들어와 canonical 세션이 다시 시작됐다. 열린 IAB의 LeLab `/teleoperation` 탭을 발견해 자동 재호출의 가장 직접적인 후보로 격리했지만 request trace가 없어 `PROBABLE_NOT_PROVEN`; 추가 재시작 방지를 위해 해당 LeLab 탭만 닫았다.
+- 20:36:58 canonical stop을 명시적으로 호출했고 follower/leader disconnect, 8000/8002 teleop inactive를 확인했다. 8000/8002 서버 프로세스는 종료하지 않았다. 이후 사용자 `STOPPED·비접촉 확인`으로 `physical_stop=FEEDBACK_AND_HUMAN_CONFIRMED`를 복구했다.
+- 정지 확인 후 Present_Position 3회 read-only 표본은 raw `2066/918/3074/2521/1691/446`으로 모두 동일했고, calibrated `[−3.120879,−91.120879,+95.868132,+38.725275,−15.252747]°`, gripper `2.019584%`다. SAFE_HIGH 대비 최대 변화는 Elbow `+169.142857°`이며, Elbow는 calibration upper endpoint에서 13 raw밖에 떨어져 있지 않다. 현재는 `LOW_NEAR_SERVO_EDGE`; HOME의 non-extreme 조건을 통과하지 못해 `HOME=NOT_RECORDED`, 기록된 SAFE_HIGH는 현재 pose가 아니다. read-only write/torque API `0`; 새 teleop/motion은 별도 승인 전 금지. [세션](sessions/2026-10-12-home-teleop-attempt1.md). `NOT_COMMITTED/NOT_PUSHED`.
+
+## 2026-10-12 teleop ownership read-only 확인·HOME 기록 계획
+
+- canonical 8000은 user systemd `lelab.service`, 실제 Uvicorn/LeLab PID `548557`이며 2026-10-11 19:30:58 KST부터 restart 없이 실행 중이다. canonical USB는 leader `5AE6085272→ACM0`, follower `5AE6058306→ACM1`이고 저장 robot record와 일치한다.
+- systemd user-manager 환경은 `LELAB_TELEOP_MODE=relative_start`. 20:16:22 성공 세션 journal에도 `relative_start origins captured`가 있어 해당 실행 모드를 확인했다. 시작 요청은 Mac `192.168.50.131`의 8000 `POST /move-arm`; access log에는 Mac 내부 호출 프로세스/사람 신원이 없어 `NOT_RECORDED`다.
+- 20:16:12/13 canonical 요청은 임시 8003이 follower를 점유한 동안 open 실패 후 cleanup됐고, 8003 해제 뒤 20:16:22 요청만 양 장치 연결에 성공했다. 성공 세션 중 동시 serial ownership 증거는 없다. 20:19:04 stop 뒤 follower/leader disconnect와 `Teleoperation stopped`가 기록됐다.
+- 20:30:16 KST 현재 8000/8002 teleop inactive, 8000 recording/inference inactive, 8003/8022 listener 없음. non-privileged `lsof`에 ACM owner는 없으나 현재 privileged `fuser` 재검사는 `NOT_RUN`; 정상 disconnect journal과 inactive API가 현재 무소유 근거다. 서비스/프로세스 종료와 hardware command는 `0`.
+- HOME 기록은 canonical 8000 하나만 쓰며 8002/임시 8003을 사용하지 않는다. 단일 `/move-arm`, journal의 relative-start 확인, 3초 무입력 stillness, 사용자 감독 HOME 이동, stop/disconnect 후 3회 read-only 기록 순서로 준비했다. HOME 이동은 `NOT_RUN/NOT_AUTHORIZED`; [세션](sessions/2026-10-12-teleop-ownership-home-plan.md). `NOT_COMMITTED/NOT_PUSHED`.
+
+## 2026-10-12 supervised teleop recovery — SAFE_HIGH RECORDED
+
+- 사용자 감독하에 낮은 pose에서 SAFE_HIGH로 이동했고, 사용자의 `SAFE_HIGH REACHE`를 실행 문맥상 도달 확인으로 해석했다. 도달 직후 canonical 8000 teleop을 명시적으로 중지했다. 종료 시 8000 teleoperation inactive, 임시 8003 worker 종료, leader/follower 포트 무점유다.
+- 임시 relative-start worker는 startup 3초/58표본에서 최대 변화 Pan/Lift/Elbow/Flex/Roll `0/0.087912/0/0/0.087912°`로 startup jump가 없었다. 이동 중 Elbow calibration 하한 HOLD 뒤 Shoulder Lift target이 `4.219780°` 바뀌어 기존 2° guard가 ABORT했고 20:15:06 KST에 disconnect했다.
+- 이후 canonical 8000이 teleop active 상태로 포트를 소유한 것을 발견했다. 해당 세션 시작 주체는 `NOT_VERIFIED`이고 8000 프로세스 환경에 `LELAB_TELEOP_MODE`가 없었으므로, 전체 이동의 control provenance가 relative-start only였다고 확정하지 않는다. HOME 기록 전 single-owner relative-start 경로를 명시적으로 고정해야 한다.
+- 최종 Present raw 3표본은 `2116/2215/1150/2571/1691/446`으로 동일했다. 관절값은 `[+1.274725,+22.901099,-73.274725,+43.120879,-15.252747]°`, gripper `2.019584%`; Goal raw `2118/2202/1117/2558/1690/446`, Torque all 1, Moving all 0이다.
+- Load diagnostic은 `-20/64/144/64/0/0`, Temperature `37/39/39/36/35/39°C`; 검증된 absolute Load threshold가 없어 Load는 PASS gate에 사용하지 않았다.
+- GRASP TCP는 `[+2.090996,-389.902432,+364.853599] mm`. table reference `54.659 mm`보다 `310.194599 mm`, SAFE_HIGH 요구치 `154.659 mm`보다 `210.194599 mm` 높아 Z 기준 PASS다. 사용자 현장 감독과 3회 동일 feedback으로 `physical_stop=FEEDBACK_AND_HUMAN_CONFIRMED`; full mesh/environment는 `NOT_VERIFIED`다.
+- `configs/poses.yaml`에 `SAFE_HIGH=RECORDED`, `HOME=NOT_RECORDED`로 저장했다. partial measured pose 저장/병합 테스트를 추가했고 관련 `8/8 PASS`, YAML validation 및 diff-check PASS. HOME 이동은 `NOT_RUN/NOT_AUTHORIZED`; [세션](sessions/2026-10-12-supervised-teleop-safe-high.md). `NOT_COMMITTED/NOT_PUSHED`.
+
+## 2026-10-12 WRIST_ESCAPE_Z_PLUS_20 실기 1 FAIL·postmortem
+
+- 사용자 승인으로 `CURRENT→WRIST_ESCAPE_Z_PLUS_20` 범위만 시작했고, 첫 Wrist Flex target 1개만 송신한 뒤 `TCP_Z_DID_NOT_INCREASE`로 FAIL했다. 후속 target은 `0`, +30/+40, Lift/Elbow probe, HOME/SAFE_HIGH, approach/grasp/lift는 실행하지 않았다.
+- Wrist Flex는 `-2.0°` 요청 대비 `-1.758242°`(`87.912%`) 의도 방향으로 정상 추종했다. 그러나 비명령 Lift/Elbow가 각각 `+0.527473°` drift했고, GRASP TCP는 `[-1.047681,-369.737597,+55.316363]`에서 `[-0.540109,-370.872873,+54.317570] mm`로 이동해 Z가 `-0.998793 mm` 감소했다.
+- exact single-axis FK Z 기여는 Wrist `+4.320115`, Lift `-2.911619`, Elbow `-2.339636`, Pan `-0.000001`, Roll `-0.014873 mm`; 비선형 interaction `-0.052778 mm`다. 즉 Wrist responsiveness 부족이 아니라 Lift/Elbow passive drift가 Z 상승분을 초과한 것이 실패 원인이다.
+- 새 fresh pose `[+1.362637,+18.681319,+15.252747,+6.549451,+16.131868]°`의 Z 민감도는 Pan/Lift/Elbow/Flex/Roll 각각 `+0.000016/-5.546797/-4.454551/-2.450446/+0.170971 mm/deg`다. 종료 후 read-only 3표본 raw는 `2117/2167/2157/2155/2048/446`으로 동일했다.
+- 실측 50% 이상 반응한 Pan/Flex/Roll의 가장 유리한 `±2°` 조합에도 같은 Lift/Elbow drift를 적용하면 최대 모델 Z delta가 `-0.676135 mm`다. 따라서 `RESPONSIVE_ONLY_NEXT_STEP=NOT_FOUND`, `NEXT_LIVE_COMMAND=NONE`; 추가 실기 승인을 요청하지 않는다.
+- 사용자 `STOPPED`와 feedback stillness로 `physical_stop=FEEDBACK_AND_HUMAN_CONFIRMED`. Moving all 0, Temperature `39/44/41/37/37/39°C`, Load before/after `-52/104/96/32/-28/0 → 0/36/36/24/0/0`; Load는 diagnostic only다. follower port는 read-only 종료 후 해제됐고 Phase C는 `HOLD`, full mesh/environment는 `NOT_VERIFIED`다.
+- pure-offline postmortem 분석기와 fixture/test를 추가했고 신규+기존 선택 test `12/12 PASS`; 하드웨어 command/port open/Goal/Torque write `0`. [세션](sessions/2026-10-12-wrist-escape-plus20-attempt1.md). `NOT_COMMITTED/NOT_PUSHED`.
+
+## 2026-10-12 staged Wrist escape +10/+20/+30/+40 비교·+20 실기 준비
+
+- 첫 +20 live 시도는 fresh read-only raw가 기준 `2118/2161/2151/2175/2049/446`과 정확히 일치한 뒤 시작됐지만, runner가 transport의 기존 `verify_start_pose()` latch를 arm하지 않아 첫 `send_goal()` 내부에서 `start_pose_not_verified`로 차단됐다. Goal write/motor target은 `0`, 사용자 `STOPPED` 후 `physical_stop=FEEDBACK_AND_HUMAN_CONFIRMED`; 종료 후 read-only raw도 동일했다.
+- 원인을 runner wiring 한 곳으로 국소 수정했다. fresh telemetry·현장 기준 비교 뒤 `verify_start_pose()`를 호출하고 다시 Goal/Present/Load/Temperature before-sample을 읽는다. fake transport도 latch가 없으면 송신 자체를 거부하도록 강화했다. 관련 `44/44 PASS`, Jetson 설치 SHA `07ae068e…a6759`, 설치 Python py_compile/dry-run PASS. 수정본 실제 재시험은 `NOT_RUN/NOT_AUTHORIZED`이며 재승인 필요다.
+- 동일 settled pose `[+1.450549,+18.153846,+14.725275,+8.307692,+16.219780]°`에서 Lift/Elbow/Pan/Roll을 고정하고 Wrist Flex endpoint를 FK Z target으로 역산해 `WRIST_ESCAPE_Z_PLUS_10/20/30/40`을 비교했다. 네 후보 모두 max step `≤2°`, TCP Z 단조 증가, commanded table proxy 단조 비감소, servo bounds PASS, centerline self-collision proxy `64.775222 mm` PASS다. full mesh/environment는 계속 `NOT_VERIFIED`다.
+- +10/+20/+30/+40의 waypoint 수는 `3/4/6/8`, Flex endpoint는 `+4.303791/+0.504669/-3.132839/-6.640868°`, XY drift는 `8.259301/15.432549/21.665359/27.063709 mm`다. 검증된 XY acceptance threshold는 없어 `NOT_DEFINED`로 유지했다.
+- endpoint tool-axis 변화는 `4.003901/7.803024/11.440531/14.948560°`, jaw-axis 변화는 `3.844474/7.491990/10.983738/14.350370°`, table margin은 `+10.657363/+20.657363/+30.657363/+40.657363 mm`다. +20은 +40보다 XY/orientation 변화가 명확히 작고 모든 수치 proxy를 통과하므로 첫 staged live 후보로 추천한다.
+- +20 전용 runner는 live fresh feedback에서 목표 Z를 고정한 뒤 매 step을 actual pose 기준으로 다시 계산하고 Wrist Flex만 `≤2°` 송신한다. 각 step 후 intended direction·`≥50%` movement, TCP Z 증가, uncommanded drift `≤1°`, Temperature `≤55°C`, fresh/communication/settle, servo bounds, table proxy 비악화, centerline self-collision proxy를 검사한다. Load는 signed before/after/delta 진단값이며 numeric gate가 아니다.
+- 첫 step FAIL이면 `stop_commands()`로 후속 target production을 latch-off하고 torque/현재 Goal을 유지한다. +30/+40 자동 continuation, Lift/Elbow probe, HOME/SAFE_HIGH 경로는 코드에 없다. +20 PASS 뒤에도 fresh state를 읽고 멈춘 후 별도 offline sensitivity/probe 계획만 수행한다.
+- 관련 unit/regression `44/44 PASS`, CLI dry-run은 `no port opened; no send_action` PASS. 실제 hardware/port/Goal/Torque 명령 `0`, +20 실기 `NOT_RUN/NOT_AUTHORIZED`, Phase C `HOLD`, full mesh `NOT_VERIFIED`. [세션](sessions/2026-10-12-wrist-escape-plus20-ready.md). `NOT_COMMITTED/NOT_PUSHED`.
+
+## 2026-10-12 Load 비게이트 정책·RESPONSIVE_JOINT_ESCAPE dry-run
+
+- `verified_abs_load_limit=NOT_DEFINED`를 유지하면서 `Present_Load`를 signed before/after/delta 진단값으로만 기록하도록 escape 판정을 수정했다. 상한이 없으면 `load_gate_enabled=false`, `load_gate_result=NOT_APPLICABLE_NOT_DEFINED`이며 PASS/FAIL에 관여하지 않는다. 향후 검증 상한이 명시되면 기존 optional absolute gate는 동작한다. Temperature `≤55°C`, fresh/communication/settle, commanded direction·50% movement, TCP Z 증가, non-commanded drift gate는 유지한다.
+- 이 정책 수정은 과거 `SAFE_ESCAPE_2DEG`를 재분류하지 않는다. Lift `0%`, Elbow `8.791%`이므로 결과는 계속 `FAIL / NO_EFFECTIVE_MOVEMENT`; Phase C는 `HOLD`, `>2°` 확대 없음이다.
+- 실제 종료 pose `[+1.450549,+18.153846,+14.725275,+8.307692,+16.219780]°`에서 GRASP TCP는 `[-1.047681,-369.737597,+55.316363] mm`, table reference 대비 `+0.657363 mm`다. 중앙차분 FK Z 민감도는 Pan/Lift/Elbow/Flex/Roll 각각 `+0.000016/-5.527556/-4.451049/-2.424472/+0.169191 mm/deg`다.
+- 실제 2° 시험의 축별 단독 FK 기여를 before pose에서 재계산하면 Pan `+0.000017`, Lift `0`, Elbow `+0.770339`, Flex `+3.771877`, Roll `+0.260049 mm`다. 총 실제 Z 증가 `+4.820224 mm` 중 Wrist Flex가 지배적이므로 Lift/Elbow/Pan/Roll을 고정하고 Wrist Flex만 FK 목표 Z로 역산했다.
+- `+20/+30/+40 mm` 후보는 각각 Flex endpoint `+0.504669/-3.132839/-6.640868°`, waypoint `4/6/8`, max step `1.950756/1.906755/1.868570°`, max XY drift `15.432549/21.665359/27.063709 mm`다. 모두 Z 단조 증가, commanded table proxy 비악화, servo PASS, centerline self-collision proxy `64.775222 mm` PASS다. full mesh/environment collision은 계속 `NOT_VERIFIED`, excessive XY drift 수용 한계도 `NOT_DEFINED`다.
+- 당시 `table reference +40 mm` intermediate 비교에서는 Z+40이 기준을 만족했지만, 후속 staged 지시로 **첫 live 후보는 Z+20으로 대체**됐다. Z+40은 비교 자료일 뿐 motion 승인이나 첫 실기 후보가 아니다.
+- 타깃 unit test `20/20 PASS`; hardware/port/Goal/Torque/teleop/HOME/SAFE_HIGH 명령 `0`. [세션](sessions/2026-10-12-responsive-joint-escape-offline.md). `NOT_COMMITTED/NOT_PUSHED`.
+
+## 2026-10-12 SAFE_ESCAPE_2DEG Phase-B postmortem·Phase C HOLD
+
+- Phase C는 `HOLD`로 고정했다. 저장된 실기 전/후 feedback만 사용해 2° 단일 target의 실제 이동량을 재구성했다. Pan/Flex/Roll은 요청량의 `52.75/79.12/79.12%`를 의도 방향으로 이동했지만, Lift는 `0%`, Elbow는 `8.79%`에 그쳤다. 따라서 전체 실패는 50% 기준 바로 아래의 경계 사례가 아니라 `NO_EFFECTIVE_MOVEMENT`(지배적 병목 Lift/Elbow)이다.
+- GRASP TCP는 `[+5.406137,-365.783675,+50.496139]`에서 `[-1.047681,-369.737597,+55.316363] mm`로 변해 Z가 `+4.820224 mm` 상승했다. 즉 escape 방향의 부분 효과는 있었지만 commanded 전 축의 유효 이동은 아니다.
+- Jetson 실제 설치본 LeRobot `0.6.0`, `feetech-servo-sdk 1.0.0`을 read-only로 대조했다. STS3215 `Present_Load`는 address `60`, 2-byte read-only이며 driver의 sign bit `10` sign-magnitude decode 결과 표현 가능 raw 범위는 `-1023…+1023`이다. 부호는 firmware direction bit를 음/양으로 decode한 것이며 물리 CW/CCW·위험 방향은 설치 코드에 정의되지 않았다.
+- 설치 LeRobot/LeLab, repository config/driver/docs에 `Present_Load`를 torque/current/백분율로 변환하는 식, nominal/allowed 범위, safety threshold는 없다. Follower configure의 gripper-only `Max_Torque_Limit=500`, `Protection_Current=250`, `Overload_Torque=25`와 SDK `ERRBIT_OVERLOAD=32`는 서로 다른 보호 설정/상태 bit이며 `Present_Load` numeric cutoff의 근거가 아니다. arm에 적용된 검증 상한도 없다.
+- `verified_abs_load_limit=NOT_DEFINED`를 유지한다. 권장은 근거 없는 `Present_Load` 절대값을 PASS gate에서 빼고 진단 telemetry로만 남기는 후속 **code-only** 수정이다. 단, 이를 적용해도 이번 2° 시험은 Lift/Elbow 실제 이동 미달로 FAIL이며 Phase C는 계속 HOLD다.
+- 이번 postmortem은 로컬 FK·저장 로그·SSH 소스 열람만 수행했다. follower serial open, Goal/Torque write, motor command, teleop, service restart는 모두 `0`; [세션](sessions/2026-10-12-safe-escape-phase-b-postmortem.md). `NOT_COMMITTED/NOT_PUSHED`.
+
+## 2026-10-12 SAFE_ESCAPE 실제-이동 판정·HOME 복귀 API Phase A/D
+
+- `SAFE_ESCAPE_2DEG` 실기 1회의 종료 후 read-only 3표본은 Present raw `2118/2161/2151/2175/2049/446`, calibrated `[+1.450549,+18.153846,+14.725275,+8.307692,+16.219780]\u00B0`, gripper `2.019584%` 로 동일했다. Goal raw는 `2128/2138/2130/2170/2053/446`, Goal−Present는 `+10/-23/-21/-5/+4/0 raw`, 6축 Torque=1, Moving=0이다.
+- 2° 요청 대비 실제 이동률은 Pan `52.7%`, Lift `0%`, Elbow `8.8%`, Flex `79.1%`, Roll `79.1%`다. GRASP TCP Z는 `50.496139→55.316363 mm` (`+4.820224 mm`)로 증가했지만 commanded Lift/Elbow가 50% 이동 조건을 만족하지 못해 **Phase-B `SAFE_ESCAPE_PASS=false`**다. 추가 target은 송신하지 않았다.
+- 종료 텔레메트리는 Load `-52/104/96/32/-28/0`, Temperature `38/40/39/36/37/40 \u00B0C`다. 사용자 `STOPPED`와 feedback stillness로 `physical_stop=FEEDBACK_AND_HUMAN_CONFIRMED`; follower port는 read 종료 후 privileged `fuser rc=1` 무점유다.
+- Phase A에서 escape PASS를 final target tolerance와 분리했다. commanded 축별 의도 방향·50% 이상 실제 이동, GRASP TCP Z 증가, non-commanded drift `≤1°`, Temperature `≤55°C`, fresh/communication/settle를 검증한다. Shoulder Lift/Elbow terminal tolerance는 `1.5°`, Pan/Flex/Roll은 기존 `0.5°`, gripper는 `1.0 pp`로 분리하되 escape PASS gate로 사용하지 않는다.
+- 저장소와 문서에서 검증된 Load 상한을 찾지 못했다. production config의 `verified_abs_load_limit=null`, 판정은 `NOT_DEFINED`/fail-closed다. synthetic test의 `120`은 테스트 주입값일 뿐 production 설정이 아니다.
+- `read_escape_telemetry()`는 과거 group status packet 오판을 반복하지 않도록 Goal/Present/Moving/Load/Temperature를 축별로 개별 read한다. runner는 target 1회 송신 후 0.5초 이상 settle을 관찰하고 FAIL이면 command production을 latch-off하며 torque/Goal을 변경하지 않는다.
+- Phase C용 3회 raw/degree/FK 평균·표준편차 저장 helper를 추가했지만 HOME/SAFE_HIGH 실측은 **NOT_RUN**, `configs/poses.yaml`은 수치를 추정해 생성하지 않았다.
+- Phase D의 offline `go_home_safe()`는 `CURRENT→(필요 시 SAFE_ESCAPE)→SAFE_HIGH(Pan 제외)→Pan alignment→HOME` 순서만 허용하고, low TCP에서 검증된 escape가 없으면 fail-closed한다. 루트는 기존 bounded interpolation(`≤2°`)을 재사용하며 gripper를 유지한다. segment 예외/실패 시 `stop_commands()` 후 뒤 segment를 실행하지 않고, `attempt_safe_recovery()`는 정상 communication/feedback·planning-only failure·별도 사용자 승인을 요구하는 함수로 분리했다.
+- 타깃 테스트 `42/42 PASS`, py_compile/diff-check PASS. 전체 suite는 `385` tests 중 `380 PASS`, 본 작업과 무관한 샌드박스 socket bind 4건과 미설치 `websocket` 1건으로 `5 ERROR`; 신규 타깃 테스트 failure는 없다. [세션](sessions/2026-10-12-safe-escape-phase-a-safe-home.md). hardware command `0`, `NOT_COMMITTED/NOT_PUSHED`.
+
+## 2026-10-12 SAFE_ESCAPE_2DEG fresh rebase·실기 준비
+
+- 직전 사용자 현장 확인 이후 모터/토크/USB 동작 없이 teleop/recording/inference inactive, 관련 worker 없음, canonical follower `/dev/ttyACM1=5AE6058306`, privileged pre/post `fuser rc=1` 무점유를 재확인했다.
+- write/sync_write/enable_torque/disable_torque/send_action을 예외로 차단한 read-only 세션의 0.25초 간격 3표본은 동일했다. fresh arm은 `[+0.395604,+18.153846,+14.901099,+9.890110,+14.637363]°`, gripper `2.019584%`, raw `2106/2161/2153/2193/2031/446`; 6축 torque=1, moving=0, write attempt=0이다.
+- 기존 escape 방향 `(+,-,-,-,+)`과 정확히 `2°`를 fresh pose에 적용한 단일 target은 `[+2.395604,+16.153846,+12.901099,+7.890110,+16.637363]°`, gripper hold `2.019584%`다. 설치 bus의 read-only `_unnormalize` 결과 target raw는 `2128/2138/2130/2170/2053/446`, current 대비 delta는 `+22/-23/-23/-23/+22/0 raw`다.
+- target GRASP TCP는 `[-7.174142,-378.973903,+75.993672] mm`, commanded-point table proxy margin `+21.334672 mm`, segment centerline self-collision proxy `64.775222 mm`, servo margin `80.109901°`다. 시작 virtual GRASP point의 single-P1 proxy는 계속 음수이고 full mesh collision은 `NOT_VERIFIED`; 기존 table/GRASP TCP/C XY/endpoint 판정은 변경하지 않았다.
+- runner를 `SAFE_ESCAPE_2DEG` 전용으로 제한하고 승인 문구를 `RUN SAFE ESCAPE 2DEG ONLY`로 분리했다. 단 한 target, final tolerance `0.5°`, gripper hold, start drift gate, approach/grasp/lift/automatic continuation 없음은 유지했다. fake tests `18/18 PASS`, py_compile/diff-check PASS, Jetson SHA 일치 dry-run PASS; dry-run 종료 후 follower 무점유다.
+- 실제 motor command `0`, 실기 `NOT_RUN/NOT_AUTHORIZED`; 다음 단계는 별도 승인 후 first target 1개뿐이다. [세션](sessions/2026-10-12-safe-escape-2deg-ready.md). `NOT_COMMITTED/NOT_PUSHED`.
 
 ## 2026-10-12 SAFE_ESCAPE static-deadband 후보 1.5/2.0/2.5° 오프라인 비교
 

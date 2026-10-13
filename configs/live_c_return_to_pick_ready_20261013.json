@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "scope": "live_c_return_to_pick_ready_only",
+  "source_frame_sha256": "9c4eb1fd9efbaf0dc013072f01a83dc5597bd1da50dea1070443cde171f867e3",
+  "c_robot_xy_mm": [-62.635354, -295.315566],
+  "target_robot_xyz_mm": [30.308814783427906, -276.0290854427364, 184.96014194218458],
+  "target_pose_name": "PICK_READY",
+  "target_generation": "RECORDED_JOINT_POSE_NO_IK",
+  "target_arm_deg": {
+    "shoulder_pan": -4.263736263736264,
+    "shoulder_lift": -68.7032967032967,
+    "elbow_flex": 68.87912087912088,
+    "wrist_flex": 8.131868131868131,
+    "wrist_roll": -23.516483516483518
+  },
+  "start_pose_name": "C_PRE_APPROACH_ACTUAL_ATTEMPT1",
+  "start_pose_tolerance_deg": {
+    "shoulder_pan": 0.5,
+    "shoulder_lift": 1.5,
+    "elbow_flex": 1.5,
+    "wrist_flex": 0.5,
+    "wrist_roll": 0.5
+  },
+  "staged_reference_start_arm_deg": {
+    "shoulder_pan": 14.54945054945055,
+    "shoulder_lift": -16.571428571428573,
+    "elbow_flex": 70.72527472527473,
+    "wrist_flex": -35.91208791208791,
+    "wrist_roll": -12.87912087912088
+  },
+  "staged_intermediate_arm_deg": [
+    {
+      "shoulder_pan": 10.067913,
+      "shoulder_lift": -29.420840,
+      "elbow_flex": 70.163467,
+      "wrist_flex": -22.073971,
+      "wrist_roll": -15.281367
+    },
+    {
+      "shoulder_pan": 5.290697,
+      "shoulder_lift": -41.848325,
+      "elbow_flex": 69.735351,
+      "wrist_flex": -6.971052,
+      "wrist_roll": -18.026406
+    },
+    {
+      "shoulder_pan": 0.513480,
+      "shoulder_lift": -54.275811,
+      "elbow_flex": 69.307236,
+      "wrist_flex": 8.131868,
+      "wrist_roll": -20.771445
+    },
+    {
+      "shoulder_pan": -4.263736,
+      "shoulder_lift": -66.703297,
+      "elbow_flex": 68.879121,
+      "wrist_flex": 8.131868,
+      "wrist_roll": -23.516484
+    }
+  ],
+  "ik_position_residual_mm": 0.0,
+  "tcp_offset_gripper_mm": [-4.748354423376675, -12.03374105992054, -124.53173724769001],
+  "tcp_frame": "PICK_GRASP_OPENING_CENTER",
+  "calibration_pin_tcp_usage": "CALIBRATION_ONLY",
+  "orientation_solved": true,
+  "orientation_validation": {
+    "mode": "EXACT_RECORDED_PICK_READY_JOINT_POSTURE",
+    "task_orientation_constraint": "NOT_APPLICABLE_TO_RETURN"
+  },
+  "offline_path_validation": {
+    "candidate": "REVERSE_PICK_READY_STAGES_FROM_ACTUAL_PRE_APPROACH_ATTEMPT1",
+    "waypoint_count": 61,
+    "maximum_joint_step_deg": 1.0,
+    "grasp_tcp_start_xyz_mm": [-60.641952, -293.652536, 93.607879],
+    "grasp_tcp_end_xyz_mm": [30.308815, -276.029085, 184.960142],
+    "minimum_grasp_tcp_z_mm": 93.607879,
+    "maximum_grasp_tcp_z_mm": 184.960142,
+    "tcp_z_progression": "MONOTONIC_NON_DECREASING_TO_PICK_READY",
+    "minimum_tcp_table_proxy_margin_mm": 38.948879,
+    "minimum_commanded_tcp_table_proxy_margin_mm": 40.132748,
+    "minimum_nonbase_link_origin_z_mm": 94.881700,
+    "minimum_nonbase_link_origin_table_margin_mm": 40.222700,
+    "minimum_self_collision_centerline_margin_mm": 64.775222,
+    "minimum_servo_margin_deg": 24.285725,
+    "table_proxy": "PASS_TCP_POINT_AND_LINK_ORIGIN_PROXY",
+    "self_collision_proxy": "PASS_CENTERLINE_PROXY",
+    "full_mesh_environment": "NOT_VERIFIED"
+  },
+  "collision_checked": false,
+  "urdf_sha256": "443d38d756e01bac7d3455b24430047ddc6427105e0d3454b2003116f5f67236",
+  "follower_port": "/dev/ttyACM1",
+  "follower_serial_short": "5AE6058306",
+  "maximum_joint_step_deg": 1.0,
+  "refine_last_waypoints": 0,
+  "final_refinement_factor": 1,
+  "final_waypoint_timeout_s": 5.0,
+  "execution_mode": "bounded_continuous_following",
+  "following_cadence_s": 0.2,
+  "following_error_limits_deg": {
+    "shoulder_pan": 2.5,
+    "shoulder_lift": 2.5,
+    "elbow_flex": 4.0,
+    "wrist_flex": 2.5,
+    "wrist_roll": 2.5
+  },
+  "following_no_progress_timeout_s": 1.0,
+  "following_progress_epsilon_deg": 0.1,
+  "holds_fresh_gripper_position": true,
+  "run_phrase": "RUN C PRE APPROACH TO PICK READY",
+  "motion_authorized": false
+}

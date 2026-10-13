@@ -72,6 +72,7 @@ class FakeBus:
             "Present_Position": self.present_raw,
             "Moving": 0,
             "Present_Load": 24,
+            "Present_Temperature": 38,
         }
         return values[register]
 
@@ -234,7 +235,30 @@ class ExclusiveTransportTests(unittest.TestCase):
         self.assertEqual(sample.positions["elbow_flex"], 0.2)
         self.assertEqual(sample.moving["elbow_flex"], 0)
         self.assertEqual(sample.present_load["elbow_flex"], 26)
+        self.assertEqual(sample.temperature_c["elbow_flex"], 38)
+        temperature_reads = [call for call in adapter.robot.bus.read_calls
+                             if call[0] == "Present_Temperature"]
+        self.assertEqual(
+            temperature_reads,
+            [("Present_Temperature", name, False, 2) for name in JOINT_UNITS],
+        )
         self.assertEqual(adapter.robot.sent, [])
+
+    def test_escape_telemetry_reads_temperature_and_status_individually(self):
+        self.lease.acquire()
+        self.probe.pids = {4321}
+        self.lease.mark_connected()
+        adapter = SO101FollowerTransport(FakeRobot(), self.lease)
+        sample = adapter.read_escape_telemetry()
+        self.assertEqual(sample.goal_raw["elbow_flex"], 2020)
+        self.assertEqual(sample.present_raw["elbow_flex"], 2015)
+        self.assertEqual(sample.positions["elbow_flex"], 1.5)
+        self.assertEqual(sample.temperature_c["elbow_flex"], 38)
+        self.assertEqual(adapter.robot.sent, [])
+        self.assertTrue(all(call[0] in {
+            "Goal_Position", "Present_Position", "Moving", "Present_Load",
+            "Present_Temperature"
+        } for call in adapter.robot.bus.read_calls))
 
     def test_elbow_diagnostic_uses_raw_readback_and_read_only_settle(self):
         self.lease.acquire()

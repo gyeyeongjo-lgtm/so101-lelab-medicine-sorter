@@ -29,13 +29,16 @@ def offset(source, **changes):
 
 
 class FakeFollowingTransport:
-    def __init__(self, samples, *, start=START):
+    def __init__(self, samples, *, start=START, temperature_c=38,
+                 moving_override=None):
         self.samples = [dict(sample) if not isinstance(sample, Exception) else sample
                         for sample in samples]
         self.start = dict(start)
         self.last_positions = dict(start)
         self.sent = []
         self.quiescent = True
+        self.temperature_c = temperature_c
+        self.moving_override = moving_override
 
     def send_goal(self, target):
         self.sent.append(dict(target))
@@ -49,15 +52,21 @@ class FakeFollowingTransport:
             self.last_positions = dict(sample)
         positions = dict(self.last_positions)
         active_goal = self.sent[-1] if self.sent else self.start
+        moving = {
+            name: int(abs(positions[name] - active_goal[name]) > 0.1)
+            for name in JOINT_UNITS
+        }
+        if self.moving_override is not None:
+            moving = {name: int(self.moving_override) for name in JOINT_UNITS}
         return FollowingTelemetry(
             positions=positions,
             received_monotonic=time.monotonic(),
             goal_raw={name: round(active_goal[name] * 10) for name in JOINT_UNITS},
             present_raw={name: round(positions[name] * 10) for name in JOINT_UNITS},
-            moving={name: int(abs(positions[name] - active_goal[name]) > 0.1)
-                    for name in JOINT_UNITS},
+            moving=moving,
             present_load={name: (140 if name == "elbow_flex" else 0)
                           for name in JOINT_UNITS},
+            temperature_c={name: self.temperature_c for name in JOINT_UNITS},
         )
 
     def read_feedback(self):
@@ -136,6 +145,32 @@ class ContinuousFollowingCycleTests(unittest.TestCase):
         self.assertFalse(any(row["action"] == "PAUSE" and
                              row["detail"] == "following_limit_exceeded"
                              for row in controller.following_log))
+        self.assertTrue(all(row["temperature_c"] == {
+            name: 38 for name in JOINT_UNITS
+        } for row in controller.following_log))
+
+    def test_temperature_over_55_blocks_before_any_send(self):
+        fake = FakeFollowingTransport([START], temperature_c=56)
+        controller = make_cycle(fake)
+        controller.start_stage("approach", [goal(1)], approved=True)
+        self.assertTrue(controller.wait_worker(1))
+        self.assertEqual(fake.sent, [])
+        self.assertIn("following_temperature_limit_exceeded", controller.failure)
+        self.assertNotEqual(controller.reach_state, "GOAL_REACHED")
+
+    def test_final_moving_nonzero_never_passes(self):
+        final = goal(1)
+        fake = FakeFollowingTransport(
+            [START, final] + [final] * 30,
+            moving_override=1,
+        )
+        controller = make_cycle(fake, final_timeout=0.01)
+        controller.start_stage("approach", [final], approved=True)
+        self.assertTrue(controller.wait_worker(1))
+        self.assertEqual(len(fake.sent), 1)
+        self.assertEqual(controller.failure, "final_joint_target_timeout")
+        self.assertNotEqual(controller.reach_state, "GOAL_REACHED")
+        self.assertNotEqual(controller.task_state, "USER_CONFIRMATION_REQUIRED")
 
     def test_elbow_over_four_degrees_pauses_then_resumes(self):
         goals = [goal(1), goal(2)]

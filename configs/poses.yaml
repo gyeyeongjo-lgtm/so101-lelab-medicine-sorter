@@ -1,0 +1,374 @@
+schema_version: 1
+runtime_start_pose: PICK_READY
+pose_roles:
+  HOME: STORAGE_PARKING_ONLY
+  SAFE_HIGH: RECOVERY_FALLBACK_OPTIONAL_TRANSPORT
+  PICK_READY: CANONICAL_RUNTIME_START_VISION_READY
+pose_status:
+  HOME: RECORDED
+  SAFE_HIGH: RECORDED
+  PICK_READY: RECORDED
+poses:
+  SAFE_HIGH:
+    name: SAFE_HIGH
+    joints:
+      shoulder_pan:
+        raw_mean: 2116.0
+        degree_mean: 1.2747252747252746
+        raw_std: 0.0
+        degree_std: 0.0
+      shoulder_lift:
+        raw_mean: 2215.0
+        degree_mean: 22.9010989010989
+        raw_std: 0.0
+        degree_std: 0.0
+      elbow_flex:
+        raw_mean: 1150.0
+        degree_mean: -73.27472527472527
+        raw_std: 0.0
+        degree_std: 0.0
+      wrist_flex:
+        raw_mean: 2571.0
+        degree_mean: 43.120879120879124
+        raw_std: 0.0
+        degree_std: 0.0
+      wrist_roll:
+        raw_mean: 1691.0
+        degree_mean: -15.252747252747254
+        raw_std: 0.0
+        degree_std: 0.0
+      gripper:
+        raw_mean: 446.0
+        degree_mean: 2.0195838433292534
+        raw_std: 0.0
+        degree_std: 0.0
+    fk_grasp_tcp_mm:
+      x: 2.09099597
+      y: -389.90243223
+      z: 364.8535989
+    clearance_check:
+      table_reference_z_mm: 54.659
+      required_minimum_z_mm: 154.659
+      measured_margin_above_table_mm: 310.1945989
+      measured_margin_above_requirement_mm: 210.1945989
+      result: PASS
+      full_mesh_environment: NOT_VERIFIED
+    telemetry_at_record:
+      goal_raw:
+        shoulder_pan: 2118
+        shoulder_lift: 2202
+        elbow_flex: 1117
+        wrist_flex: 2558
+        wrist_roll: 1690
+        gripper: 446
+      present_raw:
+        shoulder_pan: 2116
+        shoulder_lift: 2215
+        elbow_flex: 1150
+        wrist_flex: 2571
+        wrist_roll: 1691
+        gripper: 446
+      moving:
+        shoulder_pan: 0
+        shoulder_lift: 0
+        elbow_flex: 0
+        wrist_flex: 0
+        wrist_roll: 0
+        gripper: 0
+      torque_enable:
+        shoulder_pan: 1
+        shoulder_lift: 1
+        elbow_flex: 1
+        wrist_flex: 1
+        wrist_roll: 1
+        gripper: 1
+      present_load_diagnostic:
+        shoulder_pan: -20
+        shoulder_lift: 64
+        elbow_flex: 144
+        wrist_flex: 64
+        wrist_roll: 0
+        gripper: 0
+      temperature_c:
+        shoulder_pan: 37
+        shoulder_lift: 39
+        elbow_flex: 39
+        wrist_flex: 36
+        wrist_roll: 35
+        gripper: 39
+    sample_count: 3
+    recorded_at: '2026-10-12T20:19:40+09:00'
+    note: >-
+      User-supervised relative-start recovery from the low pose. The user sent
+      SAFE_HIGH REACHE, interpreted as SAFE_HIGH REACHED per the active prompt.
+      All three post-stop Present samples were identical and Moving was zero.
+      The temporary relative worker had already fail-closed after an Elbow
+      range HOLD followed by a 4.219780 degree Shoulder Lift target jump; no
+      automatic continuation followed. A second canonical port owner was
+      detected and explicitly stopped before recording. Physical clearance is
+      user-supervised; full mesh/environment collision remains NOT_VERIFIED.
+  HOME:
+    name: HOME
+    joints:
+      shoulder_pan:
+        raw_mean: 2072.0
+        degree_mean: -2.5934065934065935
+        raw_std: 0.0
+        degree_std: 0.0
+      shoulder_lift:
+        raw_mean: 1212.0
+        degree_mean: -65.27472527472527
+        raw_std: 0.0
+        degree_std: 0.0
+      elbow_flex:
+        raw_mean: 2864.0
+        degree_mean: 77.4065934065934
+        raw_std: 0.0
+        degree_std: 0.0
+      wrist_flex:
+        raw_mean: 2284.0
+        degree_mean: 17.89010989010989
+        raw_std: 0.0
+        degree_std: 0.0
+      wrist_roll:
+        raw_mean: 1721.0
+        degree_mean: -12.615384615384615
+        raw_std: 0.0
+        degree_std: 0.0
+      gripper:
+        raw_mean: 446.0
+        degree_mean: 2.0195838433292534
+        raw_std: 0.0
+        degree_std: 0.0
+    fk_grasp_tcp_mm:
+      x: 20.32418708312598
+      y: -253.265255107654
+      z: 99.16746528682359
+    clearance_check:
+      table_reference_z_mm: 54.659
+      measured_margin_above_table_mm: 44.508465286823586
+      self_collision_centerline_proxy_mm: 55.827804391372325
+      physical_noncontact: FEEDBACK_AND_HUMAN_CONFIRMED
+      full_mesh_environment: NOT_VERIFIED
+    calibration_margin_deg:
+      elbow_upper: 19.604395604395606
+      minimum_all_arm_axes: 19.604395604395606
+      source: configs/so101_follower_calibration_bounds_20261008.json
+    home_user_desired_reference:
+      joints_deg:
+        shoulder_pan: -3.120879
+        shoulder_lift: -91.120879
+        elbow_flex: 95.868132
+        wrist_flex: 38.725275
+        wrist_roll: -15.252747
+      status: REFERENCE_ONLY_NOT_CANONICAL
+    telemetry_at_record:
+      goal_raw:
+        shoulder_pan: 2075
+        shoulder_lift: 1212
+        elbow_flex: 2822
+        wrist_flex: 2278
+        wrist_roll: 1723
+        gripper: 446
+      present_raw:
+        shoulder_pan: 2072
+        shoulder_lift: 1212
+        elbow_flex: 2864
+        wrist_flex: 2284
+        wrist_roll: 1721
+        gripper: 446
+      goal_minus_present_deg:
+        shoulder_pan: 0.2637362637362637
+        shoulder_lift: 0.0
+        elbow_flex: -3.6923076923076934
+        wrist_flex: -0.5274725274725292
+        wrist_roll: 0.1758241758241752
+        gripper: 0.0
+      moving:
+        shoulder_pan: 0
+        shoulder_lift: 0
+        elbow_flex: 0
+        wrist_flex: 0
+        wrist_roll: 0
+        gripper: 0
+      torque_enable:
+        shoulder_pan: 1
+        shoulder_lift: 1
+        elbow_flex: 1
+        wrist_flex: 1
+        wrist_roll: 1
+        gripper: 1
+      present_load_diagnostic:
+        shoulder_pan: -24
+        shoulder_lift: 0
+        elbow_flex: 180
+        wrist_flex: 36
+        wrist_roll: -20
+        gripper: 0
+      temperature_c:
+        shoulder_pan: 37
+        shoulder_lift: 38
+        elbow_flex: 45
+        wrist_flex: 37
+        wrist_roll: 36
+        gripper: 39
+    sample_count: 3
+    recorded_at: '2026-10-12T20:59:38+09:00'
+    note: >-
+      User-supervised LeLab adjustment from HOME_USER_DESIRED to increase the
+      Elbow calibration upper-limit margin. The user confirmed STOPPED and
+      noncontact. Three post-stop fresh follower samples were identical and
+      Moving was zero on all axes. The live joint broadcast seen before stop
+      is not used as canonical feedback; this record uses the direct follower
+      Present_Position after teleoperation stopped. Present_Load is diagnostic
+      only because no verified absolute threshold exists. Full mesh/environment
+      collision remains NOT_VERIFIED.
+  PICK_READY:
+    name: PICK_READY
+    joints:
+      shoulder_pan:
+        raw_mean: 2053.0
+        degree_mean: -4.263736263736264
+        raw_std: 0.0
+        degree_std: 0.0
+      shoulder_lift:
+        raw_mean: 1173.0
+        degree_mean: -68.7032967032967
+        raw_std: 0.0
+        degree_std: 0.0
+      elbow_flex:
+        raw_mean: 2767.0
+        degree_mean: 68.87912087912088
+        raw_std: 0.0
+        degree_std: 0.0
+      wrist_flex:
+        raw_mean: 2173.0
+        degree_mean: 8.131868131868131
+        raw_std: 0.0
+        degree_std: 0.0
+      wrist_roll:
+        raw_mean: 1597.0
+        degree_mean: -23.516483516483518
+        raw_std: 0.0
+        degree_std: 0.0
+      gripper:
+        raw_mean: 447.0
+        degree_mean: 2.08078335373317
+        raw_std: 0.0
+        degree_std: 0.0
+    fk_grasp_tcp_mm:
+      x: 30.308814783427906
+      y: -276.0290854427364
+      z: 184.96014194218458
+    clearance_check:
+      table_reference_z_mm: 54.659
+      required_minimum_z_mm: 154.659
+      measured_margin_above_table_mm: 130.30114194218458
+      measured_margin_above_requirement_mm: 30.30114194218458
+      result: PASS
+      physical_noncontact: FEEDBACK_AND_HUMAN_CONFIRMED
+      surroundings_clear: HUMAN_CONFIRMED
+      camera_view_clear: HUMAN_CONFIRMED
+      full_mesh_environment: NOT_VERIFIED
+    calibration_margin_deg:
+      shoulder_lift_lower: 33.14285714285714
+      shoulder_lift_upper: 170.54945054945054
+      elbow_lower: 165.8901098901099
+      elbow_upper: 28.13186813186813
+      source: configs/so101_follower_calibration_bounds_20261008.json
+      policy: REPORT_ONLY_NO_NEW_THRESHOLD
+    workspace_scope:
+      user_designated_pick_ready: true
+      a_b_c_automatic_paths: NOT_VERIFIED
+      red_green_blue_automatic_paths: NOT_VERIFIED
+      nine_combinations: NOT_VERIFIED
+    temperature_c:
+      shoulder_pan:
+        mean: 33.0
+        maximum: 33.0
+        std: 0.0
+      shoulder_lift:
+        mean: 35.0
+        maximum: 35.0
+        std: 0.0
+      elbow_flex:
+        mean: 35.0
+        maximum: 35.0
+        std: 0.0
+      wrist_flex:
+        mean: 34.0
+        maximum: 34.0
+        std: 0.0
+      wrist_roll:
+        mean: 33.0
+        maximum: 33.0
+        std: 0.0
+      gripper:
+        mean: 36.0
+        maximum: 36.0
+        std: 0.0
+    telemetry_at_record:
+      goal_raw:
+        shoulder_pan: 2052
+        shoulder_lift: 1160
+        elbow_flex: 2754
+        wrist_flex: 2163
+        wrist_roll: 1595
+        gripper: 446
+      present_raw:
+        shoulder_pan: 2053
+        shoulder_lift: 1173
+        elbow_flex: 2767
+        wrist_flex: 2173
+        wrist_roll: 1597
+        gripper: 447
+      goal_minus_present_deg:
+        shoulder_pan: -0.0879120879120876
+        shoulder_lift: -1.1428571428571388
+        elbow_flex: -1.1428571428571388
+        wrist_flex: -0.8791208791208787
+        wrist_roll: -0.1758241758241752
+        gripper: -0.06119951040391669
+      moving:
+        shoulder_pan: 0
+        shoulder_lift: 0
+        elbow_flex: 0
+        wrist_flex: 0
+        wrist_roll: 0
+        gripper: 0
+      torque_enable:
+        shoulder_pan: 1
+        shoulder_lift: 1
+        elbow_flex: 1
+        wrist_flex: 1
+        wrist_roll: 1
+        gripper: 1
+      present_load_diagnostic:
+        shoulder_pan: 0
+        shoulder_lift: 64
+        elbow_flex: 64
+        wrist_flex: 52
+        wrist_roll: 20
+        gripper: 0
+      temperature_c:
+        shoulder_pan: 33
+        shoulder_lift: 35
+        elbow_flex: 35
+        wrist_flex: 34
+        wrist_roll: 33
+        gripper: 36
+      motor_write_calls: 0
+      torque_change_calls: 0
+      port_released_on_exit: true
+    sample_count: 3
+    recorded_at: '2026-10-13T13:24:50+09:00'
+    note: >-
+      User-supervised relative-start teleoperation produced the designated
+      PICK_READY/VISION_READY pose. Teleoperation was stopped before direct
+      follower measurement. The user confirmed STOPPED, full-link noncontact,
+      clear surroundings, and clear camera view. All three fresh post-stop
+      samples were identical, Moving was zero on every axis, the maximum
+      temperature was 36 C, and the read-only runner reported zero motor writes
+      and zero torque changes. Present_Load remains diagnostic only. Automatic
+      A/B/C and RED/GREEN/BLUE paths and full mesh/environment collision remain
+      NOT_VERIFIED.
