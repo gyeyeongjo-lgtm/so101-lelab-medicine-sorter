@@ -85,7 +85,8 @@ class FakeRobot:
 
     def send_action(self, action):
         self.sent.append(dict(action))
-        self.bus.goal_raw = int(2000 + action["elbow_flex.pos"] * 10)
+        if "elbow_flex.pos" in action:
+            self.bus.goal_raw = int(2000 + action["elbow_flex.pos"] * 10)
         return action
 
     def get_observation(self):
@@ -208,6 +209,98 @@ class ExclusiveTransportTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "goal_outside_follower_servo_calibration"):
                 adapter.send_goal(changed)
         self.assertEqual(len(robot.sent), 1)
+
+    def test_gripper_only_send_requires_start_latch_and_honors_stop_latch(self):
+        self.lease.acquire()
+        self.probe.pids = {4321}
+        self.lease.mark_connected()
+        robot = FakeRobot()
+        adapter = SO101FollowerTransport(robot, self.lease)
+
+        with self.assertRaisesRegex(PreflightError, "start_pose_not_verified"):
+            adapter.send_gripper_goal_only(35.0)
+        adapter.verify_start_pose(GOAL, {name: 0.5 for name in JOINT_UNITS})
+        adapter.stop_commands()
+        with self.assertRaisesRegex(PreflightError, "command_production_stopped"):
+            adapter.send_gripper_goal_only(35.0)
+        self.assertEqual(robot.sent, [])
+
+    def test_gripper_only_send_validates_finite_calibrated_target(self):
+        self.lease.acquire()
+        self.probe.pids = {4321}
+        self.lease.mark_connected()
+        robot = FakeRobot()
+        adapter = SO101FollowerTransport(robot, self.lease)
+        adapter.verify_start_pose(GOAL, {name: 0.5 for name in JOINT_UNITS})
+
+        for invalid in (math.nan, math.inf, -math.inf, True, "35"):
+            with self.assertRaisesRegex(ValueError, "invalid_gripper_goal"):
+                adapter.send_gripper_goal_only(invalid)
+        for outside in (-0.001, 100.001):
+            with self.assertRaisesRegex(
+                    ValueError, "goal_outside_follower_servo_calibration"):
+                adapter.send_gripper_goal_only(outside)
+        self.assertEqual(robot.sent, [])
+
+    def test_gripper_only_send_uses_exact_singleton_action_and_can_repeat(self):
+        self.lease.acquire()
+        self.probe.pids = {4321}
+        self.lease.mark_connected()
+        robot = FakeRobot()
+        adapter = SO101FollowerTransport(robot, self.lease)
+        adapter.verify_start_pose(GOAL, {name: 0.5 for name in JOINT_UNITS})
+
+        self.assertEqual(
+            adapter.send_gripper_goal_only(35), {"gripper": 35.0})
+        self.assertEqual(
+            adapter.send_gripper_goal_only(36.5), {"gripper": 36.5})
+        self.assertEqual(robot.sent, [
+            {"gripper.pos": 35.0},
+            {"gripper.pos": 36.5},
+        ])
+        self.assertTrue(all(set(action) == {"gripper.pos"}
+                            for action in robot.sent))
+
+    def test_gripper_only_send_rejects_non_singleton_sdk_return(self):
+        self.lease.acquire()
+        self.probe.pids = {4321}
+        self.lease.mark_connected()
+        robot = FakeRobot()
+        adapter = SO101FollowerTransport(robot, self.lease)
+        adapter.verify_start_pose(GOAL, {name: 0.5 for name in JOINT_UNITS})
+
+        def mismatched_return(action):
+            robot.sent.append(dict(action))
+            return {**action, "elbow_flex.pos": 2.0}
+
+        robot.send_action = mismatched_return
+        with self.assertRaisesRegex(ValueError, "send_action_return_shape_mismatch"):
+            adapter.send_gripper_goal_only(35.0)
+        self.assertEqual(robot.sent, [{"gripper.pos": 35.0}])
+        self.assertFalse(adapter._busy)
+        self.assertTrue(adapter._ever_sent)
+
+    def test_gripper_only_send_failure_is_still_a_write_attempt(self):
+        self.lease.acquire()
+        self.probe.pids = {4321}
+        self.lease.mark_connected()
+        robot = FakeRobot()
+        adapter = SO101FollowerTransport(robot, self.lease)
+        adapter.verify_start_pose(GOAL, {name: 0.5 for name in JOINT_UNITS})
+
+        def failed_send(action):
+            robot.sent.append(dict(action))
+            raise RuntimeError("sdk_write_failed")
+
+        robot.send_action = failed_send
+        with self.assertRaisesRegex(RuntimeError, "sdk_write_failed"):
+            adapter.send_gripper_goal_only(35.0)
+        self.assertEqual(robot.sent, [{"gripper.pos": 35.0}])
+        self.assertFalse(adapter._busy)
+        self.assertTrue(adapter._ever_sent)
+        with self.assertRaisesRegex(
+                PreflightError, "unstarted_session_site_confirmation_required"):
+            adapter.close_without_motion(arm_stable=True, object_supported=True)
 
     def test_read_only_session_can_close_without_goal_or_torque_disable(self):
         self.lease.acquire()

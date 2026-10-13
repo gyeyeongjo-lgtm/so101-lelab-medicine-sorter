@@ -2,6 +2,16 @@
 
 업데이트: 2026-10-13
 
+## 2026-10-13 CURRENT pose gripper-open-only 실기 준비 완료
+
+- recovery/HOME/PICK_READY 추가 개발은 중단하고 C 실제 PICK을 critical path로 유지했다. 팔은 직전 STOPPED pose `[+11.736264,-22.197802,+71.164835,-27.032967,-14.197802]°`에 유지하며, 이 저장값은 live current로 가정하지 않고 실행 직전 fresh feedback으로 다시 gate한다.
+- 현재 gripper `2.264382%`에서 요청 `35.0%`로만 여는 전용 runner를 추가했다. 실제 calibration `413..2047`, drive mode `0`에서 LeRobot의 `int()` 내림으로 `35.0% -> raw 984 -> 34.944920%`가 되므로, raw 직접 write 없이 최소 표현 명령 `35.0061199510404% -> Goal raw 985 -> 35.00611995104039%`를 사용한다.
+- 실행기는 `{"gripper.pos": ...}` 단일 key action을 딱 1회만 전송하고 arm target은 전송하지 않는다. 전송 전 실제 설치 `so_follower.py` SHA `b7d9fcfc…08fd`, `feetech.py` SHA `0460413c…4ff2`, `motors_bus.py` SHA `ade55d42…a688`, gripper motor ID/range/drive mode, name→ID→raw 변환 key가 `{6}` 하나뿐인지를 fail-closed로 검증한다. arm Goal raw 5축은 startup, 전 settle 구간, final, port release 후 별도 read-only route gate까지 처음 baseline과 같아야 한다.
+- 시작 0.5초 stillness, fresh/communication, Moving, `Temperature<=55°C`, arm Present drift `<=1°`, gripper Goal raw `985`, 최종 gripper `>=35%`를 검사한다. Present_Load는 signed diagnostic only이며 numeric PASS gate가 아니다. 하나라도 FAIL이면 후속 target은 없고 자동 재시도하지 않으며 torque/현재 Goal을 유지한 채 STOP한다. settle timeout/feedback 예외 전까지의 표본은 즉시 출력한다.
+- 성공 후에도 사용자의 `GRIPPER OPEN CONFIRMED`와 `STOPPED`를 받고 command-owning session을 완전히 해제한 뒤, 별도 read-only session에서 fresh arm pose, gripper `>=35%`, Goal raw 연속성, Moving/Temperature를 다시 통과해야만 다음 문구 `RUN CURRENT TO C PRE APPROACH`를 출력한다. 팔 11-waypoint를 자동으로 연속 실행하지 않는다.
+- 로컬 관련 회귀 `129/129 PASS`, gripper-only `21/21 PASS`, py_compile/JSON/diff-check/dry-run PASS다. Jetson 새 `/home/jetson3/so101-gripper-open-only-20261013/`에 12개 파일만 배치했고, 설치 Python `3.14.7`, LeRobot `0.6.0`, NumPy `2.2.6`에서 compile·dry-run과 local/remote SHA 12개 일치를 확인했다. dry-run은 `no port opened; no send_action`이다.
+- 배치 후 LeLab 8000 health는 정상, teleoperation/recording/inference는 모두 inactive, canonical follower는 `/dev/ttyACM1=5AE6058306`, privileged `fuser rc=1`로 무점유다. full mesh/environment는 `NOT_VERIFIED`; gripper live motion과 CURRENT→C arm motion은 모두 `NOT_RUN/NOT_AUTHORIZED`, hardware command `0`이다. 상세: [세션](sessions/2026-10-13-gripper-open-only-ready.md). commit/push는 2026-10-13 readiness commit에 포함하여 `origin/fix/usb-recording`에 동기화한다.
+
 ## 2026-10-13 CURRENT→C PRE APPROACH 짧은 경로 OFFLINE READY·gripper blocker
 
 - canonical PICK_READY 복귀를 중단하고, 직전 STOPPED 뒤 read-only 3회가 동일했던 current arm `[+11.736264,-22.197802,+71.164835,-27.032967,-14.197802]°`에서 기존 C PRE_APPROACH endpoint로 직접 이어지는 짧은 전용 경로를 생성했다. live runner는 이 snapshot을 현재값으로 대체하지 않고 first target 전 fresh feedback/start tolerance를 다시 검사한다.

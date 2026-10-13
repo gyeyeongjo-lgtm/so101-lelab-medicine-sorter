@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from scripts.live_c_safe_escape_only import (
     CONFIRM_PHRASE, RUN_PHRASE, SCOPE, build_fresh_escape_goal, load_plan, run,
+    wait_for_escape_settle,
 )
 from scripts.continuous_following_execution import FollowingTelemetry
 from scripts.staged_cycle_execution import Feedback, JOINT_UNITS
@@ -197,6 +198,55 @@ class SafeEscapeOnlyTests(unittest.TestCase):
             self.assertEqual(transport.sent, [])
         finally:
             plan["minimum_commanded_table_proxy_margin_mm"] = original
+
+    def test_settle_sink_preserves_record_before_feedback_exception(self):
+        sample = FollowingTelemetry(
+            positions={name: 0.0 for name in JOINT_UNITS},
+            received_monotonic=time.monotonic(),
+            goal_raw={name: 10 for name in JOINT_UNITS},
+            present_raw={name: 9 for name in JOINT_UNITS},
+            moving={name: 1 for name in JOINT_UNITS},
+            present_load={name: 20 for name in JOINT_UNITS},
+            temperature_c={name: 35 for name in JOINT_UNITS},
+        )
+        emitted = []
+        with patch(
+            "scripts.live_c_safe_escape_only._validated_escape_telemetry",
+            side_effect=[sample, RuntimeError("feedback_lost")],
+        ), patch("scripts.live_c_safe_escape_only.time.sleep"):
+            with self.assertRaisesRegex(RuntimeError, "feedback_lost"):
+                wait_for_escape_settle(
+                    object(), timeout_s=1.0, settle_window_s=0.5,
+                    poll_s=0.05, record_sink=emitted.append)
+        self.assertEqual(len(emitted), 1)
+        self.assertEqual(emitted[0]["goal_raw"], sample.goal_raw)
+
+    def test_settle_sink_preserves_records_before_timeout(self):
+        def sample(raw):
+            return FollowingTelemetry(
+                positions={name: 0.0 for name in JOINT_UNITS},
+                received_monotonic=0.0,
+                goal_raw={name: 10 for name in JOINT_UNITS},
+                present_raw={name: raw for name in JOINT_UNITS},
+                moving={name: 1 for name in JOINT_UNITS},
+                present_load={name: 20 for name in JOINT_UNITS},
+                temperature_c={name: 35 for name in JOINT_UNITS},
+            )
+
+        emitted = []
+        with patch(
+            "scripts.live_c_safe_escape_only._validated_escape_telemetry",
+            side_effect=[sample(9), sample(10)],
+        ), patch(
+            "scripts.live_c_safe_escape_only.time.monotonic",
+            side_effect=[0.0, 0.1, 0.6],
+        ), patch("scripts.live_c_safe_escape_only.time.sleep"):
+            with self.assertRaisesRegex(RuntimeError, "escape_settle_timeout"):
+                wait_for_escape_settle(
+                    object(), timeout_s=0.5, settle_window_s=0.5,
+                    poll_s=0.05, record_sink=emitted.append)
+        self.assertEqual([row["present_raw"]["gripper"] for row in emitted],
+                         [9, 10])
 
 
 if __name__ == "__main__":

@@ -191,7 +191,8 @@ def _validated_escape_telemetry(transport, *, max_age_s: float = 0.5
 
 def wait_for_escape_settle(transport, *, timeout_s: float,
                            settle_window_s: float,
-                           poll_s: float) -> tuple[FollowingTelemetry, list[dict]]:
+                           poll_s: float,
+                           record_sink=None) -> tuple[FollowingTelemetry, list[dict]]:
     """Observe one sent target until stopped or raw positions are unchanged.
 
     At least one complete settle window is observed, preventing an immediate
@@ -208,7 +209,7 @@ def wait_for_escape_settle(transport, *, timeout_s: float,
         if previous_raw is not None and current_raw != previous_raw:
             last_change = now
         previous_raw = current_raw
-        records.append({
+        record = {
             "timestamp_monotonic": sample.received_monotonic,
             "goal_raw": dict(sample.goal_raw),
             "present_raw": current_raw,
@@ -216,7 +217,10 @@ def wait_for_escape_settle(transport, *, timeout_s: float,
             "moving": dict(sample.moving),
             "present_load": dict(sample.present_load),
             "temperature_c": dict(sample.temperature_c),
-        })
+        }
+        records.append(record)
+        if record_sink is not None:
+            record_sink(dict(record))
         observed_for = now - started
         all_stopped = all(value == 0 for value in sample.moving.values())
         raw_stationary = now - last_change >= settle_window_s

@@ -316,6 +316,40 @@ class SO101FollowerTransport:
         finally:
             self._busy = False
 
+    def send_gripper_goal_only(self, target_percent: float) -> Mapping[str, float]:
+        """Send one gripper target without including any arm joint action.
+
+        The caller owns sequencing and post-send verification.  This method
+        only preserves the existing transport gates and enforces that both the
+        request and LeRobot's returned action remain gripper-only.
+        """
+        if self._commands_stopped:
+            raise PreflightError("command_production_stopped")
+        self.lease.ensure_exclusive()
+        if not self._start_verified:
+            raise PreflightError("start_pose_not_verified")
+        if (not isinstance(target_percent, (int, float)) or
+                isinstance(target_percent, bool) or
+                not math.isfinite(target_percent)):
+            raise ValueError("invalid_gripper_goal")
+        lower, upper = self.calibrated_bounds["gripper"]
+        if not lower <= target_percent <= upper:
+            raise ValueError("goal_outside_follower_servo_calibration")
+
+        action = {"gripper.pos": float(target_percent)}
+        self._busy = True
+        try:
+            # Mark the session as having attempted a write even if the SDK
+            # raises. A failed/ambiguous write must never be closed as a
+            # read-only session.
+            self._ever_sent = True
+            sent = self.robot.send_action(action)
+            if not isinstance(sent, Mapping) or set(sent) != {"gripper.pos"}:
+                raise ValueError("send_action_return_shape_mismatch")
+            return {"gripper": float(sent["gripper.pos"])}
+        finally:
+            self._busy = False
+
     def verify_start_pose(self, expected: Mapping[str, float],
                           tolerances: Mapping[str, float]) -> Feedback:
         """Fresh follower feedback must match the first certified route pose."""
