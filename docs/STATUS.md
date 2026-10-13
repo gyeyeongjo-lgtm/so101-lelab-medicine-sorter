@@ -2,6 +2,13 @@
 
 업데이트: 2026-10-13
 
+## 2026-10-13 GRIPPER OPEN ONLY 실기 2 — 34.578% 정지·36% 단일 후속 준비
+
+- fresh start 기준 `RUN GRIPPER OPEN ONLY`을 실행해 gripper 한 축 target을 1회만 보냈다. arm target `0`, gripper send `1`; `22.521420→34.516524%`, Goal raw `985`, arm drift `0 deg`, Moving all `0`, max Temperature `40 C`다. final이 `35%`보다 `0.483476 pp` 낮아 `GRIPPER_OPEN_PASS=false`; 자동 재시도와 tolerance 완화는 하지 않았다.
+- 사용자 `STOPPED`·비접촉 확인 뒤 `physical_stop=FEEDBACK_AND_HUMAN_CONFIRMED`. read-only 3회는 arm `[+11.648352,-20.967033,+72.219780,-31.956044,-14.197802] deg`, gripper `34.577723%`/raw `978`, Goal raw `985`, Moving all `0`, Torque all `1`, max Temperature `39 C`로 동일했다. follower port free, 세 control inactive다.
+- post-open fresh arm 기준 CURRENT→C 경로를 `6` waypoint/max step `1 deg`로 재생성했다. TCP Z `93.788216→100.000001 mm`와 C XY distance `17.155476→0.000002 mm`가 단조 진행하지만 gripper `<35%`라 arm live gate는 계속 차단한다.
+- 다음 승인 후보 `RUN GRIPPER OPEN TO 36 ONLY`는 arm target 없이 normalized `36.046512%`(Goal raw `1002`) 한 축 1회만 보내며 final PASS 기준은 기존 `>=35%`를 유지한다. targeted `59/59 PASS`, local/Jetson compile·dry-run 및 SHA 일치 PASS; 실제 36% 명령은 `NOT_RUN/NOT_AUTHORIZED`. 상세: [세션](sessions/2026-10-13-gripper-open-only-attempt2.md).
+
 ## 2026-10-13 GRIPPER OPEN ONLY 실기 1 — 시작 자세 불일치로 송신 전 차단
 
 - 사용자 현장 확인과 `RUN GRIPPER OPEN ONLY` 승인 후 live runner를 시작했으나, 첫 target 전에 fresh arm pose가 저장 기준과 `Pan +0.088 / Lift +1.143 / Elbow +1.055 / Flex -4.659 / Roll +0.000 deg` 달라 `staged_reference_start_mismatch`로 fail-closed 차단했다. 특히 Flex가 전용 `0.5 deg` start tolerance를 초과했다. tolerance를 넓히지 않았고 자동 재시도하지 않았다.

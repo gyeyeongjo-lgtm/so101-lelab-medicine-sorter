@@ -21,28 +21,28 @@
     "wrist_roll": 0.5
   },
   "staged_reference_start_arm_deg": {
-    "shoulder_pan": 11.736263736263735,
-    "shoulder_lift": -22.197802197802197,
-    "elbow_flex": 71.16483516483517,
-    "wrist_flex": -27.032967032967033,
+    "shoulder_pan": 11.648351648351648,
+    "shoulder_lift": -20.967032967032967,
+    "elbow_flex": 72.21978021978022,
+    "wrist_flex": -31.956043956043956,
     "wrist_roll": -14.197802197802197
   },
   "staged_intermediate_arm_deg": [
     {
-      "shoulder_pan": 11.736263736263735,
-      "shoulder_lift": -22.197802197802197,
-      "elbow_flex": 71.16483516483517,
-      "wrist_flex": -29.032967032967033,
+      "shoulder_pan": 11.648351648351648,
+      "shoulder_lift": -20.967032967032967,
+      "elbow_flex": 72.21978021978022,
+      "wrist_flex": -33.956043956043956,
       "wrist_roll": -14.197802197802197
     }
   ],
   "wrist_lead_phase": "WRIST_LEAD_2DEG",
   "wrist_lead_phase_waypoints": 2,
   "wrist_lead_phase_target_arm_deg": {
-    "shoulder_pan": 11.736263736263735,
-    "shoulder_lift": -22.197802197802197,
-    "elbow_flex": 71.16483516483517,
-    "wrist_flex": -29.032967032967033,
+    "shoulder_pan": 11.648351648351648,
+    "shoulder_lift": -20.967032967032967,
+    "elbow_flex": 72.21978021978022,
+    "wrist_flex": -33.956043956043956,
     "wrist_roll": -14.197802197802197
   },
   "wrist_lead_phase_gate": {
@@ -69,26 +69,26 @@
   "offline_path_validation": {
     "candidate": "WRIST_LEAD_2DEG",
     "joint_delta_start_to_target_deg": {
-      "shoulder_pan": 3.108866,
-      "shoulder_lift": 5.204448,
-      "elbow_flex": -0.573253,
-      "wrist_flex": -10.143924,
+      "shoulder_pan": 3.196778,
+      "shoulder_lift": 3.973679,
+      "elbow_flex": -1.628198,
+      "wrist_flex": -5.220847,
       "wrist_roll": 1.661474
     },
-    "waypoint_count": 11,
+    "waypoint_count": 6,
     "maximum_joint_step_deg": 1.0,
-    "grasp_tcp_start_xyz_mm": [-45.732137, -290.790629, 89.193802],
-    "grasp_tcp_wrist_lead_xyz_mm": [-46.253094, -293.298410, 95.151348],
+    "grasp_tcp_start_xyz_mm": [-45.686225, -292.662760, 93.788216],
+    "grasp_tcp_wrist_lead_xyz_mm": [-46.147438, -294.900193, 99.857309],
     "grasp_tcp_end_xyz_mm": [-62.635356, -295.315566, 100.000001],
     "tcp_z_progression": "MONOTONIC_INCREASING",
-    "minimum_tcp_z_increase_per_waypoint_mm": 0.537511,
-    "start_c_xy_distance_mm": 17.498394,
+    "minimum_tcp_z_increase_per_waypoint_mm": 0.002029,
+    "start_c_xy_distance_mm": 17.155476,
     "final_c_xy_distance_mm": 0.000002259,
     "c_xy_distance_progression": "MONOTONIC_DECREASING",
-    "minimum_tcp_table_proxy_margin_mm": 34.534802,
+    "minimum_tcp_table_proxy_margin_mm": 39.129216,
     "minimum_nonbase_link_origin_table_margin_mm": 40.222700,
     "minimum_self_collision_centerline_margin_mm": 64.775222,
-    "minimum_servo_margin_deg": 23.846165,
+    "minimum_servo_margin_deg": 22.791220,
     "table_proxy": "PASS_TCP_POINT_PROXY_ONLY",
     "self_collision_proxy": "PASS_CENTERLINE_PROXY",
     "full_mesh_environment": "NOT_VERIFIED"

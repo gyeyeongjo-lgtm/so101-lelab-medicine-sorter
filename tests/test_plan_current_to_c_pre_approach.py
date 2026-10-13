@@ -50,9 +50,9 @@ class CurrentToCPreApproachPlannerTests(unittest.TestCase):
                 if name != "wrist_flex":
                     self.assertAlmostEqual(stage[name], start[index], places=6)
 
-    def test_recommended_exact_path_has_two_wrist_only_then_nine_coupled_goals(self):
+    def test_recommended_exact_path_has_two_wrist_only_then_bounded_coupled_goals(self):
         recommended = self.result["recommended"]
-        self.assertEqual(recommended["waypoint_count"], 11)
+        self.assertEqual(recommended["waypoint_count"], 6)
         self.assertEqual(recommended["wrist_lead_delta_deg"], 2.0)
         progression = recommended["waypoint_progression"]
         start = progression[0]["joints_deg"]
@@ -69,12 +69,10 @@ class CurrentToCPreApproachPlannerTests(unittest.TestCase):
         self.assertEqual(recommended["increasing_c_xy_distance_steps"], 0)
         self.assertGreater(recommended["minimum_tcp_z_increase_per_waypoint_mm"], 0.0)
 
-    def test_all_candidates_are_bounded_and_keep_existing_endpoint(self):
+    def test_candidates_are_bounded_and_keep_existing_endpoint(self):
         target = self.request["target_robot_xyz_mm"]
         for candidate in self.result["candidates"]:
-            self.assertTrue(candidate["valid"])
             self.assertLessEqual(candidate["maximum_joint_step_deg"], 1.0)
-            self.assertEqual(candidate["negative_z_steps"], 0)
             self.assertEqual(candidate["increasing_c_xy_distance_steps"], 0)
             self.assertGreaterEqual(
                 candidate["minimum_grasp_tcp_z_mm"], 89.193801)
@@ -87,6 +85,13 @@ class CurrentToCPreApproachPlannerTests(unittest.TestCase):
             final = candidate["waypoint_progression"][-1]["grasp_tcp_xyz_mm"]
             for actual, expected in zip(final, target):
                 self.assertAlmostEqual(actual, expected, places=3)
+        by_name = {candidate["candidate"]: candidate
+                   for candidate in self.result["candidates"]}
+        self.assertTrue(by_name["DIRECT_COUPLED"]["valid"])
+        self.assertTrue(by_name["WRIST_LEAD_2DEG"]["valid"])
+        self.assertEqual(by_name["WRIST_LEAD_2DEG"]["negative_z_steps"], 0)
+        self.assertFalse(by_name["WRIST_LEAD_3DEG"]["valid"])
+        self.assertGreater(by_name["WRIST_LEAD_3DEG"]["negative_z_steps"], 0)
 
     def test_recommended_result_is_offline_only(self):
         self.assertEqual(self.result["hardware_command_count"], 0)

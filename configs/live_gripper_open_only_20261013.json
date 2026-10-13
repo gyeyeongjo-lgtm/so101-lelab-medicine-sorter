@@ -1,17 +1,17 @@
 {
   "schema_version": 1,
   "scope": "c_pick_gripper_open_only",
-  "operation": "CURRENT_GRIPPER_2P264382_TO_35_PERCENT_ONLY",
+  "operation": "CURRENT_GRIPPER_34P577723_TO_35_PERCENT_ONLY_NOT_AUTHORIZED",
   "run_phrase": "RUN GRIPPER OPEN ONLY",
   "site_confirmation_phrase": "GRIPPER OPEN CONFIRMED",
   "motion_authorized": false,
   "arm_joint_target_allowed": false,
   "automatic_retry": false,
   "confirmed_start_arm_deg": {
-    "shoulder_pan": 11.736263736263735,
-    "shoulder_lift": -22.197802197802197,
-    "elbow_flex": 71.16483516483517,
-    "wrist_flex": -27.032967032967033,
+    "shoulder_pan": 11.648351648351648,
+    "shoulder_lift": -20.967032967032967,
+    "elbow_flex": 72.21978021978022,
+    "wrist_flex": -31.956043956043956,
     "wrist_roll": -14.197802197802197
   },
   "arm_start_tolerances_deg": {
@@ -21,7 +21,7 @@
     "wrist_flex": 0.5,
     "wrist_roll": 0.5
   },
-  "confirmed_start_gripper_percent": 2.264382,
+  "confirmed_start_gripper_percent": 34.57772337821298,
   "gripper_start_tolerance_pp": 2.0,
   "requested_gripper_percent": 35.0,
   "command_gripper_percent": 35.0061199510404,
@@ -52,6 +52,6 @@
   "follower_port": "/dev/ttyACM1",
   "follower_serial_short": "5AE6058306",
   "post_stop_route_plan": "live_c_pre_approach_from_current_20261013.json",
-  "post_stop_route_plan_sha256": "2a8c2642ff6102fd1362f7f23043d1645163628249350035235762ad0c4db148",
+  "post_stop_route_plan_sha256": "00b54123c068861181773cf155592f4cbaa83dae2d30db43892a65e7475a6c2b",
   "next_run_phrase": "RUN CURRENT TO C PRE APPROACH"
 }

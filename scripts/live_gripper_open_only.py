@@ -46,6 +46,7 @@ else:
 
 SCOPE = "c_pick_gripper_open_only"
 RUN_PHRASE = "RUN GRIPPER OPEN ONLY"
+RUN_TO_36_PHRASE = "RUN GRIPPER OPEN TO 36 ONLY"
 SITE_CONFIRM_PHRASE = "GRIPPER OPEN CONFIRMED"
 NEXT_RUN_PHRASE = "RUN CURRENT TO C PRE APPROACH"
 EXPECTED_GRIPPER_CALIBRATION = {
@@ -60,6 +61,20 @@ EXPECTED_GRIPPER_CALIBRATION = {
 EXPECTED_COMMAND_GRIPPER_PERCENT = 35.0061199510404
 EXPECTED_COMMAND_RAW = 985
 EXPECTED_COMMAND_FEEDBACK_PERCENT = 35.00611995104039
+COMMAND_PROFILES = {
+    RUN_PHRASE: {
+        "requested": 35.0,
+        "command": EXPECTED_COMMAND_GRIPPER_PERCENT,
+        "raw": EXPECTED_COMMAND_RAW,
+        "feedback": EXPECTED_COMMAND_FEEDBACK_PERCENT,
+    },
+    RUN_TO_36_PHRASE: {
+        "requested": 36.0,
+        "command": 36.04651162790698,
+        "raw": 1002,
+        "feedback": 36.04651162790697,
+    },
+}
 EXPECTED_SO_FOLLOWER_SOURCE_SHA256 = (
     "b7d9fcfcf67818c267d71744c993470dfb5077887f9ecedfe8cdf69f450be8fd"
 )
@@ -105,7 +120,8 @@ def load_plan(path: Path) -> dict:
     }
     if not required <= set(plan) or plan["scope"] != SCOPE:
         raise ValueError("gripper_open_scope_or_schema_invalid")
-    if (plan["run_phrase"] != RUN_PHRASE or
+    profile = COMMAND_PROFILES.get(plan["run_phrase"])
+    if (profile is None or
             plan["site_confirmation_phrase"] != SITE_CONFIRM_PHRASE or
             plan["next_run_phrase"] != NEXT_RUN_PHRASE):
         raise ValueError("gripper_open_phrase_contract_invalid")
@@ -145,13 +161,13 @@ def load_plan(path: Path) -> dict:
             "elbow_flex": 1.5, "wrist_flex": 0.5, "wrist_roll": 0.5,
             } or
             float(plan["gripper_start_tolerance_pp"]) != 2.0 or
-            float(plan["requested_gripper_percent"]) != 35.0 or
+            float(plan["requested_gripper_percent"]) != profile["requested"] or
             float(plan["command_gripper_percent"]) !=
-            EXPECTED_COMMAND_GRIPPER_PERCENT or
+            profile["command"] or
             float(plan["minimum_final_gripper_percent"]) != 35.0 or
-            plan["expected_command_raw"] != EXPECTED_COMMAND_RAW or
+            plan["expected_command_raw"] != profile["raw"] or
             float(plan["expected_command_normalized_feedback_percent"]) !=
-            EXPECTED_COMMAND_FEEDBACK_PERCENT or
+            profile["feedback"] or
             plan["gripper_calibration_evidence"] !=
             EXPECTED_GRIPPER_CALIBRATION or
             plan["so_follower_source_sha256"] !=
@@ -501,9 +517,10 @@ def run(plan_path: Path, *, live: bool, confirm_scope: str | None,
         return 0
     if confirm_scope != SCOPE:
         raise ValueError("live_scope_mismatch")
+    run_phrase = plan["run_phrase"]
     if input_fn(
-        f"Finger opening sweep is contact-free; open gripper only. Type {RUN_PHRASE}: "
-    ) != RUN_PHRASE:
+        f"Finger opening sweep is contact-free; open gripper only. Type {run_phrase}: "
+    ) != run_phrase:
         print("NOT_RUN", flush=True)
         return 2
 
