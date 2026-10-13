@@ -7,6 +7,7 @@ from unittest.mock import patch
 from scripts.live_c_safe_escape_only import (
     CONFIRM_PHRASE, RUN_PHRASE, SCOPE, build_fresh_escape_goal, load_plan, run,
 )
+from scripts.continuous_following_execution import FollowingTelemetry
 from scripts.staged_cycle_execution import Feedback, JOINT_UNITS
 
 
@@ -21,8 +22,11 @@ class FakeBus:
 
 
 class FakeTransport:
-    def __init__(self, start):
+    def __init__(self, start, *, movement_fraction=1.0):
         self.current = dict(start)
+        self.start = dict(start)
+        self.movement_fraction = movement_fraction
+        self.goal = dict(start)
         self.sent = []
         self.stop_calls = 0
         self.close_calls = 0
@@ -38,8 +42,26 @@ class FakeTransport:
 
     def send_goal(self, goal):
         self.sent.append(dict(goal))
-        self.current = dict(goal)
+        self.goal = dict(goal)
+        self.current = {
+            name: self.start[name] + self.movement_fraction * (
+                goal[name] - self.start[name])
+            for name in JOINT_UNITS
+        }
         return dict(goal)
+
+    def read_escape_telemetry(self):
+        return FollowingTelemetry(
+            positions=dict(self.current),
+            received_monotonic=time.monotonic(),
+            goal_raw={name: int(round(self.goal[name] * 10))
+                      for name in JOINT_UNITS},
+            present_raw={name: int(round(self.current[name] * 10))
+                         for name in JOINT_UNITS},
+            moving={name: 0 for name in JOINT_UNITS},
+            present_load={name: 20 for name in JOINT_UNITS},
+            temperature_c={name: 35 for name in JOINT_UNITS},
+        )
 
     def is_quiescent(self):
         return True
@@ -59,14 +81,28 @@ class SafeEscapeOnlyTests(unittest.TestCase):
         plan = load_plan(PLAN)
         return {**plan["confirmed_fresh_arm_deg"], "gripper": 2.0195838433292534}
 
-    def test_plan_remains_one_degree_escape_and_not_self_authorized(self):
+    def test_plan_is_exactly_two_degree_escape_and_not_self_authorized(self):
         plan = load_plan(PLAN)
         self.assertEqual(plan["scope"], SCOPE)
+        self.assertEqual(plan["candidate_name"], "SAFE_ESCAPE_2DEG")
         self.assertFalse(plan["motion_authorized"])
         goal = build_fresh_escape_goal(
             self._start(), plan, {name: (-200.0, 200.0) for name in JOINT_UNITS})
-        self.assertEqual(max(abs(goal[name] - self._start()[name]) for name in JOINT_UNITS), 1.0)
+        self.assertEqual(max(abs(goal[name] - self._start()[name]) for name in JOINT_UNITS), 2.0)
         self.assertEqual(goal["gripper"], self._start()["gripper"])
+
+    def test_fresh_rebase_preserves_two_degree_escape_direction(self):
+        plan = load_plan(PLAN)
+        start = self._start()
+        start.update(shoulder_pan=0.25, shoulder_lift=18.0, elbow_flex=15.0,
+                     wrist_flex=10.0, wrist_roll=14.5)
+        goal = build_fresh_escape_goal(
+            start, plan, {name: (-200.0, 200.0) for name in JOINT_UNITS})
+        self.assertEqual(
+            [goal[name] - start[name] for name in (
+                "shoulder_pan", "shoulder_lift", "elbow_flex",
+                "wrist_flex", "wrist_roll")],
+            [2.0, -2.0, -2.0, -2.0, 2.0])
 
     def test_dry_run_opens_no_transport(self):
         opened = []
@@ -78,7 +114,9 @@ class SafeEscapeOnlyTests(unittest.TestCase):
     def test_fake_live_sends_exactly_one_fresh_relative_target(self):
         transport = FakeTransport(self._start())
         answers = iter([RUN_PHRASE, CONFIRM_PHRASE, "STOPPED"])
-        with patch("sys.stdout", new_callable=io.StringIO) as stdout:
+        plan = load_plan(PLAN)
+        with patch("scripts.live_c_safe_escape_only.load_plan", return_value=plan), \
+                patch("sys.stdout", new_callable=io.StringIO) as stdout:
             result = run(
                 PLAN, live=True, confirm_scope=SCOPE,
                 input_fn=lambda _prompt: next(answers),
@@ -87,6 +125,45 @@ class SafeEscapeOnlyTests(unittest.TestCase):
         self.assertEqual(result, 0)
         self.assertEqual(len(transport.sent), 1)
         self.assertIn("SAFE_ESCAPE_PASS", stdout.getvalue())
+        self.assertIn('"load_gate_enabled":false', stdout.getvalue())
+        self.assertIn('"load_gate_result":"NOT_APPLICABLE_NOT_DEFINED"',
+                      stdout.getvalue())
+        self.assertIn('"present_load_delta"', stdout.getvalue())
+        for forbidden in ("APPROACH_PASS", "GRASP_PASS", "LIFT_PASS"):
+            self.assertNotIn(forbidden, stdout.getvalue())
+
+    def test_half_motion_can_pass_even_when_terminal_tolerance_fails(self):
+        transport = FakeTransport(self._start(), movement_fraction=0.5)
+        answers = iter([RUN_PHRASE, CONFIRM_PHRASE, "STOPPED"])
+        plan = load_plan(PLAN)
+        plan["verified_abs_load_limit"] = 100
+        with patch("scripts.live_c_safe_escape_only.load_plan", return_value=plan), \
+                patch("sys.stdout", new_callable=io.StringIO) as stdout:
+            result = run(
+                PLAN, live=True, confirm_scope=SCOPE,
+                input_fn=lambda _prompt: next(answers),
+                transport_factory=lambda: transport,
+                urdf_path_factory=lambda: URDF)
+        self.assertEqual(result, 0)
+        self.assertEqual(len(transport.sent), 1)
+        self.assertIn('"terminal_tolerance_gates_escape_pass":false',
+                      stdout.getvalue())
+
+    def test_no_motion_fails_without_a_second_send(self):
+        transport = FakeTransport(self._start(), movement_fraction=0.0)
+        answers = iter([RUN_PHRASE, "STOPPED"])
+        plan = load_plan(PLAN)
+        plan["verified_abs_load_limit"] = 100
+        with patch("scripts.live_c_safe_escape_only.load_plan", return_value=plan), \
+                patch("sys.stdout", new_callable=io.StringIO) as stdout:
+            result = run(
+                PLAN, live=True, confirm_scope=SCOPE,
+                input_fn=lambda _prompt: next(answers),
+                transport_factory=lambda: transport,
+                urdf_path_factory=lambda: URDF)
+        self.assertEqual(result, 1)
+        self.assertEqual(len(transport.sent), 1)
+        self.assertNotIn("SAFE_ESCAPE_PASS", stdout.getvalue())
         for forbidden in ("APPROACH_PASS", "GRASP_PASS", "LIFT_PASS"):
             self.assertNotIn(forbidden, stdout.getvalue())
 

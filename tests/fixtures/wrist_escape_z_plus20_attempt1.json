@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "trial": "WRIST_ESCAPE_Z_PLUS_20 attempt 1, step 1",
+  "source": "live telemetry and post-stop fresh read-only feedback, 2026-10-12",
+  "present_before_deg": [
+    1.4505494505,
+    18.1538461538,
+    14.7252747253,
+    8.3076923077,
+    16.2197802198
+  ],
+  "present_after_deg": [
+    1.3626373626,
+    18.6813186813,
+    15.2527472527,
+    6.5494505495,
+    16.1318681319
+  ],
+  "pick_grasp_tcp_offset_gripper_mm": [
+    -4.748354423376675,
+    -12.03374105992054,
+    -124.53173724769001
+  ],
+  "measured_response_fraction": [
+    0.52747,
+    0.0,
+    0.08791,
+    0.87912,
+    0.79121
+  ],
+  "maximum_joint_step_deg": 2.0,
+  "minimum_motion_fraction": 0.5,
+  "finite_difference_step_deg": 0.01,
+  "table_contact_reference_z_mm": 54.659,
+  "urdf_sha256": "443d38d756e01bac7d3455b24430047ddc6427105e0d3454b2003116f5f67236",
+  "motion_authorized": false
+}

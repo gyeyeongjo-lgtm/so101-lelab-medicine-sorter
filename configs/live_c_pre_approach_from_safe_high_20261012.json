@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "scope": "live_c_pre_approach_only",
+  "source_frame_sha256": "9c4eb1fd9efbaf0dc013072f01a83dc5597bd1da50dea1070443cde171f867e3",
+  "c_detection_confidence": 0.797704,
+  "c_robot_xy_mm": [-62.635354, -295.315566],
+  "target_robot_xyz_mm": [-62.635354, -295.315566, 100.0],
+  "target_arm_deg": {
+    "shoulder_pan": 14.845130,
+    "shoulder_lift": -16.993354,
+    "elbow_flex": 70.591582,
+    "wrist_flex": -37.176891,
+    "wrist_roll": -12.536328
+  },
+  "start_pose_name": "SAFE_HIGH",
+  "start_pose_tolerance_deg": 1.0,
+  "staged_reference_start_arm_deg": {
+    "shoulder_pan": 1.2747252747252746,
+    "shoulder_lift": 22.9010989010989,
+    "elbow_flex": -73.27472527472527,
+    "wrist_flex": 43.120879120879124,
+    "wrist_roll": -15.252747252747254
+  },
+  "staged_intermediate_arm_deg": [
+    {
+      "shoulder_pan": 4.667326456043956,
+      "shoulder_lift": 10.622140697938951,
+      "elbow_flex": -44.06078706502073,
+      "wrist_flex": 29.73791743406594,
+      "wrist_roll": -14.573642439560441
+    },
+    {
+      "shoulder_pan": 8.059927637362637,
+      "shoulder_lift": 0.7682653791449923,
+      "elbow_flex": -8.44493728199626,
+      "wrist_flex": 7.432981289377288,
+      "wrist_roll": -13.894537626373626
+    },
+    {
+      "shoulder_pan": 11.452528818681316,
+      "shoulder_lift": -8.339157350435897,
+      "elbow_flex": 30.067914108436767,
+      "wrist_flex": -14.871954855311351,
+      "wrist_roll": -13.215432813186812
+    }
+  ],
+  "ik_position_residual_mm": 0.000002570415,
+  "tcp_offset_gripper_mm": [-4.748354423376675, -12.03374105992054, -124.53173724769001],
+  "tcp_frame": "PICK_GRASP_OPENING_CENTER",
+  "calibration_pin_tcp_usage": "CALIBRATION_ONLY",
+  "orientation_validation": {
+    "full_error_deg": 3.090411,
+    "tool_axis_error_deg": 3.089709,
+    "jaw_axis_error_deg": 0.673228,
+    "reference": "human-confirmed demonstrated C grasp orientation"
+  },
+  "offline_path_validation": {
+    "waypoint_count": 146,
+    "maximum_joint_step_deg": 0.989329,
+    "grasp_tcp_start_xyz_mm": [2.090996, -389.902432, 364.853599],
+    "grasp_tcp_end_xyz_mm": [-62.635356, -295.315566, 100.000001],
+    "minimum_grasp_tcp_z_mm": 100.000001,
+    "minimum_tcp_table_proxy_margin_mm": 45.341001,
+    "minimum_nonbase_link_origin_z_mm": 94.881700,
+    "minimum_nonbase_link_origin_table_margin_mm": 40.222700,
+    "minimum_self_collision_centerline_margin_mm": 64.775222,
+    "minimum_servo_margin_deg": 21.736275,
+    "tcp_z_progression": "MONOTONIC_NON_INCREASING_TO_PRE_APPROACH",
+    "table_proxy": "PASS_TCP_POINT_AND_LINK_ORIGIN_PROXY",
+    "self_collision_proxy": "PASS_CENTERLINE_PROXY",
+    "full_mesh_environment": "NOT_VERIFIED"
+  },
+  "urdf_sha256": "443d38d756e01bac7d3455b24430047ddc6427105e0d3454b2003116f5f67236",
+  "follower_port": "/dev/ttyACM1",
+  "follower_serial_short": "5AE6058306",
+  "maximum_joint_step_deg": 1.0,
+  "refine_last_waypoints": 0,
+  "final_refinement_factor": 1,
+  "final_waypoint_timeout_s": 5.0,
+  "execution_mode": "bounded_continuous_following",
+  "following_cadence_s": 0.2,
+  "following_error_limits_deg": {
+    "shoulder_pan": 2.5,
+    "shoulder_lift": 2.5,
+    "elbow_flex": 4.0,
+    "wrist_flex": 2.5,
+    "wrist_roll": 2.5
+  },
+  "following_no_progress_timeout_s": 1.0,
+  "following_progress_epsilon_deg": 0.1,
+  "holds_fresh_gripper_position": true,
+  "orientation_solved": true,
+  "collision_checked": false,
+  "run_phrase": "RUN SAFE HIGH TO C PRE APPROACH",
+  "motion_authorized": false
+}

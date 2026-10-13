@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "home_joints_deg": [-2.5934065934065935, -65.27472527472527, 77.4065934065934, 17.89010989010989, -12.615384615384615],
+  "pre_approach_joints_deg": [14.845130, -16.993354, 70.591582, -37.176891, -12.536328],
+  "grasp_tcp_offset_gripper_mm": [-4.748354423376675, -12.03374105992054, -124.53173724769001],
+  "c_robot_xy_mm": [-62.635354, -295.315566],
+  "demonstrated_c_grasp_joints_deg": [18.065934065934066, -11.296703296703297, 60.0, -32.30769230769231, -11.56043956043956],
+  "servo_bounds_deg": [
+    [-116.374, 116.374],
+    [-99.846, 99.846],
+    [-95.011, 95.011],
+    [-98.615, 98.615],
+    [-154.352, 154.352]
+  ],
+  "lift_relief_candidates_deg": [-65.0, -60.0, -55.0],
+  "minimum_effective_raw_delta": 18,
+  "maximum_joint_step_deg": 1.0,
+  "table_reference_z_mm": 54.659,
+  "load_evidence": {
+    "source": ".local/c-red-pivot-tcp-table-20261011-s01/live_c_pre_approach_strong_unload_fresh3_attempt1.jsonl",
+    "observed_rule": "10-14 raw stalled; 18 raw began motion; 20-23 raw repeatedly moved",
+    "executed_lift_first_evidence": "Lift progressed through -65/-60/-55 to -50 deg while Elbow was held before later coupling",
+    "successful_path_source": ".local/c-red-pivot-tcp-table-20261011-s01/live_c_pre_approach_delayed_wrist_fresh5_attempt1.jsonl",
+    "successful_path_result": "71/71 PRE_APPROACH_PASS with coupled Shoulder/Elbow and delayed Wrist"
+  }
+}

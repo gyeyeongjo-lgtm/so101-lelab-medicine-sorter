@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "scope": "supervised_relative_start_teleop_to_pick_ready_only",
+  "pose_name": "PICK_READY",
+  "runtime_alias": "VISION_READY",
+  "current_pose_status": "LOW_INTERMEDIATE_AFTER_HOME_TO_C_ABORT",
+  "current_grasp_tcp_xyz_mm": [-10.546107, -262.235242, 68.470056],
+  "table_reference_z_mm": 54.659,
+  "minimum_grasp_tcp_z_mm": 154.659,
+  "minimum_z_basis": "reuse established table_plus_100_mm SAFE_HIGH clearance criterion",
+  "teleop_server": "http://127.0.0.1:8000",
+  "teleop_mode": "relative_start",
+  "leader_port": "/dev/ttyACM0",
+  "leader_serial_short": "5AE6085272",
+  "follower_port": "/dev/ttyACM1",
+  "follower_serial_short": "5AE6058306",
+  "startup_stillness_seconds": 3.0,
+  "maximum_existing_arm_command_step_deg": 2.0,
+  "temperature_limit_c": 55.0,
+  "load_policy": "DIAGNOSTIC_ONLY_VERIFIED_ABSOLUTE_LIMIT_NOT_DEFINED",
+  "human_pose_requirements": [
+    "A_B_C_GENERAL_ACCESS_NOT_C_ONLY",
+    "RED_GREEN_BLUE_TRANSFER_NOT_OBSTRUCTED",
+    "ELBOW_AWAY_FROM_BOTH_CALIBRATION_EDGES",
+    "SHOULDER_LIFT_NOT_EXTREMELY_LOW",
+    "CAMERA_VIEW_NOT_SEVERELY_OCCLUDED",
+    "TABLE_OBJECT_BASKET_LINK_NONCONTACT",
+    "SURROUNDINGS_CLEAR"
+  ],
+  "numeric_edge_margin_policy": "REPORT_BOTH_CALIBRATION_MARGINS_NO_NEW_ARBITRARY_PASS_THRESHOLD",
+  "post_stop_samples": 3,
+  "record_fields": [
+    "joint_raw_mean_std",
+    "joint_degree_mean_std",
+    "fk_grasp_tcp_mm",
+    "temperature_c_mean_max_std",
+    "recorded_at",
+    "note"
+  ],
+  "full_mesh_environment": "NOT_VERIFIED",
+  "motion_authorized": false,
+  "next_run_phrase": "RUN SUPERVISED TELEOP TO PICK_READY"
+}

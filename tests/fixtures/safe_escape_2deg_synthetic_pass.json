@@ -1,0 +1,53 @@
+{
+  "present_before": {
+    "shoulder_pan": 0.0,
+    "shoulder_lift": 18.0,
+    "elbow_flex": 15.0,
+    "wrist_flex": 10.0,
+    "wrist_roll": 15.0,
+    "gripper": 2.0
+  },
+  "requested_target": {
+    "shoulder_pan": 2.0,
+    "shoulder_lift": 16.0,
+    "elbow_flex": 13.0,
+    "wrist_flex": 8.0,
+    "wrist_roll": 17.0,
+    "gripper": 2.0
+  },
+  "present_after": {
+    "shoulder_pan": 1.2,
+    "shoulder_lift": 16.8,
+    "elbow_flex": 13.8,
+    "wrist_flex": 8.8,
+    "wrist_roll": 16.2,
+    "gripper": 2.1
+  },
+  "grasp_tcp_before_mm": [5.0, -365.0, 50.0],
+  "grasp_tcp_after_mm": [-2.0, -373.0, 65.0],
+  "present_load_before": {
+    "shoulder_pan": -40,
+    "shoulder_lift": 90,
+    "elbow_flex": 100,
+    "wrist_flex": 20,
+    "wrist_roll": -20,
+    "gripper": 0
+  },
+  "present_load": {
+    "shoulder_pan": -52,
+    "shoulder_lift": 104,
+    "elbow_flex": 96,
+    "wrist_flex": 32,
+    "wrist_roll": -28,
+    "gripper": 0
+  },
+  "temperature_c": {
+    "shoulder_pan": 38,
+    "shoulder_lift": 40,
+    "elbow_flex": 39,
+    "wrist_flex": 36,
+    "wrist_roll": 37,
+    "gripper": 40
+  },
+  "verified_abs_load_limit": 120
+}
