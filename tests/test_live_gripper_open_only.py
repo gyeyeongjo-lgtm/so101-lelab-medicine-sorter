@@ -200,6 +200,12 @@ def settled_immediately(transport, **_kwargs):
 
 
 class LiveGripperOpenOnlyTests(unittest.TestCase):
+    def test_cancelled_36_percent_plan_is_blocked_before_runtime(self):
+        with self.assertRaisesRegex(
+                ValueError, "gripper_open_plan_cancelled_by_user"):
+            load_plan(Path(
+                "configs/live_gripper_open_to_36_only_20261013.json"))
+
     def _start(self, *, gripper=None):
         plan = load_plan(PLAN)
         return {

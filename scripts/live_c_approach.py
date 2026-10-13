@@ -55,6 +55,7 @@ WRIST_LEAD_PHASE_GATE_POLICY = {
     "maximum_temperature_c": 55,
     "feedback_max_age_s": 0.5,
 }
+HUMAN_CONFIRMED_GRIPPER_POLICY = "HUMAN_CONFIRMED_CURRENT_STATE"
 RUN_PHRASES = frozenset((
     "RUN LIVE C APPROACH",
     "RUN SAFE HIGH TO C PRE APPROACH",
@@ -243,6 +244,11 @@ def load_plan(path: Path, *,
         phase_target = plan.get("wrist_lead_phase_target_arm_deg")
         gate_policy = plan.get("wrist_lead_phase_gate")
         tcp_offset = plan.get("tcp_offset_gripper_mm")
+        gripper_clearance_policy = plan.get("gripper_clearance_policy")
+        human_confirmed_gripper_percent = plan.get(
+            "human_confirmed_gripper_present_percent")
+        human_confirmed_gripper_raw = plan.get(
+            "human_confirmed_gripper_present_raw")
         if (present_phase_fields != phase_fields or
                 plan.get("wrist_lead_phase") != WRIST_LEAD_PHASE_NAME or
                 type(plan.get("wrist_lead_phase_waypoints")) is not int or
@@ -263,6 +269,14 @@ def load_plan(path: Path, *,
                                (int, float)) or
                 not math.isclose(plan["minimum_fresh_gripper_open_percent"], 35.0,
                                  rel_tol=0.0, abs_tol=1e-12) or
+                gripper_clearance_policy != HUMAN_CONFIRMED_GRIPPER_POLICY or
+                not isinstance(human_confirmed_gripper_percent, (int, float)) or
+                not math.isfinite(human_confirmed_gripper_percent) or
+                not math.isclose(human_confirmed_gripper_percent,
+                                 34.57772337821298,
+                                 rel_tol=0.0, abs_tol=1e-12) or
+                type(human_confirmed_gripper_raw) is not int or
+                human_confirmed_gripper_raw != 978 or
                 execution_mode != "bounded_continuous_following" or
                 not math.isclose(plan["maximum_joint_step_deg"], 1.0,
                                  rel_tol=0.0, abs_tol=1e-12)):
@@ -283,6 +297,23 @@ def load_plan(path: Path, *,
     plan["start_pose_name"] = start_pose_name
     plan["start_pose_tolerance_deg"] = start_pose_tolerance
     return plan
+
+
+def fresh_gripper_clearance_confirmed(
+        plan: dict, present_percent: float, *, present_raw: int | None = None) -> bool:
+    """Apply the global gate or this route's exact human-confirmed state."""
+    if present_percent >= float(plan["minimum_fresh_gripper_open_percent"]):
+        return True
+    if plan.get("gripper_clearance_policy") != HUMAN_CONFIRMED_GRIPPER_POLICY:
+        return False
+    confirmed_percent = plan.get("human_confirmed_gripper_present_percent")
+    confirmed_raw = plan.get("human_confirmed_gripper_present_raw")
+    if (not isinstance(confirmed_percent, (int, float)) or
+            type(confirmed_raw) is not int or
+            not math.isclose(float(present_percent), float(confirmed_percent),
+                             rel_tol=0.0, abs_tol=1e-9)):
+        return False
+    return present_raw is None or present_raw == confirmed_raw
 
 
 def interpolate_goals(start: dict[str, float], target_arm: dict[str, float],
@@ -621,8 +652,8 @@ def run(plan_path: Path, *, live: bool, confirm_scope: str | None,
                 any(not math.isfinite(first.positions[name]) for name in JOINT_UNITS)):
             raise ValueError("fresh_start_feedback_invalid")
         start = dict(first.positions)
-        if (wrist_lead_enabled and
-                start["gripper"] < plan["minimum_fresh_gripper_open_percent"]):
+        if (wrist_lead_enabled and not fresh_gripper_clearance_confirmed(
+                plan, start["gripper"])):
             raise RuntimeError(
                 "fresh_gripper_below_minimum_open:"
                 f"present={start['gripper']:.6f},"
@@ -632,8 +663,8 @@ def run(plan_path: Path, *, live: bool, confirm_scope: str | None,
         if (wrist_lead_enabled and
                 (verified_start is None or
                  set(verified_start.positions) != set(JOINT_UNITS) or
-                 verified_start.positions["gripper"] <
-                 plan["minimum_fresh_gripper_open_percent"])):
+                 not fresh_gripper_clearance_confirmed(
+                     plan, verified_start.positions["gripper"]))):
             raise RuntimeError("verified_fresh_gripper_below_minimum_open")
         validate_staged_reference_start(
             start, plan["staged_reference_start_arm_deg"],
@@ -720,8 +751,9 @@ def run(plan_path: Path, *, live: bool, confirm_scope: str | None,
                 controller = make_following_controller(
                     start, phase_tolerances, WRIST_LEAD_PHASE_NAME)
                 pre_send_telemetry = controller._read_telemetry()
-                if (pre_send_telemetry.positions["gripper"] <
-                        plan["minimum_fresh_gripper_open_percent"]):
+                if not fresh_gripper_clearance_confirmed(
+                        plan, pre_send_telemetry.positions["gripper"],
+                        present_raw=pre_send_telemetry.present_raw["gripper"]):
                     raise RuntimeError("pre_send_gripper_below_minimum_open")
                 controller.start_stage(
                     scope_contract["stage"], phase_goals, approved=True)

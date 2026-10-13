@@ -2,6 +2,15 @@
 
 업데이트: 2026-10-13
 
+## 2026-10-13 human-confirmed gripper clearance·CURRENT→C PRE_APPROACH live ready
+
+- 사용자 현장 판단으로 추가 gripper opening을 취소했다. `RUN GRIPPER OPEN TO 36 ONLY`는 `CANCELLED_BY_USER`로 fail-closed 처리했고, 이번 CURRENT→C route에서만 exact `34.577723378% / raw 978`을 `HUMAN_CONFIRMED_CURRENT_STATE`로 인정한다. global `minimum_fresh_gripper_open_percent=35.0`은 변경하지 않았고 다른 sub-35 값은 계속 차단한다.
+- 실제 motor command 없이 Jetson follower를 read-only 3회 읽었다. 모두 arm `[+11.736264,-20.967033,+72.219780,-31.956044,-14.197802]°`, gripper `34.577723%/raw 978`, Moving all `0`, Torque all `1`이었고 max Temperature는 `39°C`였다. Goal raw는 `2232/1710/2795/1706/1703/985`, Present raw는 `2235/1716/2805/1717/1703/978`; write/torque change `0`, port는 정상 해제됐다.
+- 이 fresh arm을 시작으로 6-waypoint `WRIST_LEAD_2DEG` route를 재검증했다. max step `1°`, joint delta `[+3.108866,+3.973679,-1.628198,-5.220847,+1.661474]°`, GRASP TCP `[-46.099790,-292.560444,93.788217]→[-62.635356,-295.315566,100.000001] mm`, TCP Z 단조 증가, C XY distance `16.763519→0.000002 mm`, table proxy `+39.129217 mm`, self-collision centerline proxy `64.775222 mm` PASS, servo margin `22.791220°`다. full mesh/environment는 `NOT_VERIFIED` 유지다.
+- loader/initial/verified/pre-send 세 gate가 같은 route-local helper를 사용하며, pre-send에서는 percent와 raw `978`을 모두 검증한다. exact 현장 확인값은 PASS, `34.9%`·raw mismatch는 FAIL이고 기존 `>=35%` 경로는 유지된다.
+- 로컬 targeted `61/61 PASS`, py_compile/JSON/diff-check/dry-run PASS. Jetson 격리 폴더에 runner/plan을 배치했고 local/remote SHA 일치, 설치 Python compile·CURRENT→C dry-run PASS(`no port opened; no send_action`)를 확인했다. 취소된 36% plan은 `GRIPPER_OPEN_NOT_STARTED: gripper_open_plan_cancelled_by_user`로 port 전 차단된다. 첫 원격 확인에서 gripper CLI에 없는 `--dry-run`을 명시해 argparse exit `2`가 나왔고, 기본 dry-run으로 재실행해 정상 차단을 확인했다. 두 시도 모두 hardware command `0`.
+- 마지막 점검에서 LeLab teleoperation/recording/inference는 모두 inactive고, privileged `fuser /dev/ttyACM1` 출력 없음(rc `1`)으로 follower port free다. arm live motion은 `NOT_RUN/NOT_AUTHORIZED`; 상세: [세션](sessions/2026-10-13-current-to-c-human-clearance-ready.md). commit/push는 이 작업 단위로 `origin/fix/usb-recording`에 동기화한다.
+
 ## 2026-10-13 GRIPPER OPEN ONLY 실기 2 — 34.578% 정지·36% 단일 후속 준비
 
 - fresh start 기준 `RUN GRIPPER OPEN ONLY`을 실행해 gripper 한 축 target을 1회만 보냈다. arm target `0`, gripper send `1`; `22.521420→34.516524%`, Goal raw `985`, arm drift `0 deg`, Moving all `0`, max Temperature `40 C`다. final이 `35%`보다 `0.483476 pp` 낮아 `GRIPPER_OPEN_PASS=false`; 자동 재시도와 tolerance 완화는 하지 않았다.

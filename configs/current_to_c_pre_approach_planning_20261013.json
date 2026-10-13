@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "urdf_sha256": "443d38d756e01bac7d3455b24430047ddc6427105e0d3454b2003116f5f67236",
-  "fresh_current_joints_deg": [11.648351648351648, -20.967032967032967, 72.21978021978022, -31.956043956043956, -14.197802197802197],
-  "fresh_current_pose_source": "three identical post-stop read-only samples after gripper-open attempt2; Present raw 2234/1716/2805/1717/1703, gripper raw 978",
+  "fresh_current_joints_deg": [11.736263736263735, -20.967032967032967, 72.21978021978022, -31.956043956043956, -14.197802197802197],
+  "fresh_current_pose_source": "three identical read-only samples after human-confirmed gripper clearance; Present raw 2235/1716/2805/1717/1703, gripper raw 978",
   "pre_approach_joints_deg": [14.845130, -16.993354, 70.591582, -37.176891, -12.536328],
   "target_robot_xyz_mm": [-62.635354, -295.315566, 100.0],
   "grasp_tcp_offset_gripper_mm": [-4.748354423376675, -12.03374105992054, -124.53173724769001],

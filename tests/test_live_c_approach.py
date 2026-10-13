@@ -17,7 +17,8 @@ from scripts.live_c_approach import (
     ARM_NAMES, CURRENT_TO_C_START_POSE, PRE_APPROACH_SCOPE,
     RETURN_TO_PICK_READY_SCOPE, SCOPE_CONTRACTS, STRICT_POSE_TOLERANCES_DEG,
     WRIST_LEAD_PHASE_GATE_POLICY, WRIST_LEAD_PHASE_NAME,
-    final_tolerances_for_plan, interpolate_goals, interpolate_staged_goals,
+    final_tolerances_for_plan, fresh_gripper_clearance_confirmed,
+    interpolate_goals, interpolate_staged_goals,
     load_plan, load_verified_fk_kinematics, run,
     validate_staged_reference_start, verify_wrist_lead_phase_gate,
     wrist_lead_phase_goals,
@@ -715,6 +716,17 @@ class LiveCApproachTests(unittest.TestCase):
         self.assertEqual(plan["wrist_lead_phase_target_arm_deg"],
                          plan["staged_intermediate_arm_deg"][0])
         self.assertEqual(plan["minimum_fresh_gripper_open_percent"], 35.0)
+        self.assertEqual(plan["gripper_clearance_policy"],
+                         "HUMAN_CONFIRMED_CURRENT_STATE")
+        self.assertEqual(plan["human_confirmed_gripper_present_raw"], 978)
+        self.assertTrue(fresh_gripper_clearance_confirmed(
+            plan, 34.57772337821298, present_raw=978))
+        self.assertTrue(fresh_gripper_clearance_confirmed(
+            plan, 35.0, present_raw=985))
+        self.assertFalse(fresh_gripper_clearance_confirmed(
+            plan, 34.9, present_raw=983))
+        self.assertFalse(fresh_gripper_clearance_confirmed(
+            plan, 34.57772337821298, present_raw=979))
         self.assertEqual(final_tolerances_for_plan(plan), {
             **STRICT_POSE_TOLERANCES_DEG,
             "gripper": 2.0,
@@ -747,6 +759,9 @@ class LiveCApproachTests(unittest.TestCase):
         for key, value in (
             ("wrist_lead_phase_waypoints", 3),
             ("minimum_fresh_gripper_open_percent", 34.9),
+            ("gripper_clearance_policy", "ANY_SUB_35_VALUE"),
+            ("human_confirmed_gripper_present_percent", 34.9),
+            ("human_confirmed_gripper_present_raw", 979),
             ("wrist_lead_phase_gate", {
                 **WRIST_LEAD_PHASE_GATE_POLICY,
                 "target_tolerance_deg": 0.6,
@@ -908,6 +923,17 @@ class LiveCApproachTests(unittest.TestCase):
         self.assertTrue(transport.robot.bus.disconnected)
         self.assertTrue(transport.lease.released)
         self.assertIn("fresh_gripper_below_minimum_open", errors.getvalue())
+
+    def test_current_route_only_accepts_exact_human_confirmed_sub35_opening(self):
+        plan = load_plan(Path(
+            "configs/live_c_pre_approach_from_current_20261013.json"))
+        confirmed = plan["human_confirmed_gripper_present_percent"]
+        self.assertTrue(fresh_gripper_clearance_confirmed(
+            plan, confirmed, present_raw=978))
+        for value, raw in ((34.9, 983), (confirmed, 977), (34.5, 978)):
+            with self.subTest(value=value, raw=raw):
+                self.assertFalse(fresh_gripper_clearance_confirmed(
+                    plan, value, present_raw=raw))
 
     def test_current_route_gate_precedes_coupled_targets(self):
         plan_path = Path(

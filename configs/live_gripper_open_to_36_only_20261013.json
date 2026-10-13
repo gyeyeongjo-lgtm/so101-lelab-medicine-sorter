@@ -1,5 +1,6 @@
 {
   "schema_version": 1,
+  "status": "CANCELLED_BY_USER",
   "scope": "c_pick_gripper_open_only",
   "operation": "CURRENT_GRIPPER_34P577723_TO_36_PERCENT_ONLY",
   "run_phrase": "RUN GRIPPER OPEN TO 36 ONLY",
@@ -8,7 +9,7 @@
   "arm_joint_target_allowed": false,
   "automatic_retry": false,
   "confirmed_start_arm_deg": {
-    "shoulder_pan": 11.648351648351648,
+    "shoulder_pan": 11.736263736263735,
     "shoulder_lift": -20.967032967032967,
     "elbow_flex": 72.21978021978022,
     "wrist_flex": -31.956043956043956,
@@ -52,6 +53,6 @@
   "follower_port": "/dev/ttyACM1",
   "follower_serial_short": "5AE6058306",
   "post_stop_route_plan": "live_c_pre_approach_from_current_20261013.json",
-  "post_stop_route_plan_sha256": "00b54123c068861181773cf155592f4cbaa83dae2d30db43892a65e7475a6c2b",
+  "post_stop_route_plan_sha256": "e8afb3f2b7998d8045649ae594e09b28b306393f8305e536e23dee46eb0909b1",
   "next_run_phrase": "RUN CURRENT TO C PRE APPROACH"
 }

@@ -99,6 +99,8 @@ def _route_plan_path(plan_path: Path, configured: str) -> Path:
 
 def load_plan(path: Path) -> dict:
     plan = json.loads(path.read_text(encoding="utf-8"))
+    if plan.get("status") == "CANCELLED_BY_USER":
+        raise ValueError("gripper_open_plan_cancelled_by_user")
     required = {
         "scope", "run_phrase", "site_confirmation_phrase",
         "motion_authorized", "arm_joint_target_allowed", "automatic_retry",
