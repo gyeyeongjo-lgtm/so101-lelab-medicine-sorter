@@ -189,7 +189,7 @@ def plan(document: dict, kinematics: UrdfKinematics, urdf_sha256: str) -> dict:
         bounds.shape != (5, 2)
         or not all(math.isfinite(value) for value in numeric)
         or lead_deltas != [0.0, 2.0, 3.0]
-        or recommended_lead != 2.0
+        or recommended_lead not in {0.0, 2.0}
         or not 0.0 < maximum_step <= 1.0
         or not np.allclose(target_xyz[:2], c_xy, atol=1e-9, rtol=0.0)
         or document.get("motion_authorized") is not False
@@ -218,7 +218,7 @@ def plan(document: dict, kinematics: UrdfKinematics, urdf_sha256: str) -> dict:
     selected = next((candidate for candidate in valid
                      if candidate["wrist_lead_delta_deg"] == recommended_lead), None)
     if selected is None:
-        raise ValueError("recommended 2-degree Wrist lead is not proxy-valid")
+        raise ValueError("recommended Wrist policy is not proxy-valid")
     return {
         "status": "OFFLINE_DRY_RUN_ONLY",
         "fresh_start_pose": "C_RETURN_ACTUAL_ATTEMPT2",
@@ -234,6 +234,10 @@ def plan(document: dict, kinematics: UrdfKinematics, urdf_sha256: str) -> dict:
         "recommended_candidate": selected["candidate"],
         "recommended": selected,
         "selection_rule": (
+            "DIRECT_COUPLED is selected after the measured Wrist-only phase "
+            "stalled and reduced TCP Z; it preserves bounded monotonic TCP-Z "
+            "and C-XY progress without repeating the failed Wrist-only phase"
+            if recommended_lead == 0.0 else
             "exact 2-degree Wrist lead is the smallest staged lead chosen from "
             "DIRECT/2DEG/3DEG that preserves monotonic TCP-Z and C-XY progress; "
             "it addresses measured Wrist lag without a 3-degree Wrist-only phase"

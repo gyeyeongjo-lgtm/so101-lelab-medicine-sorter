@@ -37,6 +37,11 @@ PRE_APPROACH_SCOPE = "live_c_pre_approach_only"
 RETURN_TO_PICK_READY_SCOPE = "live_c_return_to_pick_ready_only"
 LEGACY_APPROACH_ONLY_SCOPE = "live_c_approach_only"
 CURRENT_TO_C_START_POSE = "C_RETURN_ACTUAL_ATTEMPT2"
+CURRENT_TO_C_DIRECT_START_POSE = "C_WRIST_LEAD_ACTUAL_ATTEMPT1"
+CURRENT_TO_C_START_POSES = frozenset((
+    CURRENT_TO_C_START_POSE,
+    CURRENT_TO_C_DIRECT_START_POSE,
+))
 STRICT_POSE_TOLERANCES_DEG = {
     "shoulder_pan": 0.5,
     "shoulder_lift": 1.5,
@@ -71,11 +76,13 @@ START_POSE_RUN_PHRASES = {
     "PICK_READY": "RUN PICK READY TO C PRE APPROACH",
     "C_PRE_APPROACH_ACTUAL_ATTEMPT1": "RUN C PRE APPROACH TO PICK READY",
     CURRENT_TO_C_START_POSE: "RUN CURRENT TO C PRE APPROACH",
+    CURRENT_TO_C_DIRECT_START_POSE: "RUN CURRENT TO C PRE APPROACH",
 }
 SCOPE_CONTRACTS = {
     PRE_APPROACH_SCOPE: {
         "start_pose_names": {
-            None, "HOME", "SAFE_HIGH", "PICK_READY", CURRENT_TO_C_START_POSE,
+            None, "HOME", "SAFE_HIGH", "PICK_READY",
+            *CURRENT_TO_C_START_POSES,
         },
         "stage": "approach",
         "reached_marker": "APPROACH_REACHED",
@@ -182,7 +189,11 @@ def load_plan(path: Path, *,
     intermediates = plan.get("staged_intermediate_arm_deg", [])
     reference_start = plan.get("staged_reference_start_arm_deg")
     if intermediates or reference_start is not None:
-        if (not isinstance(intermediates, list) or not 1 <= len(intermediates) <= 6 or
+        minimum_intermediates = (
+            0 if plan.get("start_pose_name") == CURRENT_TO_C_DIRECT_START_POSE
+            else 1)
+        if (not isinstance(intermediates, list) or
+                not minimum_intermediates <= len(intermediates) <= 6 or
                 not isinstance(reference_start, dict) or
                 set(reference_start) != set(ARM_NAMES)):
             raise ValueError("staged_approach_contract_invalid")
@@ -233,7 +244,7 @@ def load_plan(path: Path, *,
             (start_pose_name is not None and reference_start is None) or
             (start_pose_name == "PICK_READY" and
              not per_axis_start_tolerance) or
-            (start_pose_name == CURRENT_TO_C_START_POSE and
+            (start_pose_name in CURRENT_TO_C_START_POSES and
              start_pose_tolerance != STRICT_POSE_TOLERANCES_DEG) or
             (plan["scope"] == RETURN_TO_PICK_READY_SCOPE and
              (plan.get("target_pose_name") != "PICK_READY" or
@@ -291,6 +302,30 @@ def load_plan(path: Path, *,
                                      rel_tol=0.0, abs_tol=1e-9)
                     for name in ARM_NAMES if name != "wrist_flex")):
             raise ValueError("wrist_lead_phase_geometry_invalid")
+    elif start_pose_name == CURRENT_TO_C_DIRECT_START_POSE:
+        human_confirmed_gripper_percent = plan.get(
+            "human_confirmed_gripper_present_percent")
+        human_confirmed_gripper_raw = plan.get(
+            "human_confirmed_gripper_present_raw")
+        if (present_phase_fields or
+                plan.get("path_candidate") != "DIRECT_COUPLED" or
+                intermediates != [] or
+                not isinstance(plan.get("minimum_fresh_gripper_open_percent"),
+                               (int, float)) or
+                not math.isclose(plan["minimum_fresh_gripper_open_percent"], 35.0,
+                                 rel_tol=0.0, abs_tol=1e-12) or
+                plan.get("gripper_clearance_policy") !=
+                HUMAN_CONFIRMED_GRIPPER_POLICY or
+                not isinstance(human_confirmed_gripper_percent, (int, float)) or
+                not math.isclose(human_confirmed_gripper_percent,
+                                 34.516523867809056,
+                                 rel_tol=0.0, abs_tol=1e-12) or
+                type(human_confirmed_gripper_raw) is not int or
+                human_confirmed_gripper_raw != 977 or
+                execution_mode != "bounded_continuous_following" or
+                not math.isclose(plan["maximum_joint_step_deg"], 1.0,
+                                 rel_tol=0.0, abs_tol=1e-12)):
+            raise ValueError("direct_coupled_contract_invalid")
     elif present_phase_fields:
         raise ValueError("wrist_lead_phase_scope_invalid")
     plan["run_phrase"] = run_phrase
@@ -439,7 +474,7 @@ def final_tolerances_for_plan(plan: dict) -> dict[str, float]:
             raise ValueError("pick_ready_return_final_tolerance_invalid")
         return {**arm_tolerances, "gripper": 2.0}
     if (plan["scope"] == PRE_APPROACH_SCOPE and
-            plan["start_pose_name"] == CURRENT_TO_C_START_POSE):
+            plan["start_pose_name"] in CURRENT_TO_C_START_POSES):
         arm_tolerances = plan["start_pose_tolerance_deg"]
         if arm_tolerances != STRICT_POSE_TOLERANCES_DEG:
             raise ValueError("current_to_c_final_tolerance_invalid")
@@ -588,6 +623,7 @@ def run(plan_path: Path, *, live: bool, confirm_scope: str | None,
     plan = load_plan(plan_path, expected_scope=tuple(SCOPE_CONTRACTS))
     scope_contract = SCOPE_CONTRACTS[plan["scope"]]
     final_tolerances = final_tolerances_for_plan(plan)
+    current_route_enabled = plan["start_pose_name"] in CURRENT_TO_C_START_POSES
     wrist_lead_enabled = plan["start_pose_name"] == CURRENT_TO_C_START_POSE
     kinematics = None
     if live and wrist_lead_enabled:
@@ -652,7 +688,7 @@ def run(plan_path: Path, *, live: bool, confirm_scope: str | None,
                 any(not math.isfinite(first.positions[name]) for name in JOINT_UNITS)):
             raise ValueError("fresh_start_feedback_invalid")
         start = dict(first.positions)
-        if (wrist_lead_enabled and not fresh_gripper_clearance_confirmed(
+        if (current_route_enabled and not fresh_gripper_clearance_confirmed(
                 plan, start["gripper"])):
             raise RuntimeError(
                 "fresh_gripper_below_minimum_open:"
@@ -660,7 +696,7 @@ def run(plan_path: Path, *, live: bool, confirm_scope: str | None,
                 f"minimum={plan['minimum_fresh_gripper_open_percent']:.6f}")
         verified_start = transport.verify_start_pose(
             start, {name: (2.0 if name == "gripper" else 1.0) for name in JOINT_UNITS})
-        if (wrist_lead_enabled and
+        if (current_route_enabled and
                 (verified_start is None or
                  set(verified_start.positions) != set(JOINT_UNITS) or
                  not fresh_gripper_clearance_confirmed(
@@ -803,6 +839,12 @@ def run(plan_path: Path, *, live: bool, confirm_scope: str | None,
                 expected_controller_waypoints = len(coupled_goals)
             else:
                 controller = make_following_controller(start, tolerances, None)
+                if current_route_enabled:
+                    pre_send_telemetry = controller._read_telemetry()
+                    if not fresh_gripper_clearance_confirmed(
+                            plan, pre_send_telemetry.positions["gripper"],
+                            present_raw=pre_send_telemetry.present_raw["gripper"]):
+                        raise RuntimeError("pre_send_gripper_below_minimum_open")
                 controller.start_stage(scope_contract["stage"], goals, approved=True)
                 wait_for_controller(controller, len(goals))
                 expected_controller_waypoints = len(goals)

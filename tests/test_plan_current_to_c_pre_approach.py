@@ -9,6 +9,7 @@ from scripts.urdf_forward_kinematics import UrdfKinematics
 
 ROOT = Path(__file__).resolve().parents[1]
 REQUEST = ROOT / "configs/current_to_c_pre_approach_planning_20261013.json"
+DIRECT_REQUEST = ROOT / "configs/current_to_c_direct_pre_approach_planning_20261013.json"
 URDF = ROOT / ".local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf"
 
 
@@ -103,6 +104,19 @@ class CurrentToCPreApproachPlannerTests(unittest.TestCase):
         request = {**self.request, "maximum_joint_step_deg": 1.01}
         with self.assertRaisesRegex(ValueError, "invalid CURRENT path request"):
             plan(request, UrdfKinematics.from_file(URDF), self.digest)
+
+    def test_post_attempt_direct_request_selects_five_step_coupled_path(self):
+        request = json.loads(DIRECT_REQUEST.read_text(encoding="utf-8"))
+        result = plan(
+            request, UrdfKinematics.from_file(URDF), self.digest)
+        self.assertEqual(result["recommended_candidate"], "DIRECT_COUPLED")
+        recommended = result["recommended"]
+        self.assertTrue(recommended["valid"])
+        self.assertEqual(recommended["waypoint_count"], 5)
+        self.assertEqual(recommended["negative_z_steps"], 0)
+        self.assertGreater(
+            recommended["minimum_tcp_z_increase_per_waypoint_mm"], 0.0)
+        self.assertEqual(result["hardware_command_count"], 0)
 
 
 if __name__ == "__main__":

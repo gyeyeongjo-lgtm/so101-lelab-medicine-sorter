@@ -2,6 +2,14 @@
 
 업데이트: 2026-10-13
 
+## 2026-10-13 CURRENT→C DIRECT_COUPLED 재시험 READY
+
+- 사용자가 Wrist-lead 실기 종료 후 현재 opening을 다시 육안 확인해 `CURRENT OPENING CONFIRMED`를 보냈다. 이번 next run에서만 gripper `34.516523868% / raw 977`을 `HUMAN_CONFIRMED_CURRENT_STATE`로 고정했다. global `35.0%` gate는 변경하지 않았고 exact percent/raw가 다르면 송신 전 차단한다.
+- 실패한 `WRIST_LEAD_2DEG`를 반복하지 않고 종료 후 fresh pose `[+11.736264,-20.615385,+72.747253,-32.835165,-14.197802]°`에서 endpoint까지 `DIRECT_COUPLED` 5 waypoint를 사용한다. max actual joint step `0.868345°`; joint delta `[+3.108866,+3.622031,-2.155671,-4.341726,+1.661474]°`다.
+- offline FK는 GRASP TCP `[-45.923279,-291.710762,92.527143]→[-62.635356,-295.315566,100.000001] mm`, TCP Z 단조 증가(min step `+1.477010 mm`), C XY distance `17.096434→0.000002 mm`, table proxy `+37.868143 mm`, self centerline `63.903077 mm` PASS, servo margin `22.263747°`다. full mesh/environment는 `NOT_VERIFIED`.
+- runner는 기존 `bounded_continuous_following`을 재사용한다. initial/verified/pre-send에서 exact gripper clearance를 재검증하고, pre-send wrong raw면 first target 전 ABORT한다. 기존 start tolerance(Pan/Flex/Roll `0.5°`, Lift/Elbow `1.5°`), final tolerance, freshness, Moving/Temperature/following gate는 유지했다.
+- 배치 후 read-only 3회는 arm/gripper가 plan exact state와 동일했고 Moving all `0`, Torque all `1`, Tmax `38°C`; write/torque change `0`, follower port release PASS다. local targeted `64/64 PASS`, py_compile/JSON/diff-check/dry-run PASS; Jetson SHA 일치·설치 Python compile·dry-run PASS(`no port opened; no send_action`). actual motor command는 `0`, live는 `NOT_RUN/NOT_AUTHORIZED`; 상세: [세션](sessions/2026-10-13-current-to-c-direct-coupled-ready.md).
+
 ## 2026-10-13 CURRENT→C PRE_APPROACH 실기 1 — Wrist lead timeout FAIL·STOPPED
 
 - 첫 live 시도는 일반 권한 `fuser`가 `/proc` 권한 오류를 보고했고 `sudo -n fuser`의 인증 cache가 없어 `port_ownership_unknown`으로 serial open 전 차단됐다. SEND/Goal/Torque/motor command는 `0`. 같은 사용자 승인 범위에서 `sudo -v`로 privileged read-only 소유권 검사를 활성화한 뒤 재시작했다.

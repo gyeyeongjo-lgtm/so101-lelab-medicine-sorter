@@ -14,7 +14,8 @@ from scripts.continuous_following_execution import (
     ContinuousFollowingCycle, FollowingTelemetry,
 )
 from scripts.live_c_approach import (
-    ARM_NAMES, CURRENT_TO_C_START_POSE, PRE_APPROACH_SCOPE,
+    ARM_NAMES, CURRENT_TO_C_DIRECT_START_POSE, CURRENT_TO_C_START_POSE,
+    PRE_APPROACH_SCOPE,
     RETURN_TO_PICK_READY_SCOPE, SCOPE_CONTRACTS, STRICT_POSE_TOLERANCES_DEG,
     WRIST_LEAD_PHASE_GATE_POLICY, WRIST_LEAD_PHASE_NAME,
     final_tolerances_for_plan, fresh_gripper_clearance_confirmed,
@@ -934,6 +935,120 @@ class LiveCApproachTests(unittest.TestCase):
             with self.subTest(value=value, raw=raw):
                 self.assertFalse(fresh_gripper_clearance_confirmed(
                     plan, value, present_raw=raw))
+
+    def test_direct_current_route_uses_exact_reconfirmed_opening_and_five_steps(self):
+        plan = load_plan(Path(
+            "configs/live_c_pre_approach_direct_from_current_20261013.json"))
+        self.assertEqual(plan["start_pose_name"],
+                         CURRENT_TO_C_DIRECT_START_POSE)
+        self.assertEqual(plan["path_candidate"], "DIRECT_COUPLED")
+        self.assertEqual(plan["minimum_fresh_gripper_open_percent"], 35.0)
+        self.assertEqual(plan["human_confirmed_gripper_present_raw"], 977)
+        self.assertNotIn("wrist_lead_phase", plan)
+        self.assertTrue(fresh_gripper_clearance_confirmed(
+            plan, 34.516523867809056, present_raw=977))
+        self.assertFalse(fresh_gripper_clearance_confirmed(
+            plan, 34.516523867809056, present_raw=978))
+        start = {
+            **plan["staged_reference_start_arm_deg"],
+            "gripper": plan["human_confirmed_gripper_present_percent"],
+        }
+        goals = interpolate_staged_goals(
+            start, plan["staged_intermediate_arm_deg"],
+            plan["target_arm_deg"], plan["maximum_joint_step_deg"])
+        self.assertEqual(len(goals), 5)
+        self.assertLessEqual(max(
+            abs(goal[name] - previous[name])
+            for previous, goal in zip([start, *goals[:-1]], goals)
+            for name in ARM_NAMES
+        ), 1.0)
+        self.assertEqual(final_tolerances_for_plan(plan), {
+            **STRICT_POSE_TOLERANCES_DEG,
+            "gripper": 2.0,
+        })
+
+    def test_direct_current_route_rechecks_exact_raw_before_first_send(self):
+        plan_path = Path(
+            "configs/live_c_pre_approach_direct_from_current_20261013.json")
+        plan = load_plan(plan_path)
+        start = {
+            **plan["staged_reference_start_arm_deg"],
+            "gripper": plan["human_confirmed_gripper_present_percent"],
+        }
+
+        class Feedback:
+            def __init__(self, positions):
+                self.positions = dict(positions)
+                self.received_monotonic = time.monotonic()
+
+        class FakeTransport:
+            def __init__(self):
+                self.positions = dict(start)
+                self.stopped = False
+                self.closed = False
+
+            def read_feedback(self):
+                return Feedback(self.positions)
+
+            def verify_start_pose(self, *_args, **_kwargs):
+                return Feedback(self.positions)
+
+            def stop_commands(self):
+                self.stopped = True
+
+            def close_after_site_confirmation(self, *_args, **_kwargs):
+                self.closed = True
+
+        class FakeController:
+            started = False
+
+            def __init__(self, transport, *_args, **_kwargs):
+                self.transport = transport
+
+            def _read_telemetry(self):
+                zeros = {name: 0 for name in JOINT_UNITS}
+                present_raw = dict(zeros)
+                present_raw["gripper"] = 976
+                return FollowingTelemetry(
+                    positions=dict(self.transport.positions),
+                    received_monotonic=time.monotonic(),
+                    goal_raw=zeros,
+                    present_raw=present_raw,
+                    moving=zeros,
+                    present_load=zeros,
+                    temperature_c={name: 30 for name in JOINT_UNITS},
+                )
+
+            def start_stage(self, *_args, **_kwargs):
+                FakeController.started = True
+
+            def request_stop(self):
+                return None
+
+            def verify_stop_completed(self, *, timeout_s):
+                return timeout_s > 0
+
+            def verify_arm_stopped(self, **_kwargs):
+                return True
+
+        answers = iter(["RUN CURRENT TO C PRE APPROACH", "STOPPED"])
+        transport = FakeTransport()
+        with tempfile.TemporaryDirectory() as directory:
+            errors = io.StringIO()
+            with patch("scripts.live_c_approach.ContinuousFollowingCycle",
+                       FakeController), redirect_stderr(errors):
+                result = run(
+                    plan_path, live=True,
+                    confirm_scope=PRE_APPROACH_SCOPE,
+                    following_log_output=Path(directory) / "direct.jsonl",
+                    input_fn=lambda _prompt: next(answers),
+                    transport_factory=lambda: transport,
+                )
+        self.assertEqual(result, 1)
+        self.assertFalse(FakeController.started)
+        self.assertTrue(transport.stopped)
+        self.assertTrue(transport.closed)
+        self.assertIn("pre_send_gripper_below_minimum_open", errors.getvalue())
 
     def test_current_route_gate_precedes_coupled_targets(self):
         plan_path = Path(

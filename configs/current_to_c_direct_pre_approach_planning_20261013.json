@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "urdf_sha256": "443d38d756e01bac7d3455b24430047ddc6427105e0d3454b2003116f5f67236",
+  "fresh_current_joints_deg": [11.736263736263735, -20.615384615384617, 72.74725274725274, -32.83516483516483, -14.197802197802197],
+  "fresh_current_pose_source": "three identical post-stop read-only samples after CURRENT-to-C attempt1; Present raw 2235/1720/2811/1707/1703, gripper raw 977; user reconfirmed current opening",
+  "pre_approach_joints_deg": [14.845130, -16.993354, 70.591582, -37.176891, -12.536328],
+  "target_robot_xyz_mm": [-62.635354, -295.315566, 100.0],
+  "grasp_tcp_offset_gripper_mm": [-4.748354423376675, -12.03374105992054, -124.53173724769001],
+  "c_robot_xy_mm": [-62.635354, -295.315566],
+  "demonstrated_c_grasp_joints_deg": [18.065934065934066, -11.296703296703297, 60.0, -32.30769230769231, -11.56043956043956],
+  "servo_bounds_deg": [
+    [-116.374, 116.374],
+    [-99.846, 99.846],
+    [-95.011, 95.011],
+    [-98.615, 98.615],
+    [-154.352, 154.352]
+  ],
+  "wrist_lead_deltas_deg": [0.0, 2.0, 3.0],
+  "recommended_wrist_lead_delta_deg": 0.0,
+  "maximum_joint_step_deg": 1.0,
+  "table_reference_z_mm": 54.659,
+  "tracking_evidence": {
+    "source": "CURRENT-to-C attempt1 Wrist lead phase",
+    "wrist_flex_achieved_ratio_percent": 43.956,
+    "measured_grasp_tcp_delta_z_mm": -1.261073,
+    "policy": "do not repeat the failed Wrist-only phase; use the smallest bounded direct coupled path from fresh stopped feedback"
+  },
+  "motion_authorized": false
+}
