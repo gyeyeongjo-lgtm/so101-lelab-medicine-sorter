@@ -2,6 +2,15 @@
 
 업데이트: 2026-10-13
 
+## 2026-10-13 CURRENT→C PRE_APPROACH 실기 1 — Wrist lead timeout FAIL·STOPPED
+
+- 첫 live 시도는 일반 권한 `fuser`가 `/proc` 권한 오류를 보고했고 `sudo -n fuser`의 인증 cache가 없어 `port_ownership_unknown`으로 serial open 전 차단됐다. SEND/Goal/Torque/motor command는 `0`. 같은 사용자 승인 범위에서 `sudo -v`로 privileged read-only 소유권 검사를 활성화한 뒤 재시작했다.
+- 실기는 `WRIST_LEAD_2DEG` 2 waypoint만 전송했다. fresh start Wrist `-31.956044°`, target `-33.956044°`에 대해 final Present `-32.835165°`; achieved `-0.879121° / 43.956%`, target error `1.120879°`(정지 후 fresh Goal-Present `-1.142857°`)로 `0.5°` phase tolerance를 통과하지 못했다. `final_joint_target_timeout`으로 ABORT했고 coupled finish 4 target은 `0`, 자동 재시도도 `0`이다.
+- 사용자 `STOPPED` 후 `physical_stop=FEEDBACK_AND_HUMAN_CONFIRMED`. command session 해제 후 read-only 3회가 모두 `[+11.736264,-20.615385,+72.747253,-32.835165,-14.197802]°`, gripper `34.516524%/raw 977`, Moving all `0`, Torque all `1`, Tmax `39°C`로 동일했다. Goal raw `2234/1716/2805/1694/1703/978`, Present raw `2235/1720/2811/1707/1703/977`; Load는 `0/28/36/64/0/0` diagnostic only다.
+- 실제 GRASP TCP는 `[-45.686225,-292.662760,93.788216]→[-45.923279,-291.710762,92.527143] mm`, `ΔZ=-1.261073 mm`로 Wrist phase의 Z 증가 gate도 FAIL이다. 로그는 `SEND 2 / PAUSE 50 / ABORT 1`, SHA `1f1f33e1…c12594f`; 원본 JSONL은 Jetson에만 보존하고 커밋하지 않는다.
+- 종료 후 실측 pose에서 offline 재계산한 `DIRECT_COUPLED`는 5 waypoint/max `1°`, TCP Z `92.527143→100.000001 mm` 단조 증가(min step `+1.477010 mm`), table proxy `+37.868143 mm`, self centerline `63.903077 mm` PASS, servo margin `22.263747°`다. 다만 fresh gripper가 기존 human-confirmed exact raw `978`에서 `977`로 바뀌었으므로 `DIRECT_COUPLED_LIVE_READY=false`; 현재 opening에 대한 사용자 현장 확인 전에는 다음 arm command를 요청하지 않는다.
+- LeLab teleoperation/recording/inference는 모두 inactive. `PRE_APPROACH_PASS=false`, APPROACH/GRASP/LIFT `NOT_RUN`; 상세: [세션](sessions/2026-10-13-current-to-c-pre-approach-attempt1.md).
+
 ## 2026-10-13 human-confirmed gripper clearance·CURRENT→C PRE_APPROACH live ready
 
 - 사용자 현장 판단으로 추가 gripper opening을 취소했다. `RUN GRIPPER OPEN TO 36 ONLY`는 `CANCELLED_BY_USER`로 fail-closed 처리했고, 이번 CURRENT→C route에서만 exact `34.577723378% / raw 978`을 `HUMAN_CONFIRMED_CURRENT_STATE`로 인정한다. global `minimum_fresh_gripper_open_percent=35.0`은 변경하지 않았고 다른 sub-35 값은 계속 차단한다.
