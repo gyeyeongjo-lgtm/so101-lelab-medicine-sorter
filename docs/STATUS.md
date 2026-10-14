@@ -2,6 +2,12 @@
 
 업데이트: 2026-10-14
 
+## 2026-10-14 minimum residual correction 실기 1 — FAIL·STOPPED
+
+- 사용자 승인 `RUN MINIMUM RESIDUAL CORRECTION ONLY`로 기존 C PRE_APPROACH endpoint를 향한 3 waypoint를 전송했다. fresh start는 계획값과 일치했으나 `final_joint_target_timeout`으로 `SEND 3 / PAUSE 50 / ABORT 1`, `PRE_APPROACH_PASS=false`; 자동 재시도와 이후 APPROACH/GRASP/LIFT 명령은 없었다.
+- 사용자 `STOPPED` 후 `physical_stop=FEEDBACK_AND_HUMAN_CONFIRMED`. 별도 쓰기 차단 read-only 3회에서 Present `[+14.549451,-16.395604,+72.835165,-36.000000,-12.879121]°`, gripper `34.516524%/raw 977`, Goal raw `[2270,1761,2786,1657,1721,977]`, Present raw `[2267,1768,2812,1671,1718,977]`이 동일했다. Moving 전 축 `0`, Torque_Enable 전 축 `1`, 최고 온도 `40°C`, Load `[−24,40,116,68,−24,0]` diagnostic only. 포트 해제 및 LeLab 세 control inactive를 확인했다.
+- start 대비 실제 관절 변화는 Lift `+0.175824°`, Elbow `+0.175824°`, Pan/Flex/Roll `0°`다. 동일 FK의 GRASP TCP는 `[-59.179670,-288.018120,85.287746]→[-58.990806,-287.290391,83.763771] mm`로 Z `−1.523975 mm`; target까지 position error `18.474343 mm`, C XY error `8.813976 mm`다. 따라서 새 correction을 성공으로 분류하거나 자동 재시도하지 않는다. full mesh/environment는 `NOT_VERIFIED`; [상세](sessions/2026-10-14-current-to-c-minimum-residual-correction-attempt1.md).
+
 ## 2026-10-14 CURRENT→C minimum residual correction READY
 
 - `DIRECT_COUPLED` 5-waypoint live run은 모든 target을 전송했지만 final Present `[+14.549451,-16.571429,+72.659341,-36.000000,-12.879121]°`에서 Elbow `+2.067759°`, Wrist `+1.176891°` 오차로 `final_joint_target_timeout` ABORT했다. 사용자 `STOPPED` 후 `physical_stop=FEEDBACK_AND_HUMAN_CONFIRMED`; Moving all `0`, follower port free, three LeLab controls inactive다. `PRE_APPROACH_PASS=false`, 자동 재시도 `0`.
