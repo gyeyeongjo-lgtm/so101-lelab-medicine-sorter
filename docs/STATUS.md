@@ -2,6 +2,20 @@
 
 업데이트: 2026-10-14
 
+## 2026-10-14 C empirical teaching trace — Jetson 배치·fake PASS, 실기 NOT_RUN
+
+- 사용자 승인 범위는 motor/Goal/Torque command `0`, 텔레옵 시작 `0`인 trace 배치 검증이었다. 설치본 충돌 원인은 기존 `full_cycle` recorder가 absolute `robot.send_action` 분기여서 `relative_start`와 동시 활성화를 명시적으로 거부한 것이다. 기존 상대제어 range/step/Elbow guard를 보존하고 그 뒤에 전송 없는 empirical observation을 추가했다. legacy 조합은 계속 fail-closed다.
+- Jetson 격리 폴더와 LeLab 설치본에 패치·trace·기존 FK 모듈을 배치했다. 기존 두 설치 파일은 원 SHA로 백업했다. 설치 Python compile/import, 원본 patch dry-run/cmp, staged와 **설치본** fake worker에서 startup/3초 stillness/Present·Goal·Moving·Load·Temperature/FK/trace JSONL/종료 후 3회 fake pose 출력 PASS. trace 없는 기존 `relative_start` fake dispatch PASS; old full-cycle+relative는 전송 전 fail-closed. 로컬 관련 `31/31 PASS`.
+- 세 control inactive에서 8000 서비스만 재시작했고 startup 완료 후 health 정상이다. trace root/ticket은 설정하지 않아 recorder는 **무장되지 않음**. 마지막 privileged `fuser`는 leader/follower 무점유(rc `1`), teleoperation/recording/inference inactive. 실제 serial open/motor/Goal/Torque write `0`. `TRACE_DEPLOY=PASS`, `RELATIVE_START_COMPAT=PASS(fake/dry-run only)`, physical teaching/pose record `NOT_RUN/NOT_RECORDED`; [상세](sessions/2026-10-14-c-preapproach-empirical-trace-deploy.md).
+- 이 작업은 선택적 로컬 커밋 완료, 원격 push `NOT_RUN/NOT_PUSHED`; GitHub 이슈 갱신 `NOT_RUN`(대상 번호 미지정). 사용자 소유 ArUco SVG/PDF 삭제는 제외했다.
+
+## 2026-10-14 C empirical pre-approach teaching 초기 계획 (이후 배치 완료, 실기 보류)
+
+- `PRE_APPROACH_PASS=false`를 유지한다. 직전 minimum residual correction은 Elbow/Flex 실제 이동 `0°`, TCP Z `85.287746→83.763771 mm`로 FAIL했고, 사용자 `STOPPED`·feedback으로 `physical_stop=FEEDBACK_AND_HUMAN_CONFIRMED`다. sub-degree correction은 종료했다.
+- 새 목표는 사용자 감독 `relative_start`로 C opening-center에 실제 정렬되는 `C_PREAPPROACH_EMPIRICAL`을 가르치고 3회 Present로 기록하는 것이다. 기존 ideal IK는 비교 reference이며 calibration/C XY/GRASP TCP/tolerance는 변경하지 않는다.
+- Jetson 설치본을 read-only 확인했다. LeLab 8000 active, 세 control inactive, `LELAB_TELEOP_MODE=relative_start`, canonical leader/follower USB는 `ttyACM0/ttyACM1`이다. **설치본은 relative-start+기존 CycleTrace 동시 사용을 명시적으로 거부**한다. trace 설정만 켜면 안 되며 절대자세 `send_action` trace 분기를 사용하지 않는다.
+- 로컬 기존 `CycleTrace`에 전송 없는 상대 텔레옵 observation과 같은 버스 소유자의 Goal/Present raw·Moving·signed Load·Temperature·FK validation을 추가했다. 3회 empirical pose 평균/표준편차와 ideal IK 차이 기록 helper도 준비했다. 관련 `29/29 PASS`, py_compile/diff-check PASS. 단 **Jetson worker 연결·배치·hardware-disconnected fake 검증은 아직 미완료**라 teaching은 `NOT_RUN/NOT_AUTHORIZED`, empirical pose는 `NOT_RECORDED`다. 이번 턴 motor/Goal/torque/USB/service command는 `0`. [상세](sessions/2026-10-14-c-preapproach-empirical-teaching-plan.md).
+
 ## 2026-10-14 minimum residual correction 실기 1 — FAIL·STOPPED
 
 - 사용자 승인 `RUN MINIMUM RESIDUAL CORRECTION ONLY`로 기존 C PRE_APPROACH endpoint를 향한 3 waypoint를 전송했다. fresh start는 계획값과 일치했으나 `final_joint_target_timeout`으로 `SEND 3 / PAUSE 50 / ABORT 1`, `PRE_APPROACH_PASS=false`; 자동 재시도와 이후 APPROACH/GRASP/LIFT 명령은 없었다.

@@ -10,6 +10,22 @@ from scripts.staged_cycle_execution import JOINT_UNITS
 
 
 class RecordedPoseConfigTests(unittest.TestCase):
+    def test_empirical_pose_preserves_ideal_ik_and_reports_difference(self):
+        sample = {name: 1.0 for name in JOINT_UNITS}
+        ideal = {name: 0.5 for name in JOINT_UNITS if name != "gripper"}
+        record = build_pose_record(
+            name="C_PREAPPROACH_EMPIRICAL",
+            raw_samples=[sample] * 3,
+            degree_samples=[sample] * 3,
+            fk_grasp_tcp_samples_mm=[[1.0, 2.0, 3.0]] * 3,
+            recorded_at="2026-10-14T15:00:00+09:00",
+            note="User-confirmed physical C alignment",
+            ideal_ik_joints_deg=ideal,
+            ideal_ik_fk_grasp_tcp_mm=[0.0, 2.0, 3.0],
+        )
+        self.assertEqual(record["ideal_ik_reference"]["joint_difference_empirical_minus_ideal_deg"]["elbow_flex"], 0.5)
+        self.assertEqual(record["ideal_ik_reference"]["task_space_position_error_norm_mm"], 1.0)
+
     def test_exactly_three_samples_store_mean_and_population_std(self):
         raw = [{name: 100 + index for name in JOINT_UNITS} for index in range(3)]
         degree = [{name: 10.0 + index for name in JOINT_UNITS} for index in range(3)]

@@ -21,13 +21,14 @@ else:
     from staged_cycle_execution import JOINT_UNITS
 
 
-POSE_NAMES = ("HOME", "SAFE_HIGH", "PICK_READY")
+POSE_NAMES = ("HOME", "SAFE_HIGH", "PICK_READY", "C_PREAPPROACH_EMPIRICAL")
 RETURN_POSE_NAMES = frozenset(("HOME", "SAFE_HIGH"))
 RUNTIME_START_POSE = "PICK_READY"
 POSE_ROLES = {
     "HOME": "STORAGE_PARKING_ONLY",
     "SAFE_HIGH": "RECOVERY_FALLBACK_OPTIONAL_TRANSPORT",
     "PICK_READY": "CANONICAL_RUNTIME_START_VISION_READY",
+    "C_PREAPPROACH_EMPIRICAL": "HUMAN_TAUGHT_C_PRE_APPROACH_NOT_AUTOMATICALLY_REPLAYABLE",
 }
 
 
@@ -55,6 +56,8 @@ def build_pose_record(
     recorded_at: str,
     note: str,
     temperature_samples_c: Sequence[Mapping[str, float]] | None = None,
+    ideal_ik_joints_deg: Mapping[str, float] | None = None,
+    ideal_ik_fk_grasp_tcp_mm: Sequence[float] | None = None,
 ) -> dict:
     """Summarize exactly three read-only samples without inventing precision."""
     if name not in POSE_NAMES:
@@ -109,6 +112,31 @@ def build_pose_record(
                 "std": pstdev(sample[joint] for sample in temperatures),
             }
             for joint in JOINT_UNITS
+        }
+    if name == "C_PREAPPROACH_EMPIRICAL":
+        if ideal_ik_joints_deg is None or ideal_ik_fk_grasp_tcp_mm is None:
+            raise ValueError("empirical_pose_requires_ideal_ik_reference")
+        if set(ideal_ik_joints_deg) != set(JOINT_UNITS) - {"gripper"}:
+            raise ValueError("ideal_ik_joint_shape_invalid")
+        ideal = {name: float(value) for name, value in ideal_ik_joints_deg.items()}
+        if any(not math.isfinite(value) for value in ideal.values()):
+            raise ValueError("ideal_ik_joint_nonfinite")
+        if len(ideal_ik_fk_grasp_tcp_mm) != 3:
+            raise ValueError("ideal_ik_fk_shape_invalid")
+        ideal_xyz = [float(value) for value in ideal_ik_fk_grasp_tcp_mm]
+        if any(not math.isfinite(value) for value in ideal_xyz):
+            raise ValueError("ideal_ik_fk_nonfinite")
+        actual_xyz = [result["fk_grasp_tcp_mm"][axis] for axis in "xyz"]
+        xyz_delta = [actual - target for actual, target in zip(actual_xyz, ideal_xyz)]
+        result["ideal_ik_reference"] = {
+            "joints_deg": ideal,
+            "joint_difference_empirical_minus_ideal_deg": {
+                joint: result["joints"][joint]["degree_mean"] - ideal[joint]
+                for joint in ideal
+            },
+            "fk_grasp_tcp_mm": dict(zip("xyz", ideal_xyz)),
+            "task_space_difference_empirical_minus_ideal_mm": dict(zip("xyz", xyz_delta)),
+            "task_space_position_error_norm_mm": math.sqrt(sum(value * value for value in xyz_delta)),
         }
     return result
 

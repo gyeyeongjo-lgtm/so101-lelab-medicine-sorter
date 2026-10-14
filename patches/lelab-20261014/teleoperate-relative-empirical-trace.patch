@@ -1,0 +1,50 @@
+--- a/lelab/teleoperate.py
++++ b/lelab/teleoperate.py
+@@ -30 +30,4 @@
+-from .teleop_cycle_trace import CycleTrace
++from .teleop_cycle_trace import (
++    CycleTrace, load_grasp_fk, read_same_owner_diagnostics,
++    verify_relative_start_stillness,
++)
+@@ -151,0 +155 @@
++    grasp_fk = None
+@@ -155 +159,11 @@
+-            cycle_trace = CycleTrace(Path(trace_root) / str(time.time_ns()))
++            trace_kind = os.environ.get("LELAB_TELEOP_TRACE_KIND", "full_cycle")
++            if trace_kind == "empirical_relative_teaching":
++                if teleop_mode(os.environ) != "relative_start":
++                    raise RuntimeError("empirical trace requires relative_start")
++                grasp_fk = load_grasp_fk(
++                    Path(os.environ["LELAB_TELEOP_TRACE_URDF"]),
++                    Path(os.environ["LELAB_TELEOP_TRACE_TCP_JSON"]),
++                )
++            cycle_trace = CycleTrace(
++                Path(trace_root) / str(time.time_ns()), capture_kind=trace_kind
++            )
+@@ -240 +254 @@
+-                    if cycle_trace is not None:
++                    if cycle_trace is not None and cycle_trace.capture_kind != "empirical_relative_teaching":
+@@ -249,0 +264,7 @@
++                    if cycle_trace is not None:
++                        stillness = verify_relative_start_stillness(
++                            read_leader=teleop_device.get_action,
++                            read_diagnostics=lambda: read_same_owner_diagnostics(robot, grasp_fk),
++                            leader_origin=origins.leader,
++                        )
++                        logger.info("Empirical teaching startup stillness: %s", stillness)
+@@ -278 +299 @@
+-                    if cycle_trace is None:
++                    if cycle_trace is None or relative_mode:
+@@ -279,0 +301 @@
++                            command_sent = False
+@@ -314,0 +337 @@
++                                command_sent = dispatch.sent
+@@ -335,0 +359,8 @@
++                    if relative_mode and cycle_trace is not None:
++                        row = cycle_trace.observe_relative_cycle(
++                            leader_action=leader_now,
++                            relative_target=action,
++                            command_sent=command_sent,
++                            read_feedback=lambda: robot.bus.sync_read("Present_Position"),
++                            read_diagnostics=lambda _: read_same_owner_diagnostics(robot, grasp_fk),
++                        )
