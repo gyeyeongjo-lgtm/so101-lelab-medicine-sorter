@@ -1,6 +1,13 @@
 # 현재 상태
 
-업데이트: 2026-10-13
+업데이트: 2026-10-14
+
+## 2026-10-14 CURRENT→C minimum residual correction READY
+
+- `DIRECT_COUPLED` 5-waypoint live run은 모든 target을 전송했지만 final Present `[+14.549451,-16.571429,+72.659341,-36.000000,-12.879121]°`에서 Elbow `+2.067759°`, Wrist `+1.176891°` 오차로 `final_joint_target_timeout` ABORT했다. 사용자 `STOPPED` 후 `physical_stop=FEEDBACK_AND_HUMAN_CONFIRMED`; Moving all `0`, follower port free, three LeLab controls inactive다. `PRE_APPROACH_PASS=false`, 자동 재시도 `0`.
+- 같은 URDF/GRASP TCP로 계산한 current GRASP TCP는 `[-59.179670,-288.018120,85.287746] mm`, desired는 `[-62.635356,-295.315566,100.000001] mm`다. error XYZ `[+3.455686,+7.297446,-14.712256] mm`, norm `16.782281 mm`, C XY error `8.074309 mm`다. 과거 task-space error `6.899170 mm`/C XY `2.596020 mm`에서도 사용자가 finger-tip contact로 FAIL했으므로 `TASK_SPACE_PRE_APPROACH_CANDIDATE=false`다.
+- 동일 endpoint만 향하는 3개 correction을 비교했다. Wrist-first 6 waypoint, Lift/Wrist-first 5 waypoint, all-axis direct-coupled 3 waypoint가 모두 max step `0.689253°`, TCP Z 단조 증가, table/self/servo proxy PASS였고, Wrist-only 재시도가 없고 가장 짧은 3-waypoint `MINIMUM_RESIDUAL_DIRECT_COUPLED`를 선택했다. TCP Z는 `85.287746→90.139779→95.044519→100.000001 mm`, table proxy margin `+30.628746 mm`, self centerline `64.051544 mm`, servo margin `22.351659°`; full mesh/environment는 `NOT_VERIFIED`.
+- 기존 runner/safety gate를 재사용해 전용 start contract와 `RUN MINIMUM RESIDUAL CORRECTION ONLY` 문구만 추가했다. 관련 회귀 `59/59 PASS`, compile/JSON/diff-check/local dry-run PASS. Jetson 새 격리 폴더 `/home/jetson3/so101-c-minimum-residual-correction-20261014/`에 배치했고 SHA 일치·설치 Python compile/dry-run PASS(`no port opened; no send_action`). actual motor command `0`; live는 `NOT_RUN/NOT_AUTHORIZED`. [상세](sessions/2026-10-14-current-to-c-minimum-residual-correction-ready.md).
 
 ## 2026-10-13 CURRENT→C DIRECT_COUPLED 재시험 READY
 

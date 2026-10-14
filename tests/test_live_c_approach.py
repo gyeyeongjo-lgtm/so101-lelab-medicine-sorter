@@ -14,7 +14,8 @@ from scripts.continuous_following_execution import (
     ContinuousFollowingCycle, FollowingTelemetry,
 )
 from scripts.live_c_approach import (
-    ARM_NAMES, CURRENT_TO_C_DIRECT_START_POSE, CURRENT_TO_C_START_POSE,
+    ARM_NAMES, CURRENT_TO_C_DIRECT_START_POSE,
+    CURRENT_TO_C_RESIDUAL_START_POSE, CURRENT_TO_C_START_POSE,
     PRE_APPROACH_SCOPE,
     RETURN_TO_PICK_READY_SCOPE, SCOPE_CONTRACTS, STRICT_POSE_TOLERANCES_DEG,
     WRIST_LEAD_PHASE_GATE_POLICY, WRIST_LEAD_PHASE_NAME,
@@ -962,6 +963,37 @@ class LiveCApproachTests(unittest.TestCase):
             for previous, goal in zip([start, *goals[:-1]], goals)
             for name in ARM_NAMES
         ), 1.0)
+        self.assertEqual(final_tolerances_for_plan(plan), {
+            **STRICT_POSE_TOLERANCES_DEG,
+            "gripper": 2.0,
+        })
+
+    def test_minimum_residual_route_uses_same_endpoint_in_three_steps(self):
+        plan = load_plan(Path(
+            "configs/live_c_pre_approach_minimum_residual_correction_20261014.json"))
+        self.assertEqual(plan["start_pose_name"],
+                         CURRENT_TO_C_RESIDUAL_START_POSE)
+        self.assertEqual(plan["path_candidate"],
+                         "MINIMUM_RESIDUAL_DIRECT_COUPLED")
+        self.assertEqual(plan["run_phrase"],
+                         "RUN MINIMUM RESIDUAL CORRECTION ONLY")
+        start = {
+            **plan["staged_reference_start_arm_deg"],
+            "gripper": plan["human_confirmed_gripper_present_percent"],
+        }
+        goals = interpolate_staged_goals(
+            start, plan["staged_intermediate_arm_deg"],
+            plan["target_arm_deg"], plan["maximum_joint_step_deg"])
+        self.assertEqual(len(goals), 3)
+        self.assertLessEqual(max(
+            abs(goal[name] - previous[name])
+            for previous, goal in zip([start, *goals[:-1]], goals)
+            for name in ARM_NAMES
+        ), 0.689253)
+        self.assertEqual(
+            {name: goals[-1][name] for name in ARM_NAMES},
+            plan["target_arm_deg"],
+        )
         self.assertEqual(final_tolerances_for_plan(plan), {
             **STRICT_POSE_TOLERANCES_DEG,
             "gripper": 2.0,

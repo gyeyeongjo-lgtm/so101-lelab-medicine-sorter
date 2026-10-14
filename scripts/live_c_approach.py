@@ -38,9 +38,14 @@ RETURN_TO_PICK_READY_SCOPE = "live_c_return_to_pick_ready_only"
 LEGACY_APPROACH_ONLY_SCOPE = "live_c_approach_only"
 CURRENT_TO_C_START_POSE = "C_RETURN_ACTUAL_ATTEMPT2"
 CURRENT_TO_C_DIRECT_START_POSE = "C_WRIST_LEAD_ACTUAL_ATTEMPT1"
+CURRENT_TO_C_RESIDUAL_START_POSE = "C_DIRECT_COUPLED_ACTUAL_ATTEMPT2"
+CURRENT_TO_C_DIRECT_START_POSES = frozenset((
+    CURRENT_TO_C_DIRECT_START_POSE,
+    CURRENT_TO_C_RESIDUAL_START_POSE,
+))
 CURRENT_TO_C_START_POSES = frozenset((
     CURRENT_TO_C_START_POSE,
-    CURRENT_TO_C_DIRECT_START_POSE,
+    *CURRENT_TO_C_DIRECT_START_POSES,
 ))
 STRICT_POSE_TOLERANCES_DEG = {
     "shoulder_pan": 0.5,
@@ -68,6 +73,7 @@ RUN_PHRASES = frozenset((
     "RUN PICK READY TO C PRE APPROACH",
     "RUN C PRE APPROACH TO PICK READY",
     "RUN CURRENT TO C PRE APPROACH",
+    "RUN MINIMUM RESIDUAL CORRECTION ONLY",
 ))
 START_POSE_RUN_PHRASES = {
     None: "RUN LIVE C APPROACH",
@@ -77,6 +83,8 @@ START_POSE_RUN_PHRASES = {
     "C_PRE_APPROACH_ACTUAL_ATTEMPT1": "RUN C PRE APPROACH TO PICK READY",
     CURRENT_TO_C_START_POSE: "RUN CURRENT TO C PRE APPROACH",
     CURRENT_TO_C_DIRECT_START_POSE: "RUN CURRENT TO C PRE APPROACH",
+    CURRENT_TO_C_RESIDUAL_START_POSE:
+        "RUN MINIMUM RESIDUAL CORRECTION ONLY",
 }
 SCOPE_CONTRACTS = {
     PRE_APPROACH_SCOPE: {
@@ -190,7 +198,7 @@ def load_plan(path: Path, *,
     reference_start = plan.get("staged_reference_start_arm_deg")
     if intermediates or reference_start is not None:
         minimum_intermediates = (
-            0 if plan.get("start_pose_name") == CURRENT_TO_C_DIRECT_START_POSE
+            0 if plan.get("start_pose_name") in CURRENT_TO_C_DIRECT_START_POSES
             else 1)
         if (not isinstance(intermediates, list) or
                 not minimum_intermediates <= len(intermediates) <= 6 or
@@ -302,13 +310,18 @@ def load_plan(path: Path, *,
                                      rel_tol=0.0, abs_tol=1e-9)
                     for name in ARM_NAMES if name != "wrist_flex")):
             raise ValueError("wrist_lead_phase_geometry_invalid")
-    elif start_pose_name == CURRENT_TO_C_DIRECT_START_POSE:
+    elif start_pose_name in CURRENT_TO_C_DIRECT_START_POSES:
         human_confirmed_gripper_percent = plan.get(
             "human_confirmed_gripper_present_percent")
         human_confirmed_gripper_raw = plan.get(
             "human_confirmed_gripper_present_raw")
+        expected_candidate = (
+            "MINIMUM_RESIDUAL_DIRECT_COUPLED"
+            if start_pose_name == CURRENT_TO_C_RESIDUAL_START_POSE
+            else "DIRECT_COUPLED"
+        )
         if (present_phase_fields or
-                plan.get("path_candidate") != "DIRECT_COUPLED" or
+                plan.get("path_candidate") != expected_candidate or
                 intermediates != [] or
                 not isinstance(plan.get("minimum_fresh_gripper_open_percent"),
                                (int, float)) or
