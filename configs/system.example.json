@@ -7,6 +7,7 @@
     "follower_port": "/dev/ttyACM1",
     "follower_serial": "5AE6058306",
     "leader_port": "/dev/ttyACM0",
+    "leader_serial": "5AE6085272",
     "max_joint_step_degree": 2.0
   },
   "vision": {
@@ -44,6 +45,43 @@
     "small": {"label": "C", "marker_id": 7, "physical_definition": "user_confirmed_marker_mapping_20261016"}
   },
   "default_destinations": {"large": "blue", "medium": "green", "small": "red"},
+  "fixed_demo": {
+    "camera_snapshot_url": "http://127.0.0.1:8020/manual-frame.json",
+    "snapshot_max_age_s": 0.75,
+    "image_size_px": [640, 480],
+    "pixel_coordinate_space": "undistorted_full_frame",
+    "pose_file": "configs/fixed_demo_poses.json",
+    "marker_id_to_type": {"7": "C", "8": "B", "9": "A"},
+    "destination_rules": {"C": "red", "B": "blue"},
+    "slot_roi_status": "provisional_verify_in_dry_run",
+    "slot_pixel_rois": {
+      "slot1": [270, 150, 345, 290],
+      "slot2": [345, 150, 415, 290],
+      "slot3": [415, 150, 490, 290]
+    },
+    "motion": {
+      "control_period_s": 0.1,
+      "max_emitted_step_deg": 2.0,
+      "max_gripper_step_percent": 2.0,
+      "max_velocity": {
+        "shoulder_pan": 5.0, "shoulder_lift": 5.0, "elbow_flex": 5.0,
+        "wrist_flex": 5.0, "wrist_roll": 8.0, "gripper": 10.0
+      },
+      "max_acceleration": {
+        "shoulder_pan": 15.0, "shoulder_lift": 15.0, "elbow_flex": 15.0,
+        "wrist_flex": 15.0, "wrist_roll": 20.0, "gripper": 30.0
+      },
+      "max_segment_travel": {
+        "shoulder_pan": 100.0, "shoulder_lift": 100.0, "elbow_flex": 110.0,
+        "wrist_flex": 110.0, "wrist_roll": 180.0, "gripper": 100.0
+      },
+      "settle_tolerance": {
+        "shoulder_pan": 2.0, "shoulder_lift": 2.0, "elbow_flex": 2.0,
+        "wrist_flex": 2.0, "wrist_roll": 2.0, "gripper": 3.0
+      },
+      "settle_timeout_s": 4.0
+    }
+  },
   "calibration": {
     "joint": {"status": "unverified_new_environment"},
     "camera_intrinsics": {"status": "unverified_new_environment"},

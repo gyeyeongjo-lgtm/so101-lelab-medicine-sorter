@@ -2,6 +2,90 @@
 
 업데이트: 2026-10-16
 
+## 2026-10-16 고정 칸 ArUco 티칭 데모 구현 — 오프라인 PASS, 실기 NOT_RUN
+
+- 단일 `python -m medicine_sorter`에 `teach`와 `run` 명령을 추가했다.
+  `teach`는 follower/leader를 일반 robot `connect/configure`로 열지 않고
+  `bus.connect(handshake=False)`로 한 session에서 유지한다. follower Torque가
+  ALL OFF이면 fresh Present raw를 Goal raw로 1회 exact copy, read-back, Torque ON
+  1회, 3초 안정성 후 relative-start 티칭을 시작한다. ALL ON이면
+  Goal-Present 안정성만 확인하고 torque를 toggle하지 않는다.
+- 티칭 항목은 home, gripper open/closed, slot1–3의 pre/grasp/lift,
+  red/blue의 above/release 16개다. 각 Enter에 follower calibrated joint 값과 raw
+  Present를 `configs/fixed_demo_poses.json`에 atomic replace로 저장한다.
+- `run --dry-run`은 Astra 8020의 하나의 일관된 frame JSON만 읽고 serial을
+  열지 않는다. ID7=C→red, ID8=B→blue를 적용하며 ID9=A는 목적지
+  미정의로 명시적으로 제외한다. 약통 마커 중심의 640×480
+  `undistorted_full_frame` pixel만 slot1–3 ROI와 비교하고 T_B_W·IK·table XY를
+  사용하지 않는다. 현재 ROI는 provisional이므로 무감독 자동 run은 차단하고
+  dry-run 확인 후 `--step`만 허용한다.
+- replay는 모든 관절에 동일 smoothstep fraction을 쓰며 관절별 속도·가속도,
+  arm emitted step `<=2.0°`, gripper step `<=2.0 percentage point`, 관절별
+  segment travel을 config에서 fail-closed한다. Ctrl+C는 Torque OFF가 아니라 fresh
+  Present raw→Goal raw 1회로 현재 위치 HOLD를 요청한다. 종료는
+  `disconnect(disable_torque=False)`다.
+- 요청대로 이 경로에 sudo/lsof/fuser ownership 조회는 없다. canonical
+  follower/leader serial을 sysfs로 대조하고 process lock과 serial FD `TIOCEXCL`로
+  중복 실행을 차단한다. 다른 controller가 없다는 현장 전제는 유지한다.
+- 신규 fixed-demo 단위 `17/17 PASS`, 기존 sorter `30/30 PASS`, compile·
+  `git diff --check` PASS. 실제 serial open, Goal/Torque/config write, motor motion,
+  티칭 pose 저장과 실물 ROI 확인은 모두 `NOT_RUN`. 상세는
+  [세션 기록](sessions/2026-10-16-fixed-aruco-teach-replay-demo.md)이다.
+
+## 2026-10-16 read-only robot-status 재승인 — 내부 sudo 경로 발견으로 실행 전 중단
+
+- 사용자는 배치된 LeLab Python 명령으로 follower `/dev/ttyACM1`, serial
+  `5AE6058306` read-only 상태 조회 정확히 1회를 재승인했으며 팔 지지·비접촉을
+  확인했다. 이번 승인에는 sudo 사용 금지가 명시됐다.
+- 실행 전 LeRobot/API와 ownership 경로를 다시 감사한 결과,
+  `SO101ReadOnlyStatusAdapter._resolve_probe()`가 사용하는
+  `SystemBusProbe.owner_pids()`는 고정 helper가 존재하면 내부적으로
+  `sudo -n /usr/local/sbin/so101-fixed-port-occupancy`를 호출한다. 이는 장치를
+  열거나 쓰는 helper는 아니지만 승인된 **sudo 0** 조건과 충돌한다.
+- 하나라도 다르면 실행하지 말라는 조건에 따라 SSH precheck와 승인 명령을 실행하지
+  않았다. 이번 turn의 Jetson 접속, tty query, serial open, register read,
+  Goal/Torque/config/motor write는 모두 `0`; 재시도도 `0`이다.
+- 모터별 상태와 전후 Torque 변화는 `NOT_RUN/NOT_OBSERVED`, 이전 OFF→ON 문제와의
+  관련성은 `NOT_EVALUATED`다. PASS 조건을 충족하지 않아 감독 티칭 계획도 작성하지
+  않았다. [상세](sessions/2026-10-16-read-only-status-blocked-internal-sudo.md).
+  기록 변경은 `NOT_COMMITTED/NOT_PUSHED`다.
+
+## 2026-10-16 Jetson d309c94 비동작 배치·오프라인 확인 PASS
+
+- 원격 `fix/usb-recording`이 `d309c940407bf0dd112ceb16fddc3cf3f6f1be6f`을
+  가리키는 것을 먼저 확인하고, 기존 경로를 건드리지 않은 새 디렉터리
+  `/home/jetson3/so101-lelab-medicine-sorter`에 clone 후 해당 commit을 detached
+  checkout했다. sudo·패키지 설치·서비스 변경·기존 프로젝트 변경은 없었다.
+- Jetson HEAD exact match, clone 직후와 모든 검사 후 git clean,
+  `medicine_sorter/robot.py` 존재 및 로컬 SHA-256 exact match, config의 follower
+  `/dev/ttyACM1`·serial `5AE6058306`을 확인했다.
+- 기본 `python3`은 Python `3.14.6`; import/help와 sorter `30/30 PASS`지만
+  `lerobot`은 설치돼 있지 않다. 기존 LeLab Python은 `3.14.7`, LeRobot `0.6.0`이며
+  같은 import/help와 sorter `30/30 PASS`다. 아무 의존성도 설치하지 않았다.
+- 장치 경로·serial·robot-status에는 접근하지 않았다. serial open과
+  Goal/Torque/config/motor command 모두 `0`; 실제 read-only 시험은 재승인 전
+  `NOT_RUN`이다. 이전 literal `python3` 명령은 LeRobot 부재 때문에 사용하지 않고,
+  기존 LeLab Python 절대 경로를 사용하는 명령으로만 재승인을 요청한다.
+  [상세](sessions/2026-10-16-jetson-d309c94-offline-deploy.md).
+  로컬 기록 변경은 `NOT_COMMITTED/NOT_PUSHED`다.
+
+## 2026-10-16 read-only robot-status 승인 실행 — 설치본 불일치 gate에서 중단
+
+- 사용자가 follower 후보 `/dev/ttyACM1`, USB serial `5AE6058306`에 대해
+  `robot-status` 정확히 1회 실행을 승인했다. 현장 팔 지지·비접촉도 확인했다.
+- 로컬 실행 대상은 `fix/usb-recording` commit `d309c94`; `robot.py`, `cli.py`,
+  config SHA-256을 고정했다. Jetson에 SSH로 1회 접속해 설치본 동일성만 먼저
+  확인했으나 `/home/jetson3` 아래에 `medicine_sorter/robot.py` 또는 이 저장소의
+  Git checkout이 검색되지 않아 같은 코드라는 조건을 확인할 수 없었다.
+- 첫 precheck가 FAIL해 즉시 중단했다. 포트 점유·USB serial·motor register는
+  조회하지 않았고 승인된 `python3 -m medicine_sorter ... robot-status` 명령도
+  실행하지 않았다. 실행 횟수 `0`, serial open `0`, Goal/Torque/config/motor write
+  모두 `0`; 재시도·다른 포트·다른 명령은 없었다.
+- 따라서 모터별 상태, 실행 전후 Torque 변화, 이전 OFF→ON lifecycle 관련 판단은
+  모두 `NOT_RUN/NOT_OBSERVED`; 첫 감독 티칭 계획도 PASS 조건을 충족하지 않아
+  작성하지 않았다. [상세](sessions/2026-10-16-read-only-robot-status-precheck-blocked.md).
+  기록 변경은 `NOT_COMMITTED/NOT_PUSHED`다.
+
 ## 2026-10-16 GitHub 최신 동기화
 
 - 단일 `medicine_sorter` 진입점, task별 readiness, read-only robot status adapter,

@@ -10,9 +10,10 @@ SO-101과 Orbbec Astra RGB-D를 이용해 알려진 빈 약통/모형 A·B·C �
 python3 -m medicine_sorter --help
 ```
 
-기본 동작은 카메라·serial·모터를 열지 않습니다. 새 환경의 좌표 변환, TCP,
-바구니 투입점과 전체 경로가 다시 검증되기 전에는 `live`가 장치 연결 전에
-fail-closed합니다.
+기본 `status`, `validate-config`, `mock-run`은 camera·serial·모터를 열지 않습니다.
+전체 좌표 기반 `live`는 새 환경 검증 전에 fail-closed합니다. 대신 아래의
+`teach`/`run`은 T_B_W·IK를 쓰지 않고, 고정 칸과 티칭 관절 자세만 재생하는
+제한 데모 경로입니다.
 
 ## 현재 지원 범위
 
@@ -67,6 +68,31 @@ python3 -m medicine_sorter \
 ```bash
 python3 -m medicine_sorter --config configs/system.example.json validate-config
 ```
+
+### 고정 칸 티칭 데모
+
+`ID7=C→빨강`, `ID8=B→파랑`만 실행합니다. `ID9=A`는 목적지가 정의되지
+않아 명시적으로 제외합니다. 좌표 변환을 쓰지 않고 640×480
+`undistorted_full_frame`의 픽셀 ROI로 slot1–3을 판정합니다. 현재 ROI는
+`provisional_verify_in_dry_run`이므로 실물 프레임 dry-run에서 반드시 칸 판정을
+확인해야 하며, 자동 실행은 차단되고 `--step`만 허용됩니다.
+
+```bash
+python3 -m medicine_sorter --config configs/system.example.json teach
+python3 -m medicine_sorter --config configs/system.example.json run --dry-run
+python3 -m medicine_sorter --config configs/system.example.json run --step
+```
+
+`teach`는 한 follower/leader session에서 relative-start로 16개 자세를 순서대로
+저장합니다. follower는 fresh Present raw를 Goal raw로 한 번 복사한 뒤
+Torque를 한 번만 ON하며, 이미 ALL ON이면 안정성만 확인하고 toggle하지
+않습니다. 일반 robot `connect/configure`를 우회하고 종료는
+`disconnect(disable_torque=False)`로 처리합니다. Ctrl+C는 fresh Present raw를
+Goal로 한 번 복사해 **현재 위치 유지**를 요청하며 Torque OFF가 아닙니다.
+
+sudo/lsof/fuser 포트 조회는 이 경로에 없습니다. 대신 follower/leader USB serial을
+sysfs에서 대조하고, 사용자 process lock과 열린 serial FD의 `TIOCEXCL`로 중복
+실행을 차단합니다. 다른 컨트롤러는 실행 전 정상 종료해야 합니다.
 
 `live` 명령은 존재하지만 현재 예제 설정에서는 의도적으로 차단됩니다. 출력은 실패
 항목, 관측값, 필요한 조건과 다음 조치를 함께 제공합니다. 기존의 실험별 승인 문자열,

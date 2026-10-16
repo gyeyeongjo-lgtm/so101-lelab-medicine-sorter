@@ -9,6 +9,7 @@ __pycache__/
 .local/
 local/
 configs/*.local.json
+configs/fixed_demo_poses.json
 secrets/
 backups/
 /prompt/
