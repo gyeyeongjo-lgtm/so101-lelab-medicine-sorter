@@ -45,9 +45,14 @@ pre{white-space:pre-wrap;background:#18212b;padding:12px;border-radius:8px;color
 <h1>약통 판정·로컬 사진 저장</h1>
 <div class="note"><span class="badge">ROBOT DISABLED</span> 천장 정면에는 YOLO와 ArUco 작업대 투영 좌표를 표시하고, 사선 카메라는 상태 확인용입니다. 좌표는 높이 보정 전 dry-run으로 로봇 목표점이 아닙니다.</div>
 <section class="grid">
-<figure class="view"><figcaption>천장 정면 · Astra · YOLO</figcaption><img src="/stream.mjpg" alt="medicine detection stream"></figure>
+<figure class="view"><figcaption>천장 정면 · Astra · YOLO</figcaption><img id="live-table-stream" src="/stream.mjpg" alt="medicine detection stream"></figure>
 <figure class="view"><figcaption>천장 사선 · RealSense D435</figcaption><img src="/angled.mjpg" alt="angled camera stream"></figure>
 </section>
+<section><h2>작업대 평면 XY 확인 · 읽기 전용</h2>
+<p>ID0–3이 모두 보이는 현재 프레임만 사용합니다. 프레임을 고정한 뒤 아래 영상의 <b>작업대 평면 지점</b>을 클릭하세요. 약통 뚜껑·상단처럼 높이가 있는 점은 동일한 XY 정확도를 보장하지 않습니다.</p>
+<button id="table-freeze" type="button">현재 작업대 프레임 고정</button>
+<p><img id="table-frame" alt="고정한 왜곡 보정 작업대 프레임; 평면 지점을 클릭"></p>
+<pre id="table-result">프레임을 고정하세요.</pre></section>
 <section><h2>수동 위치 지정 · 사진 저장</h2>
 <p>움직임이 멈춘 장면에서 A/B/C를 사람이 확인하고 프레임을 고정한 뒤 약통 가운데를 클릭하세요. 판정 뒤 <b>사진·라벨 로컬 저장</b>을 눌러야 파일이 남습니다. 이 화면은 팔을 움직이지 않습니다.</p>
 <label>확인한 약통 <select id="manual-label"><option value="">종류를 선택하세요</option><option value="A">A 큰 약통</option><option value="B">B 중간 약통</option><option value="C">C 작은 약통</option></select></label>
@@ -59,14 +64,16 @@ pre{white-space:pre-wrap;background:#18212b;padding:12px;border-radius:8px;color
 <button id="route-preview" type="button">명령 판정만</button><pre id="route-result">명령을 입력하세요.</pre></section>
 <pre id="status">상태 읽는 중…</pre>
 <script>
-let frozen=null, frozenAt=0, selected=null;
+let frozen=null, frozenAt=0, selected=null, tableFrozen=null, tableFrozenAt=0, tableClickHistory=[];
 async function poll(){try{const r=await fetch('/health',{cache:'no-store'}),d=await r.json();document.querySelector('#status').textContent=JSON.stringify(d,null,2);document.querySelector('#manual-save').hidden=!d.manual_capture_enabled}catch(e){document.querySelector('#status').textContent=String(e)}}
+async function freezeTable(){const out=document.querySelector('#table-result');tableFrozen=null;tableClickHistory=[];try{const r=await fetch('/manual-frame.json',{cache:'no-store'}),d=await r.json(),t=d.snapshot&&d.snapshot.table;if(!r.ok||!d.snapshot.ok||d.snapshot.frame_age_s>0.75){out.textContent='카메라 프레임이 신선하지 않습니다.';return}if(!t||t.validity!=='VALID_CURRENT_FRAME'){out.textContent='현재 프레임의 작업대 변환이 유효하지 않습니다.\\n'+JSON.stringify(t,null,2);return}tableFrozen=d.snapshot;tableFrozenAt=Date.now();const img=document.querySelector('#table-frame');img.src='data:image/jpeg;base64,'+d.jpeg_base64;out.textContent='고정 프레임 '+tableFrozen.sequence+' · '+t.coordinate_space+' — 작업대 평면 지점을 클릭하세요.'}catch(e){out.textContent=String(e)}}
+async function chooseTable(e){const out=document.querySelector('#table-result'),img=e.currentTarget;if(!tableFrozen||!img.naturalWidth){out.textContent='먼저 작업대 프레임을 고정하세요.';return}if(Date.now()-tableFrozenAt>15000){out.textContent='고정 프레임이 15초를 넘었습니다. 다시 고정하세요.';return}const rect=img.getBoundingClientRect(),x=(e.clientX-rect.left)*img.naturalWidth/rect.width,y=(e.clientY-rect.top)*img.naturalHeight/rect.height;try{const r=await fetch('/api/table-point',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sequence:tableFrozen.sequence,pixel:[x,y]})}),d=await r.json();if(r.ok){tableClickHistory.push(d);out.textContent=JSON.stringify({latest:d,click_history:tableClickHistory},null,2)}else{out.textContent=JSON.stringify(d,null,2)}}catch(err){out.textContent=String(err)}}
 async function freeze(){const out=document.querySelector('#manual-result');selected=null;document.querySelector('#manual-save').disabled=true;try{const r=await fetch('/manual-frame.json',{cache:'no-store'});const d=await r.json();if(!r.ok||!d.snapshot.ok||d.snapshot.frame_age_s>0.75){out.textContent='카메라 프레임이 신선하지 않습니다.';return}frozen=d.snapshot;frozenAt=Date.now();const img=document.querySelector('#manual-frame');img.src='data:image/jpeg;base64,'+d.jpeg_base64;out.textContent='고정 프레임 '+frozen.sequence+' — 약통 중심을 클릭하세요.'}catch(e){out.textContent=String(e)}}
 function iou(a,b){const w=Math.max(0,Math.min(a[2],b[2])-Math.max(a[0],b[0])),h=Math.max(0,Math.min(a[3],b[3])-Math.max(a[1],b[1]));const overlap=w*h;return overlap/((a[2]-a[0])*(a[3]-a[1])+(b[2]-b[0])*(b[3]-b[1])-overlap)}
 function choose(e){const out=document.querySelector('#manual-result'),img=e.currentTarget;selected=null;document.querySelector('#manual-save').disabled=true;if(!frozen||!img.naturalWidth){out.textContent='먼저 프레임을 고정하세요.';return}if(Date.now()-frozenAt>10000){out.textContent='고정 프레임이 10초를 넘었습니다. 다시 고정하세요.';return}const label=document.querySelector('#manual-label').value,rules={A:[6,'blue'],B:[5,'green'],C:[4,'red']};if(!rules[label]){out.textContent='실제 약통 종류 A/B/C를 먼저 확인하고 선택하세요.';return}const rect=img.getBoundingClientRect(),x=(e.clientX-rect.left)*img.naturalWidth/rect.width,y=(e.clientY-rect.top)*img.naturalHeight/rect.height,t=frozen.table,[id,color]=rules[label];let reason=null;if(!t||!t.ready||!Array.isArray(t.required_ids)||!Array.isArray(t.detected_ids)||!t.required_ids.every(n=>t.detected_ids.includes(n)))reason='작업대 기준 마커 누락';else if(!t.detected_ids.includes(id)||!t.basket_markers||!t.basket_markers[id]||t.basket_markers[id].color!==color||!t.basket_mapping||t.basket_mapping[id]!==color)reason='목표 바구니 마커 불일치';const boxes=(frozen.detections||[]).filter(d=>Array.isArray(d.xyxy)&&d.xyxy.length===4&&d.xyxy[0]<=x&&x<=d.xyxy[2]&&d.xyxy[1]<=y&&y<=d.xyxy[3]).sort((a,b)=>b.confidence-a.confidence);if(!reason&&!boxes.length)reason='클릭점에 약통 검출 상자 없음';if(!reason&&boxes.some(d=>iou(boxes[0].xyxy,d.xyxy)<0.5))reason='여러 물체 후보가 겹침';const roiMatch=boxes.length>0&&boxes[0].inside_pickup_roi===true;const result={status:reason?'BLOCKED':'DRY_RUN_ROUTE_ONLY',reason,frame_sequence:frozen.sequence,clicked_pixel:[Math.round(x),Math.round(y)],human_label:label,target_marker_id:reason?null:id,target_color:reason?null:color,overlapping_boxes:boxes.length,pickup_roi_match:roiMatch,robot_enabled:false,motion_authorized:false,note:roiMatch?'클릭점은 로봇 집기 좌표가 아닙니다. 실제 색·물체 신원은 사람이 확인해야 합니다.':'기존 픽업 구역 밖입니다. 목적지 제안만 가능하고 자동 집기는 금지입니다.'};out.textContent=JSON.stringify(result,null,2);if(!reason){selected={label,sequence:frozen.sequence,pixel:[x,y],identity_confirmed:true};document.querySelector('#manual-save').disabled=false}}
 async function saveManual(){const out=document.querySelector('#manual-result'),button=document.querySelector('#manual-save');if(!selected){out.textContent='먼저 약통 중심을 클릭하세요.';return}button.disabled=true;try{const r=await fetch('/api/manual-capture',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(selected)});const d=await r.json();out.textContent=JSON.stringify(d,null,2);if(!r.ok)out.textContent+='\\n다시 프레임을 고정해 촬영하세요.'}catch(e){out.textContent=String(e)}}
 async function previewCommand(){const input=document.querySelector('#route-command'),out=document.querySelector('#route-result'),button=document.querySelector('#route-preview');if(!input.value.trim()){out.textContent='명령을 입력하세요.';return}button.disabled=true;try{const r=await fetch('/api/command-preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:input.value})});const d=await r.json();out.textContent=JSON.stringify(d,null,2)}catch(e){out.textContent=String(e)}finally{button.disabled=false}}
-document.querySelector('#freeze').addEventListener('click',freeze);document.querySelector('#manual-frame').addEventListener('click',choose);document.querySelector('#manual-save').addEventListener('click',saveManual);document.querySelector('#route-preview').addEventListener('click',previewCommand);window.addEventListener('pageshow',()=>{document.querySelector('#manual-label').value='';document.querySelector('#route-command').value='';selected=null;document.querySelector('#manual-save').disabled=true});poll();setInterval(poll,1500)
+document.querySelector('#table-freeze').addEventListener('click',freezeTable);document.querySelector('#table-frame').addEventListener('click',chooseTable);document.querySelector('#freeze').addEventListener('click',freeze);document.querySelector('#manual-frame').addEventListener('click',choose);document.querySelector('#manual-save').addEventListener('click',saveManual);document.querySelector('#route-preview').addEventListener('click',previewCommand);window.addEventListener('pageshow',()=>{document.querySelector('#manual-label').value='';document.querySelector('#route-command').value='';selected=null;tableFrozen=null;document.querySelector('#manual-save').disabled=true});poll();setInterval(poll,1500)
 </script>
 </main></body></html>"""
 
@@ -153,36 +160,104 @@ def detect_table_markers(cv2_module, detector, image, expected_ids: set[int]):
 
 
 class TableMapper:
-    """Project image centers onto the ArUco-defined table plane for dry-run display."""
+    """Project one current undistorted frame onto the ArUco table plane."""
 
     def __init__(self, config_path: Path, cv2_module, np_module):
         raw = json.loads(config_path.read_text(encoding="utf-8"))
         markers = raw["markers"]
         self.cv2 = cv2_module
         self.np = np_module
-        self.config_path = str(config_path)
+        self.config_path = str(config_path.resolve())
+        self.config_sha256 = hashlib.sha256(config_path.read_bytes()).hexdigest()
         self.reference_centers = {
             int(marker_id): (float(point[0]), float(point[1]))
             for marker_id, point in markers["reference_centers_mm"].items()
         }
         self.reference_ids = sorted(self.reference_centers)
         self.basket_ids = {int(marker_id): str(color) for marker_id, color in markers.get("basket_ids", {}).items()}
+        self.object_ids = {int(marker_id): str(label) for marker_id, label in markers.get("object_ids", {}).items()}
+        self.dictionary_name = markers.get("dictionary", "DICT_4X4_50")
+        default_marker_size = float(markers["marker_size_mm"])
+        self.marker_sizes_mm = {
+            marker_id: float(markers.get("marker_size_by_id_mm", {}).get(str(marker_id), default_marker_size))
+            for marker_id in set(self.reference_ids) | set(self.basket_ids) | set(self.object_ids)
+        }
         roi = raw["pickup_roi_table_mm"]
         self.roi = {
             "x": (float(roi["x"][0]), float(roi["x"][1])),
             "y": (float(roi["y"][0]), float(roi["y"][1])),
         }
-        dictionary_name = markers.get("dictionary", "DICT_4X4_50")
-        dictionary_id = getattr(cv2_module.aruco, dictionary_name)
+        self.roi_status = str(roi.get("status", "UNSPECIFIED"))
+        self.roi_enabled = self.roi_status == "verified"
+        dictionary_id = getattr(cv2_module.aruco, self.dictionary_name)
         dictionary = cv2_module.aruco.getPredefinedDictionary(dictionary_id)
         parameters = cv2_module.aruco.DetectorParameters()
         parameters.cornerRefinementMethod = cv2_module.aruco.CORNER_REFINE_SUBPIX
         self.detector = cv2_module.aruco.ArucoDetector(dictionary, parameters)
 
+        camera = raw.get("camera", {})
+        rgb = camera.get("rgb", {})
+        self.capture = {
+            "width": int(rgb.get("width", 0)),
+            "height": int(rgb.get("height", 0)),
+            "fps": float(rgb.get("fps", 0)),
+            "format": str(rgb.get("format", "UNKNOWN")),
+        }
+        intrinsic_name = camera.get("intrinsic_file")
+        if not isinstance(intrinsic_name, str) or not intrinsic_name:
+            raise ValueError("camera.intrinsic_file is required for table coordinates")
+        intrinsic_path = (config_path.parent / intrinsic_name).resolve()
+        calibration = json.loads(intrinsic_path.read_text(encoding="utf-8"))
+        matrix = np_module.asarray(calibration.get("camera_matrix"), dtype=np_module.float64)
+        distortion = np_module.asarray(calibration.get("dist_coeffs"), dtype=np_module.float64)
+        image_size = calibration.get("image_size")
+        if matrix.shape != (3, 3) or distortion.size < 4:
+            raise ValueError("intrinsic calibration requires camera_matrix 3x3 and dist_coeffs")
+        if (not isinstance(image_size, list) or len(image_size) != 2 or
+                any(not isinstance(value, int) or value <= 0 for value in image_size)):
+            raise ValueError("intrinsic calibration image_size must be [width, height]")
+        self.camera_matrix = matrix
+        self.distortion = distortion.reshape(-1, 1)
+        self.intrinsic_image_size = (int(image_size[0]), int(image_size[1]))
+        self.intrinsic_path = str(intrinsic_path)
+        self.intrinsic_sha256 = hashlib.sha256(intrinsic_path.read_bytes()).hexdigest()
+        self.intrinsic_rms_px = float(calibration["reprojection_rms_px"])
+        self.axis_convention = raw.get("transforms", {}).get(
+            "world_axes", "+X ID0 to ID1; +Y into the board; +Z above the board"
+        )
+
+    def prepare_frame(self, image):
+        """Return one full-size undistorted frame; never resize or crop it."""
+        height, width = image.shape[:2]
+        if (width, height) != self.intrinsic_image_size:
+            raise ValueError(
+                f"frame size {(width, height)} does not match intrinsic {self.intrinsic_image_size}"
+            )
+        return self.cv2.undistort(
+            image, self.camera_matrix, self.distortion, None, self.camera_matrix
+        )
+
+    def _draw_reference_axes(self, overlay, homography) -> None:
+        cv2, np = self.cv2, self.np
+        inverse = np.linalg.inv(homography)
+        table_points = np.asarray([[[0.0, 0.0], [100.0, 0.0], [0.0, 100.0]]], dtype=np.float64)
+        image_points = cv2.perspectiveTransform(table_points, inverse)[0]
+        origin, x_axis, y_axis = [tuple(int(round(value)) for value in point) for point in image_points]
+        cv2.drawMarker(overlay, origin, (0, 255, 255), cv2.MARKER_CROSS, 18, 2)
+        cv2.arrowedLine(overlay, origin, x_axis, (0, 0, 255), 2, cv2.LINE_AA, tipLength=0.12)
+        cv2.arrowedLine(overlay, origin, y_axis, (0, 255, 0), 2, cv2.LINE_AA, tipLength=0.12)
+        cv2.putText(overlay, "ORIGIN ID0 (0,0)", (origin[0] + 8, origin[1] - 8),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.42, (0, 255, 255), 2)
+        cv2.putText(overlay, "+X 100mm", (x_axis[0] + 4, x_axis[1]),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.42, (0, 0, 255), 2)
+        cv2.putText(overlay, "+Y 100mm", (y_axis[0] + 4, y_axis[1]),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.42, (0, 255, 0), 2)
+
     def analyze(self, image, overlay, detections: list[dict]) -> dict:
         cv2, np = self.cv2, self.np
         marker_corners, recovered_ids = detect_table_markers(
-            cv2, self.detector, image, set(self.reference_ids) | set(self.basket_ids)
+            cv2, self.detector, image,
+            set(self.reference_ids) | set(self.basket_ids) | set(self.object_ids),
         )
         detected_ids = sorted(marker_corners)
         if marker_corners:
@@ -195,6 +270,23 @@ class TableMapper:
             marker_id: corners.reshape(4, 2).mean(axis=0)
             for marker_id, corners in marker_corners.items()
         }
+        for marker_id in self.reference_ids:
+            if marker_id not in detected:
+                continue
+            center = detected[marker_id]
+            center_px = tuple(int(round(value)) for value in center)
+            cv2.circle(overlay, center_px, 5, (255, 0, 255), -1)
+            expected = self.reference_centers[marker_id]
+            cv2.putText(
+                overlay,
+                f"ID{marker_id} center -> ({expected[0]:.1f},{expected[1]:.1f})mm",
+                (max(2, center_px[0] - 85), min(image.shape[0] - 8, center_px[1] + 28)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.38,
+                (255, 0, 255),
+                1,
+                cv2.LINE_AA,
+            )
         common = sorted(set(detected).intersection(self.reference_centers))
         homography = None
         rms = None
@@ -205,6 +297,7 @@ class TableMapper:
             if homography is not None:
                 projected = cv2.perspectiveTransform(image_points.reshape(-1, 1, 2), homography).reshape(-1, 2)
                 rms = float(np.sqrt(np.mean(np.sum((projected - table_points) ** 2, axis=1))))
+                self._draw_reference_axes(overlay, homography)
 
         inside_count = 0
         basket_markers = {}
@@ -243,7 +336,9 @@ class TableMapper:
             x1, y1, x2, y2 = detection["xyxy"]
             point = project_table_xy(np, homography, (x1 + x2) / 2, (y1 + y2) / 2)
             detection["image_center_table_mm"] = [round(point[0], 3), round(point[1], 3)]
-            detection["inside_pickup_roi"] = inside_roi(point, self.roi)
+            detection["inside_pickup_roi"] = (
+                inside_roi(point, self.roi) if getattr(self, "roi_enabled", True) else False
+            )
             inside_count += int(detection["inside_pickup_roi"])
             center = (round((x1 + x2) / 2), round((y1 + y2) / 2))
             cv2.drawMarker(overlay, center, (0, 255, 255), cv2.MARKER_CROSS, 12, 2)
@@ -257,20 +352,71 @@ class TableMapper:
                 (0, 255, 255),
                 2,
             )
-        return {
+        missing_reference_ids = sorted(set(self.reference_ids) - set(detected))
+        valid = homography is not None
+        status = {
             "ready": homography is not None,
+            "validity": "VALID_CURRENT_FRAME" if valid else "INVALID_CURRENT_FRAME",
+            "invalid_reason": None if valid else {
+                "code": "reference_markers_incomplete" if missing_reference_ids else "homography_failed",
+                "missing_reference_ids": missing_reference_ids,
+            },
             "required_ids": self.reference_ids,
             "detected_ids": detected_ids,
             "equalized_fallback_ids": recovered_ids,
             "reference_rms_mm": None if rms is None else round(rms, 6),
+            "reference_rms_semantics": "four calibration marker self-fit; not independent position accuracy",
+            "reference_marker_centers_px": {
+                str(marker_id): [round(float(value), 3) for value in detected[marker_id]]
+                for marker_id in self.reference_ids if marker_id in detected
+            },
+            "detected_marker_centers_px": {
+                str(marker_id): [round(float(value), 3) for value in center]
+                for marker_id, center in detected.items()
+            },
+            "homography_image_to_table": None if homography is None else homography.tolist(),
+            "reference_centers_mm": {
+                str(marker_id): [point[0], point[1]]
+                for marker_id, point in self.reference_centers.items()
+            },
+            "dictionary": self.dictionary_name,
+            "marker_size_by_id_mm": {
+                str(marker_id): size for marker_id, size in sorted(self.marker_sizes_mm.items())
+            },
+            "origin": "ID0 marker center",
+            "axes": self.axis_convention,
+            "unit": "mm",
+            "coordinate_space": "undistorted_full_frame",
+            "resize_crop": "none",
+            "source_frame_size_px": [int(image.shape[1]), int(image.shape[0])],
+            "capture": self.capture,
+            "workspace_config": {
+                "path": self.config_path,
+                "sha256": self.config_sha256,
+            },
+            "intrinsic_calibration": {
+                "path": self.intrinsic_path,
+                "sha256": self.intrinsic_sha256,
+                "image_size_px": list(self.intrinsic_image_size),
+                "reprojection_rms_px": self.intrinsic_rms_px,
+                "applied": True,
+            },
+            "observed_at_utc": datetime.now(timezone.utc).isoformat(),
             "pickup_roi_table_mm": {"x": list(self.roi["x"]), "y": list(self.roi["y"])},
+            "pickup_roi_status": getattr(self, "roi_status", "UNSPECIFIED"),
             "detections_inside_pickup_roi": inside_count,
             "basket_markers": basket_markers,
             "basket_mapping": {str(marker_id): color for marker_id, color in self.basket_ids.items()},
-            "projection": "image centers projected onto table plane; object and basket-marker heights not corrected",
+            "projection": "undistorted image points projected onto the z=0 table plane",
+            "height_warning": "raised points such as bottle tops do not share table-plane XY accuracy",
             "basket_pose_authorized": False,
             "robot_target_authorized": False,
         }
+        validity_text = "TABLE XY VALID" if valid else f"TABLE XY INVALID missing={missing_reference_ids}"
+        cv2.putText(overlay, validity_text, (12, image.shape[0] - 18),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.55,
+                    (80, 240, 80) if valid else (0, 0, 255), 2, cv2.LINE_AA)
+        return status
 
 
 class DetectionWorker:
@@ -410,6 +556,44 @@ class DetectionWorker:
                 "frame_sequence": sequence, "human_verified_label": label,
                 "training_ready": False, "robot_enabled": False, "motion_authorized": False}
 
+    def project_table_point(self, *, sequence: int, pixel: tuple[float, float]) -> dict:
+        """Project one point from the exact frozen undistorted frame; never reuse stale H."""
+        with self.lock:
+            record = next((item for item in self.frame_history if item["sequence"] == sequence), None)
+            if record is None:
+                raise ValueError("frozen frame is no longer available; freeze again")
+            age_s = time.monotonic() - record["monotonic"]
+            if age_s > 15.0:
+                raise ValueError("frozen frame is older than 15 seconds; freeze again")
+            table = record.get("table")
+            if not isinstance(table, dict) or table.get("validity") != "VALID_CURRENT_FRAME":
+                raise ValueError("the selected frame has no valid current table transform")
+            homography = table.get("homography_image_to_table")
+            width, height = record["image_size_px"]
+            if (not isinstance(pixel, tuple) or len(pixel) != 2 or
+                    any(not isinstance(value, (int, float)) for value in pixel)):
+                raise ValueError("pixel must contain two numbers")
+            if not (0 <= pixel[0] < width and 0 <= pixel[1] < height):
+                raise ValueError("pixel is outside the frozen frame")
+            point = project_table_xy(self.np, homography, float(pixel[0]), float(pixel[1]))
+            return {
+                "status": "TABLE_PLANE_POINT",
+                "frame_sequence": sequence,
+                "observation": "exact_frozen_frame",
+                "observed_at_utc": table["observed_at_utc"],
+                "transform_validity": table["validity"],
+                "frame_age_s": round(age_s, 3),
+                "clicked_pixel": [round(float(pixel[0]), 3), round(float(pixel[1]), 3)],
+                "pixel_coordinate_space": table["coordinate_space"],
+                "table_xy_mm": [round(point[0], 3), round(point[1], 3)],
+                "surface_assumption": "clicked point lies on the z=0 table plane",
+                "height_warning": "bottle tops and other raised points do not share this XY accuracy",
+                "workspace_config": table["workspace_config"],
+                "intrinsic_calibration": table["intrinsic_calibration"],
+                "robot_enabled": False,
+                "motion_authorized": False,
+            }
+
     def _frames(self):
         cv2, np = self.cv2, self.np
         if is_http_jpeg(self.device) and self.raw_rgb_command is None:
@@ -484,7 +668,12 @@ class DetectionWorker:
                 if self.stop_event.is_set():
                     break
                 started = time.perf_counter()
-                prepared, scale, pad_x, pad_y = letterbox(image, self.image_size, cv2, np)
+                analysis_image = (
+                    image if self.table_mapper is None else self.table_mapper.prepare_frame(image)
+                )
+                prepared, scale, pad_x, pad_y = letterbox(
+                    analysis_image, self.image_size, cv2, np
+                )
                 blob = cv2.dnn.blobFromImage(
                     prepared, 1 / 255.0, (self.image_size, self.image_size), swapRB=True
                 )
@@ -492,8 +681,8 @@ class DetectionWorker:
                 raw_output = self.net.forward()
                 detections = decode_detections(
                     raw_output,
-                    image.shape[1],
-                    image.shape[0],
+                    analysis_image.shape[1],
+                    analysis_image.shape[0],
                     scale,
                     pad_x,
                     pad_y,
@@ -503,9 +692,10 @@ class DetectionWorker:
                     np,
                 )
                 inference_ms = round((time.perf_counter() - started) * 1000, 1)
-                overlay = image.copy()
+                overlay = analysis_image.copy()
                 table_status = (
-                    None if self.table_mapper is None else self.table_mapper.analyze(image, overlay, detections)
+                    None if self.table_mapper is None else
+                    self.table_mapper.analyze(analysis_image, overlay, detections)
                 )
                 for detection in detections:
                     x1, y1, x2, y2 = (round(value) for value in detection["xyxy"])
@@ -545,7 +735,7 @@ class DetectionWorker:
                         "sequence": self.sequence,
                         "monotonic": self.updated_monotonic,
                         "raw_jpeg": raw_jpeg,
-                        "image_size_px": [int(image.shape[1]), int(image.shape[0])],
+                        "image_size_px": [int(analysis_image.shape[1]), int(analysis_image.shape[0])],
                         "detections": detections,
                         "table": table_status,
                     })
@@ -725,7 +915,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = self.path.split("?", 1)[0]
-        if path not in ("/api/manual-capture", "/api/command-preview"):
+        if path not in ("/api/table-point", "/api/manual-capture", "/api/command-preview"):
             self._json({"detail": "No robot-control endpoint"}, HTTPStatus.METHOD_NOT_ALLOWED)
             return
         if path == "/api/manual-capture" and not self.server.allow_manual_capture:
@@ -739,6 +929,16 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < length <= 1024:
                 raise ValueError("request body size is invalid")
             payload = json.loads(self.rfile.read(length))
+            if path == "/api/table-point":
+                if not isinstance(payload, dict) or not isinstance(payload.get("sequence"), int):
+                    raise ValueError("integer frame sequence is required")
+                pixel = payload.get("pixel")
+                if not isinstance(pixel, list) or len(pixel) != 2:
+                    raise ValueError("pixel must be [x, y]")
+                self._json(self.worker.project_table_point(
+                    sequence=payload["sequence"], pixel=tuple(pixel)
+                ))
+                return
             if path == "/api/command-preview":
                 if not isinstance(payload, dict) or not isinstance(payload.get("command"), str):
                     raise ValueError("command text is required")

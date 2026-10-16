@@ -14,6 +14,7 @@ backups/
 /prompt/
 /.cache/
 /artifacts/
+/tmp/
 /Miniforge3.sh
 logs/raw/
 reports/raw/

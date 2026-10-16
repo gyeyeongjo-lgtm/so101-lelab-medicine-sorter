@@ -18,11 +18,11 @@
   "markers": {
     "dictionary": "DICT_4X4_50",
     "marker_size_mm": 70.0,
-    "marker_size_by_id_mm": {"0": 75.0},
+    "marker_size_by_id_mm": {"7": 30.0, "8": 30.0, "9": 30.0},
     "marker_size_measurement": {
-      "measured_black_square_width_mm": {"0": 75.0, "5": 70.0},
-      "assumed_black_square_width_mm": {"1": 70.0, "2": 70.0, "3": 70.0, "4": 70.0, "6": 70.0},
-      "note": "user reports ID0 is probably the only 75 mm marker"
+      "print_spec_black_square_width_mm": {"0": 70.0, "1": 70.0, "2": 70.0, "3": 70.0, "4": 70.0, "5": 70.0, "6": 70.0, "7": 30.0, "8": 30.0, "9": 30.0},
+      "physical_print_measurement_status": "NOT_RUN",
+      "note": "ID0-6 70 mm and bottle IDs7-9 30 mm are print specifications; verify printed black squares at 100% scale"
     },
     "range_cross_check": {
       "marker_id": 5,
@@ -37,39 +37,39 @@
     "reference_ids": [0, 1, 2, 3],
     "reference_centers_mm": {
       "0": [0.0, 0.0, 0.0],
-      "1": [403.5, 0.0, 0.0],
-      "2": [401.375, 347.228, 0.0],
-      "3": [3.708, 346.738, 0.0]
+      "1": [527.324, 0.0, 0.0],
+      "2": [524.108, 318.309, 0.0],
+      "3": [10.865, 321.156, 0.0]
     },
-    "reference_center_status": "PROVISIONAL_EDGE_GAP_FIT_CENTER_DISTANCE_CROSS_CHECKED_CAMERA_NOT_RECHECKED",
+    "reference_center_status": "USER_MEASURED_CENTER_TO_CENTER_FIT_CAMERA_REVALIDATION_REQUIRED",
     "legacy_reference_centers_mm": {
       "0": [0.0, 0.0, 0.0],
       "1": [331.0, 0.0, 0.0],
       "2": [326.807, 277.190, 0.0],
       "3": [-0.861, 274.244, 0.0]
     },
-    "reference_measurement_type": "nearest black-square edge gaps, including nearest corners for diagonals; NOT center-to-center",
+    "reference_measurement_type": "user measured black-square center-to-center distances",
     "reference_measurements_mm": {
-      "0-1": 331.0,
-      "1-2": 275.0,
-      "2-3": 325.0,
-      "3-0": 272.0,
-      "0-2": 432.0,
-      "1-3": 434.0
+      "0-1": 530.0,
+      "1-2": 320.0,
+      "2-3": 516.0,
+      "3-0": 323.0,
+      "0-2": 610.0,
+      "1-3": 605.0
     },
-    "reference_center_cross_check_mm": {
+    "legacy_reference_center_cross_check_mm": {
       "measured_approx_center_to_center": {"2-3": 400.0, "3-0": 346.0},
       "fit_center_to_center": {"2-3": 397.667, "3-0": 346.758},
-      "note": "2026-09-30 user measurement; approximate ruler values, not a live camera reprojection check"
+      "note": "2026-09-30 previous-layout measurement; not used by the rebuilt table"
     },
     "reference_fit": {
-      "method": "equal-weight nonlinear least squares of shortest gaps between axis-aligned black marker squares; ID0 origin; ID1 on +X; ID0 size 75 mm, others assumed 70 mm",
-      "rms_residual_mm": 2.623,
-      "max_abs_residual_mm": 3.481,
-      "note": "legacy fit treated black-square edge gaps as center distances and is invalid"
+      "method": "equal-weight planar least squares of six center-to-center distances; ID0 origin; ID1 on +X",
+      "rms_residual_mm": 2.600,
+      "max_abs_residual_mm": 3.196,
+      "note": "layout fit residual is not camera position accuracy or robot accuracy"
     },
     "basket_ids": {"4": "red", "5": "green", "6": "blue"},
-    "object_ids": {}
+    "object_ids": {"7": "small", "8": "medium", "9": "large"}
   },
   "depth_filter": {
     "roi_radius_px": 5,
@@ -79,7 +79,8 @@
   "pickup_roi_table_mm": {
     "x": [101.0, 273.0],
     "y": [251.0, 379.0],
-    "note": "Conservative bounding box of legacy x=80..220/y=200..300 ROI transformed to corrected reference frame; camera-only and not revalidated live, does not authorize robot motion"
+    "status": "STALE_NEW_TABLE_NOT_USED_FOR_AUTHORIZATION",
+    "note": "Legacy ROI retained for provenance only; do not use it for the rebuilt table or robot authorization"
   },
   "pickup_candidate_filter": {
     "min_area_px": 100,

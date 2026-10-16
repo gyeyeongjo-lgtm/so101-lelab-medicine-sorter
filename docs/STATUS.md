@@ -2,6 +2,176 @@
 
 업데이트: 2026-10-16
 
+## 2026-10-16 제한된 고정 데모 readiness — 오프라인 정리, 실기 BLOCKED
+
+- 카메라 독립 검증 결과 RMS `10.604 mm`, 최대 `19.817 mm`는
+  `UNRESOLVED`로 유지했다. 이를 camera calibration 완료나 로봇 집기 정확도로
+  승격하지 않았고 마커·카메라 설정·검증점을 변경하지 않았다.
+- 실제 로봇 상태 읽기는 `SO101ReadOnlyStatusAdapter`에 구현돼 있지만 Jetson 실기는
+  아직 `NOT_RUN`; 실제 Goal/grasp/place/return adapter는 fail-closed placeholder다.
+- follower servo calibration 파일과 과거 사용 증거는 있으나 새 제한 데모에서
+  `UNVERIFIED`; 유효한 새 환경 TCP와 `T_B_W`는 없다. 활성 Astra 설정의
+  `T_B_W=null`이므로 camera/table 좌표를 로봇 목표로 보내지 않는다.
+- readiness를 `supervised_teaching`과 `fixed_demo`로 분리했다. 티칭은 아직 없는
+  motion path를 선행 요구하지 않고, 고정 데모는 camera/table transform을 요구하지
+  않는다. 둘 다 미해결 Torque lifecycle을 명시적으로 요구하며, 전체 분류 gate는
+  유지했다. 관련 오프라인 `30/30 PASS`, CLI status에서 hardware I/O `0`, compile·
+  `git diff --check` PASS다. 전체 legacy discovery는 로컬 `cv2` 누락 8 error와
+  과거 600 mm marker 기준 테스트 1 failure가 있어 전체 PASS가 아니다.
+- 다음 한 건은 follower `/dev/ttyACM1`, serial `5AE6058306`을 fresh 대조한 뒤 단일
+  `robot-status` read-only 시험이다. 통과 후에만 current→물리 확인된 fixed
+  pre-approach 한 점의 relative-start teaching을 별도 감독 시험으로 다룬다. 실제
+  serial/Goal/Torque/config/motor command는 이번 작업에서 `0/NOT_RUN`이다.
+  [상세](sessions/2026-10-16-limited-fixed-demo-readiness.md). 변경은
+  `NOT_COMMITTED/NOT_PUSHED`다.
+
+## 2026-10-16 Astra frozen-frame UI JavaScript 수정·활성 배포 PASS
+
+- `현재 작업대 프레임 고정` 후 이미지와 상태가 나타나지 않던 원인을
+  `INDEX_HTML` JavaScript single-quoted string 안의 literal newline 문법 오류로
+  확정했다. 해당 `\n` 표현만 이중 escape하고 회귀 검사를 추가했다.
+- 로컬 카메라 회귀 `17/17 PASS`, compile·`git diff --check` PASS. 활성 코드는
+  변경 전 SHA `6ce319...` 파일을
+  `/home/jetson3/so101-camera-backups/20261016T2125-freeze-ui-fix/`에 보관한 뒤
+  SHA `20a45f3b...` 수정본으로 교체했다.
+- `medicine-yolo-preview.service` 하나만 재시작했고 `active`, `ExecMainStatus=0`,
+  `/health` 정상을 확인했다. 실제 브라우저에서 상태 JSON poll이 돌아오고,
+  작업대 고정 프레임 `435` 이미지와
+  `undistorted_full_frame` 안내가 표시되는 것을 시각 확인했다.
+- 마커 좌표·intrinsic·보정값은 변경하지 않았고, 로봇 serial·Goal·Torque·config·motor
+  I/O는 모두 `0`. P1–P4 새 프레임 독립 클릭 수집은 `COMPLETE (12/12)`;
+  P1-F1은 camera `[78.151,88.560] mm`, `Δ=(-2.201,+14.908) mm`,
+  planar error `15.070 mm`, P1-F2는 `[77.205,93.218] mm`,
+  `Δ=(-3.147,+19.566) mm`, error `19.817 mm`, P1-F3는
+  `[75.348,87.414] mm`, `Δ=(-5.004,+13.762) mm`, error `14.644 mm`로 기록했다.
+  P2-F1은 `[448.176,78.401] mm`, `Δ=(+7.378,+10.480) mm`, error
+  `12.817 mm`, P2-F2는 `[448.304,75.793] mm`, `Δ=(+7.506,+7.872) mm`,
+  error `10.877 mm`, P2-F3는 `[446.182,78.336] mm`,
+  `Δ=(+5.384,+10.415) mm`, error `11.724 mm`다.
+  P3-F1은 `[82.943,248.612] mm`, `Δ=(-0.181,-1.960) mm`, error `1.968 mm`,
+  P3-F2는 `[80.934,248.557] mm`, `Δ=(-2.190,-2.015) mm`, error `2.976 mm`,
+  P3-F3는 `[81.029,248.663] mm`, `Δ=(-2.095,-1.909) mm`, error `2.834 mm`다.
+  P4-F1은 `[435.566,267.755] mm`, `Δ=(+5.191,-0.249) mm`, error `5.197 mm`,
+  P4-F2는 `[435.545,265.611] mm`, `Δ=(+5.170,-2.393) mm`, error `5.697 mm`,
+  P4-F3는 `[433.569,270.145] mm`, `Δ=(+3.194,+2.141) mm`, error `3.845 mm`다.
+  12표본 평면 오차 RMS/max는 `10.604/19.817 mm`; P3 동일 frozen frame
+  5회 클릭 편차는 아직 `NOT_RUN`.
+- P3 동일 frozen frame 클릭을 누락 없이 회수하도록 기존 클릭 결과에
+  현재 sequence의 `click_history`만 누적 표시하도록 최소 수정했다. 로컬
+  `17/17 PASS`, Jetson SHA `b278d36c...`, 서비스 active·ID0–3
+  `VALID_CURRENT_FRAME`·브라우저 poll PASS. 로봇 I/O는 `0`.
+- P3 동일 프레임 5회 첫 시도는 다섯 개 모두 table XY
+  `[435.281,266.225] mm`로 P3가 아니라 P4 위치였다. P3 기준점과
+  `352.505 mm`, P4와 `5.219 mm` 거리라 `REJECTED_WRONG_POINT`로 기록했고,
+  P3 click variation에는 포함하지 않았다.
+- P3 재측정은 동일 frame `691`에서 `5/5 COMPLETE`. 다섯 pixel은
+  `[247.233,240.657]`, table XY는 `[80.780,249.293] mm`로 모두 같았다.
+  이번 실행의 click pixel/table XY SD·range는 `0.000`; P3 기준점 대비
+  `Δ=(-2.344,-1.279) mm`, error `2.670 mm`. 새 프레임 `12/12`와 동일
+  프레임 `5/5` 수집을 완료했으며 사전 PASS 기준은 설정하지 않았다.
+  마커·intrinsic·변환 설정 변경과 로봇 I/O는 모두 `0`.
+
+## 2026-10-16 Astra 새 작업대 좌표 활성 배포·live 확인 PASS
+
+- 8020 카메라 서비스의 실제 경로·활성 설정·Astra 640×480 RGB 경로를
+  확인했다. 반영 전 `/opt/so101-rgbd/astra_rgbd.example.json`은 이전 좌표였고
+  참조 intrinsic 파일도 활성 경로에 누락돼 있었으나, 둘 다 아래 새 설정으로
+  교체하고 변경 전 원본을 별도 백업했다.
+- 기존 UI에 새 ID0–3 중심 좌표, 실제 intrinsic 왜곡 보정, current-frame
+  fail-closed homography, 원점/X/Y축 표시, exact frozen-frame 클릭 XY를
+  통합했다. 로컬 관련 `17/17 PASS`; Jetson 실제 Python/OpenCV 격리 import,
+  config/intrinsic load와 합성 ID0–3 `VALID_CURRENT_FRAME` smoke PASS다.
+- 변경 전 활성 파일은
+  `/home/jetson3/so101-camera-backups/20261016T2045-table-coordinates/`에,
+  hash 검증된 배포물은
+  `/home/jetson3/so101-camera-deploy-stage-20261016/`에 보관했다.
+- 사용자 승인으로 활성 설정과 intrinsic을 `/opt/so101-rgbd`에 반영하고 카메라
+  서비스 하나만 재시작했다. 실제 프로세스가 새 경로·SHA·ID0–3 좌표·70/30 mm
+  구분과 왜곡 보정을 읽는 것을 확인했다. `/health` 5/5 및 별도 20/20 frame에서
+  ID0–3 complete·`VALID_CURRENT_FRAME`; frame age `0.044–0.260 s`였다.
+- 실제 frozen ID0 중심 클릭은 `[-0.001,0.000] mm`; 이는 self-check다. 20 frame의
+  ID0–3 중심 표준편차는 각 축 최대 `0.0759 px`, span 최대 `0.293 px`였다.
+  브라우저의 origin/axes/validity와 frozen-click UI도 시각 확인했다. 독립 실측
+  검증점은 아직 `NOT_RUN`; 로봇 serial/Goal/Torque/config/motor write는 `0`.
+  [상세](sessions/2026-10-16-astra-table-live-deploy-staged.md).
+- 독립 검증 기록을 위해 기존 frozen-click 응답에 정확한 프레임
+  `observed_at_utc`와 `transform_validity`만 추가했다. 로컬 `17/17 PASS`,
+  Jetson active SHA 일치, 실제 응답의 시각·sequence·validity와
+  robot/motion authorization false 확인.
+- 독립 검증 Method B 기준값을 입력했다. 1 mm 눈금 자 기준 P1–P4의
+  `(d0,d1)`은 `(109,453)`, `(446,110)`, `(264,510)`, `(507,285) mm`; 모두
+  삼각형 조건을 통과했다. `L=527.324 mm`, ID2·ID3 쪽 `Y>0`으로 계산한 기준
+  좌표는 각각 `(80.352,73.652)`, `(440.798,67.921)`, `(83.124,250.572)`,
+  `(430.375,268.004) mm`. 검증점은 보정에 넣지 않았고 camera click/error는
+  아직 `NOT_RUN`이다.
+
+## 2026-10-16 약통용 ArUco ID 7–9 사용자 매핑
+
+- 사용자가 `DICT_4X4_50` 약통 뚜껑용 마커를 **ID7=가장 작은 약통,
+  ID8=중간 약통, ID9=가장 큰 약통**으로 지정했다. 기존 작업대 ID0–3과
+  바구니 ID4–6 의미는 변경하지 않는다.
+- A4 1페이지에 ID7–9 각각 검은 사각형 `30 mm`, 사방 흰 여백 `5 mm`,
+  절단 크기 `40×40 mm`로 배치한 PDF를 생성했다. PDF 렌더에서 ID7–9 모두
+  OpenCV 재검출 `PASS`. 실제 인쇄물 실측·약통 부착·Astra live 검출은 `NOT_RUN`.
+- 사용자가 새 작업대 ID0–3의 검은 사각형 **중심-중심** 거리를
+  `0-1=530`, `1-2=320`, `2-3=516`, `3-0=323`, `0-2=610`, `1-3=605 mm`로
+  확정했고, 현재 여백에서 인식이 잘된다고 확인했다. 여섯 거리 동일 가중치
+  평면 적합은 ID0 `(0,0)`, ID1 `(527.324,0)`, ID2 `(524.108,318.309)`,
+  ID3 `(10.865,321.156) mm`; 거리 residual RMS `2.600 mm`, 최대 `3.196 mm`다.
+  이 좌표는 새 camera↔table 검증을 위한 입력이며 `T_B_W`나 로봇 동작
+  승인으로 승격하지 않는다.
+
+## 2026-10-16 새 LAN 카메라 프리뷰 및 600×400 mm 테이블 재구성 중
+
+- 사용자가 작업대를 약 `600×400 mm`로 다시 만드는 중이라고 보고했다. 베이스의 최종
+  고정 위치·높이와 새 `T_B_W`가 아직 없으므로 전체 테이블의 팔 도달 가능 여부는
+  `NOT_VERIFIED`; ArUco 영구 부착도 보류한다. 600×400 mm 자체는 ID0–6 70 mm 마커를
+  배치하기에 충분하지만 reference marker 가시성과 실제 pick/drop reach는 별도 조건이다.
+- 현재 LAN ARP에서 Jetson 후보 `192.168.0.121`을 확인했다. SSH 22, 기존 read-only
+  preview 8020과 8022는 listen하며 LeLab 8000·8002와 과거 preview 8010은 connection
+  refused다. 기존 8020 웹을 사용자에게 열었고 `ROBOT DISABLED` 상태다.
+- 8020의 천장 사선 RealSense D435는 `ok=true`, frame age 약 `0.03 s`로 실시간 작업대를
+  표시했다. 천장 정면 Astra는 처음 `camera source ended`, sequence 0이었다. USB
+  `2bc5:0401 Orbbec Astra`는 정상 열거됐고 camera-only
+  `medicine-yolo-preview.service`의 `orbbec-rgb-pipe` 자식만 종료된 상태임을 확인했다.
+  해당 서비스 하나를 재시작한 뒤 Astra `ok=true`, error null, sequence `86`, frame age
+  `0.098 s`; RealSense도 `ok=true`, frame age `0.001 s`를 확인하고 8020 브라우저를
+  새로고침했다. `ROBOT DISABLED`, robot target unauthorized를 유지한다. LeLab 8000은
+  inactive/connection refused이고 현재 `/dev/ttyACM0`·`/dev/ttyACM1` 자체가 없어
+  serial owner도 없다. USB 재연결·Goal/Torque/config/motor write는 `NOT_RUN/0`이다.
+
+## 2026-10-16 작업별 readiness·read-only robot status 및 70 mm ArUco PDF
+
+- readiness를 `offline_mock`, `robot_status`, `camera_status`, `robot_calibration`,
+  `camera_calibration`, `supervised_motion`, `full_sort`로 분리했다. `robot_status`는
+  follower 고정 포트와 USB serial만 요구하며 카메라 보정·좌표 변환·바구니 위치·분류
+  경로를 요구하지 않는다. `full_sort`의 기존 보정·경로·live-enabled 차단은 유지한다.
+- 단일 진입점에 `robot-status`를 추가하고 `RobotController.read_status()` 아래에
+  `SO101ReadOnlyStatusAdapter`를 연결했다. 일반 `SO101Follower.connect()`는 우회하고,
+  허용된 `/dev/ttyACM0`·`/dev/ttyACM1`과 expected serial을 검증한 뒤
+  `FeetechMotorsBus.connect(handshake=False)`로 연결한다. Goal/Present/Torque/Moving/
+  Temperature 30개 raw read는 `num_retry=0`; write/sync-write/torque API는 차단하며
+  종료는 `disconnect(disable_torque=False)`다. partial connect 실패 시 lock과 serial을
+  해제한다.
+- 새 코어 `29/29 PASS`; 전체 hardware-free discovery `540 PASS, 5 SKIPPED,
+  0 FAIL/ERROR`; compile 및 `git diff --check` PASS다. 실제 Jetson 설치본 계약 확인,
+  serial open, 로봇 상태 read, camera, Goal/Torque/config write와 모터 동작은 모두
+  `NOT_RUN/0`이다. 실제 상태 시험 후보는 `/dev/ttyACM1`과 expected serial
+  `5AE6058306`을 fresh 대조한 뒤 `python3 -m medicine_sorter --config
+  configs/system.example.json robot-status` 한 번뿐이다.
+- `DICT_4X4_50` ID0–6을 각각 검은 사각형 70 mm로 배치한 A4 7페이지 PDF를 생성했다.
+  PDF image bbox는 전 페이지 `198.4252 pt = 70.000 mm`; 7페이지 렌더링을 시각 검수했다.
+  기존 75 mm 보정은 재사용하지 않으며 새 환경에서 70 mm 기준 재보정이 필요하다.
+- 새 코드는 아직 `NOT_COMMITTED/NOT_PUSHED`, Jetson 배치와 실제 카메라·로봇·분류
+  동작은 `NOT_RUN`이다.
+
+## 2026-10-16 단일 진입점 재구성 — mock PASS, live 미검증
+
+- 시작 상태를 `refs/backup/pre-refactor-20261016`(snapshot `8d37077d…`)에 exact tracked snapshot으로 보존하고 대용량 데이터·모델·로컬 보정 자산은 원위치 유지했다. 기존 ArUco SVG 3개·Charuco PDF 1개 삭제도 snapshot에 포함했으며 임의 복구하지 않았다.
+- 지원 실행을 `python -m medicine_sorter` 하나로 통합했다. 한국어 size/color 명령, 명시 목적지 우선, scene freshness/RGB-D/config 검사, 대상·marker 선택, mm/degree와 `T_A_B`, 단일 작업 lock, 단일 `RobotController`, mock adapter, 구체적 오류 출력을 구현했다. 새 환경 calibration은 모두 unverified이며 `live`는 장치 연결 전에 fail-closed한다.
+- 과거 실험 전용 atomic HOLD/contact release/current-HOLD UI/gripper-close/single-session/teaching/Goal-sync/Torque-diagnostic entrypoint 8개와 전용 test 7개·close test/config를 삭제했다. 데이터·모델·보정 원본·실험 세션은 보존했다.
+- 새 코어 `23/23 PASS`; 전체 hardware-free discovery `534 PASS, 5 SKIPPED, 0 FAIL/ERROR`. skip은 optional websocket dependency 1개와 sandbox loopback bind 4개이며, loopback 허용 별도 캡처 서버 시험은 `14/14 PASS`다. CLI status/mock/live-fail-closed를 확인했으며 serial/camera/motor/Goal/Torque/config write와 Jetson/실기 검증은 `0/NOT_RUN`. 현재 모델은 `white_medicine_bottle_model` 단일 클래스이며 로컬 ignored weight는 보존했다. [구조](SYSTEM_ARCHITECTURE.md), [상세](sessions/2026-10-16-single-entrypoint-refactor.md). Git `NOT_COMMITTED/NOT_PUSHED`.
+
 ## 2026-10-16 GitHub 동기화 후 고정 포트 테스트 정합
 
 - 기존 진행 코드·세션은 `27c60b2`, 동기화 기록은 `dd7b479`로 이미 원격 `fix/usb-recording`에 반영됨을 재확인했다. 이번 추가 변경은 새 포트 소유권 정책(`/dev/ttyACM0`·`/dev/ttyACM1`만 허용)에 맞춰 과거 fuser fallback 단위 테스트 두 개의 가짜 장치 경로만 바꾼 것이다. 실제 포트·모터는 열지 않았다.

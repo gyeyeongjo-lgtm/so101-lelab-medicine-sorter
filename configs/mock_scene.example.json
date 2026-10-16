@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "frame_id": "recorded-mock-001",
+  "observed_at_s": 1.0,
+  "config_id": "new-environment-unverified-20261016",
+  "table_frame_valid": true,
+  "rgb_depth_aligned": true,
+  "bottles": [
+    {"observation_id": "frame-001-A", "class_name": "white_medicine_bottle_model", "size": "large", "detection_confidence": 0.94, "size_confidence": 1.0, "classification_basis": "mock_known_A", "pixel_center": [420.0, 260.0], "table_position_mm": [160.0, 260.0, 45.0], "graspable": true},
+    {"observation_id": "frame-001-B", "class_name": "white_medicine_bottle_model", "size": "medium", "detection_confidence": 0.92, "size_confidence": 1.0, "classification_basis": "mock_known_B", "pixel_center": [380.0, 260.0], "table_position_mm": [210.0, 260.0, 40.0], "graspable": true},
+    {"observation_id": "frame-001-C", "class_name": "white_medicine_bottle_model", "size": "small", "detection_confidence": 0.91, "size_confidence": 1.0, "classification_basis": "mock_known_C", "pixel_center": [320.0, 260.0], "table_position_mm": [260.0, 260.0, 35.0], "graspable": true}
+  ],
+  "baskets": [
+    {"marker_id": 4, "color": "red", "opening_table_mm": [500.0, 100.0, 80.0], "verified": true},
+    {"marker_id": 5, "color": "green", "opening_table_mm": [500.0, 200.0, 80.0], "verified": true},
+    {"marker_id": 6, "color": "blue", "opening_table_mm": [500.0, 300.0, 80.0], "verified": true}
+  ]
+}

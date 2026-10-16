@@ -7,7 +7,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import websocket
+try:
+    import websocket
+except ModuleNotFoundError:
+    websocket = None
 
 from scripts.observe_teleop_trace import (CameraEvidence, TraceAudit, cached_camera_worker,
                                          check_camera_source, record, selected_camera_names)
@@ -133,6 +136,7 @@ class TraceAuditTests(unittest.TestCase):
                     record("http://localhost:8000", root, 1)
             self.assertFalse(root.exists())
 
+    @unittest.skipIf(websocket is None, "optional websocket-client dependency is not installed")
     def test_active_trace_stops_when_teleop_ends_and_is_never_replay_authorized(self):
         class FakeSocket:
             def __init__(self):

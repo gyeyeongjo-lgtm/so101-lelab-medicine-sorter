@@ -37,11 +37,19 @@ class MedicineYoloWebTests(unittest.TestCase):
         self.assertIn("pickup_roi_match:roiMatch", INDEX_HTML)
         self.assertIn("사진·라벨 로컬 저장", INDEX_HTML)
         self.assertIn("/api/command-preview", INDEX_HTML)
+        self.assertIn("/api/table-point", INDEX_HTML)
+        self.assertIn("작업대 평면 지점", INDEX_HTML)
+        self.assertIn("높이가 있는 점", INDEX_HTML)
         self.assertIn("명령 판정만", INDEX_HTML)
         self.assertIn("document.querySelector('#route-command').value=''", INDEX_HTML)
         self.assertIn("window.addEventListener('pageshow'", INDEX_HTML)
         self.assertIn("out.textContent+='\\n다시 프레임", INDEX_HTML)
         self.assertNotIn("out.textContent+='\n다시 프레임", INDEX_HTML)
+        self.assertIn("작업대 변환이 유효하지 않습니다.\\n'+JSON.stringify", INDEX_HTML)
+        self.assertNotIn("작업대 변환이 유효하지 않습니다.\n'+JSON.stringify", INDEX_HTML)
+        self.assertIn("tableClickHistory=[]", INDEX_HTML)
+        self.assertIn("tableClickHistory.push(d)", INDEX_HTML)
+        self.assertIn("click_history:tableClickHistory", INDEX_HTML)
 
     def test_read_exact_combines_short_reads(self):
         class ShortStream:
@@ -186,9 +194,99 @@ class MedicineYoloWebTests(unittest.TestCase):
         self.assertTrue(inside_roi(point, roi))
         self.assertFalse(inside_roi((79.9, 120.0), roi))
 
+    def test_frozen_table_point_uses_exact_frame_homography(self):
+        worker = DetectionWorker.__new__(DetectionWorker)
+        worker.lock = threading.Lock()
+        worker.np = np
+        worker.frame_history = deque([{
+            "sequence": 42,
+            "monotonic": time.monotonic(),
+            "image_size_px": [640, 480],
+            "table": {
+                "validity": "VALID_CURRENT_FRAME",
+                "observed_at_utc": "2026-10-16T12:00:00+00:00",
+                "homography_image_to_table": [[2.0, 0.0, -20.0], [0.0, 2.0, -40.0], [0.0, 0.0, 1.0]],
+                "coordinate_space": "undistorted_full_frame",
+                "workspace_config": {"path": "/config.json", "sha256": "abc"},
+                "intrinsic_calibration": {"path": "/intrinsic.json", "sha256": "def"},
+            },
+        }])
+        result = worker.project_table_point(sequence=42, pixel=(60.0, 80.0))
+        self.assertEqual(result["table_xy_mm"], [100.0, 120.0])
+        self.assertEqual(result["observed_at_utc"], "2026-10-16T12:00:00+00:00")
+        self.assertEqual(result["transform_validity"], "VALID_CURRENT_FRAME")
+        self.assertEqual(result["pixel_coordinate_space"], "undistorted_full_frame")
+        self.assertIn("z=0", result["surface_assumption"])
+        self.assertFalse(result["motion_authorized"])
+        with self.assertRaisesRegex(ValueError, "no longer available"):
+            worker.project_table_point(sequence=41, pixel=(60.0, 80.0))
+
+    def test_table_point_endpoint_uses_requested_frozen_sequence(self):
+        body = json.dumps({"sequence": 42, "pixel": [60.0, 80.0]}).encode()
+        headers = Message()
+        headers["Content-Type"] = "application/json"
+        headers["Content-Length"] = str(len(body))
+        calls = []
+        handler = Handler.__new__(Handler)
+        handler.path = "/api/table-point"
+        handler.headers = headers
+        handler.rfile = io.BytesIO(body)
+        handler.server = SimpleNamespace(worker=SimpleNamespace(
+            project_table_point=lambda **kwargs: calls.append(kwargs) or {
+                "status": "TABLE_PLANE_POINT",
+                "frame_sequence": kwargs["sequence"],
+                "table_xy_mm": [100.0, 120.0],
+                "robot_enabled": False,
+                "motion_authorized": False,
+            }
+        ))
+        responses = []
+        handler._json = lambda payload, status=HTTPStatus.OK: responses.append((status, payload))
+        handler.do_POST()
+        self.assertEqual(calls, [{"sequence": 42, "pixel": (60.0, 80.0)}])
+        self.assertEqual(responses[0][0], HTTPStatus.OK)
+        self.assertEqual(responses[0][1]["table_xy_mm"], [100.0, 120.0])
+        self.assertFalse(responses[0][1]["motion_authorized"])
+
+    def test_table_mapper_loads_and_applies_intrinsic_without_resize_or_crop(self):
+        import cv2
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            intrinsic = {
+                "camera_matrix": [[100.0, 0.0, 2.0], [0.0, 100.0, 1.5], [0.0, 0.0, 1.0]],
+                "dist_coeffs": [0.0, 0.0, 0.0, 0.0, 0.0],
+                "image_size": [4, 3],
+                "reprojection_rms_px": 0.478,
+            }
+            config = {
+                "camera": {"intrinsic_file": "intrinsic.json",
+                           "rgb": {"width": 4, "height": 3, "fps": 30, "format": "RGB888"}},
+                "markers": {"dictionary": "DICT_4X4_50", "marker_size_mm": 70.0,
+                            "marker_size_by_id_mm": {"7": 30.0},
+                            "reference_centers_mm": {"0": [0, 0, 0], "1": [100, 0, 0],
+                                                     "2": [100, 100, 0], "3": [0, 100, 0]},
+                            "basket_ids": {}, "object_ids": {"7": "small"}},
+                "pickup_roi_table_mm": {"x": [0, 100], "y": [0, 100], "status": "stale"},
+                "transforms": {"world_axes": "+X ID0 to ID1; +Y into board; +Z above"},
+            }
+            (root / "intrinsic.json").write_text(json.dumps(intrinsic), encoding="utf-8")
+            config_path = root / "workspace.json"
+            config_path.write_text(json.dumps(config), encoding="utf-8")
+            mapper = TableMapper(config_path, cv2, np)
+            frame = np.arange(36, dtype=np.uint8).reshape(3, 4, 3)
+            prepared = mapper.prepare_frame(frame)
+            self.assertEqual(prepared.shape, frame.shape)
+            self.assertEqual(mapper.intrinsic_image_size, (4, 3))
+            self.assertEqual(mapper.marker_sizes_mm[7], 30.0)
+            with self.assertRaisesRegex(ValueError, "does not match intrinsic"):
+                mapper.prepare_frame(np.zeros((2, 4, 3), dtype=np.uint8))
+
     def test_basket_marker_projection_is_not_presented_as_basket_center(self):
         class FakeCV2:
             FONT_HERSHEY_SIMPLEX = 0
+            LINE_AA = 1
+            MARKER_CROSS = 2
             aruco = SimpleNamespace(drawDetectedMarkers=lambda *_args: None)
 
             @staticmethod
@@ -203,13 +301,38 @@ class MedicineYoloWebTests(unittest.TestCase):
             def putText(*_args):
                 return None
 
+            @staticmethod
+            def circle(*_args):
+                return None
+
+            @staticmethod
+            def drawMarker(*_args):
+                return None
+
+            @staticmethod
+            def arrowedLine(*_args, **_kwargs):
+                return None
+
         mapper = TableMapper.__new__(TableMapper)
         mapper.cv2, mapper.np = FakeCV2, np
         mapper.detector = object()
         mapper.reference_centers = {0: (0, 0), 1: (100, 0), 2: (100, 100), 3: (0, 100)}
         mapper.reference_ids = [0, 1, 2, 3]
         mapper.basket_ids = {5: "green"}
+        mapper.object_ids = {}
+        mapper.dictionary_name = "DICT_4X4_50"
+        mapper.marker_sizes_mm = {0: 70.0, 1: 70.0, 2: 70.0, 3: 70.0, 5: 70.0}
         mapper.roi = {"x": (0, 100), "y": (0, 100)}
+        mapper.roi_enabled = True
+        mapper.roi_status = "verified"
+        mapper.axis_convention = "+X ID0 to ID1; +Y into board; +Z above"
+        mapper.config_path = "/config.json"
+        mapper.config_sha256 = "abc"
+        mapper.intrinsic_path = "/intrinsic.json"
+        mapper.intrinsic_sha256 = "def"
+        mapper.intrinsic_image_size = (640, 480)
+        mapper.intrinsic_rms_px = 0.478
+        mapper.capture = {"width": 640, "height": 480, "fps": 30, "format": "RGB888"}
         centers = {0: (0, 0), 1: (100, 0), 2: (100, 100), 3: (0, 100), 5: (60, 50)}
         corners = {marker_id: np.asarray([[[x, y]] * 4], dtype=np.float32)
                    for marker_id, (x, y) in centers.items()}
@@ -243,6 +366,68 @@ class MedicineYoloWebTests(unittest.TestCase):
         detected, recovered = detect_table_markers(FakeCV2, FakeDetector(), 1, {0, 4})
         self.assertEqual(detected, {0: "original-0", 4: "retry-4"})
         self.assertEqual(recovered, [4])
+
+    def test_missing_reference_never_reuses_previous_homography(self):
+        class FakeCV2:
+            FONT_HERSHEY_SIMPLEX = 0
+            LINE_AA = 1
+            MARKER_CROSS = 2
+            aruco = SimpleNamespace(drawDetectedMarkers=lambda *_args: None)
+
+            @staticmethod
+            def findHomography(_image_points, _table_points, method=0):
+                return np.eye(3), None
+
+            @staticmethod
+            def perspectiveTransform(points, _homography):
+                return points
+
+            @staticmethod
+            def putText(*_args):
+                return None
+
+            @staticmethod
+            def circle(*_args):
+                return None
+
+            @staticmethod
+            def drawMarker(*_args):
+                return None
+
+            @staticmethod
+            def arrowedLine(*_args, **_kwargs):
+                return None
+
+        mapper = TableMapper.__new__(TableMapper)
+        mapper.cv2, mapper.np = FakeCV2, np
+        mapper.detector = object()
+        mapper.reference_centers = {0: (0, 0), 1: (100, 0), 2: (100, 100), 3: (0, 100)}
+        mapper.reference_ids = [0, 1, 2, 3]
+        mapper.basket_ids, mapper.object_ids = {}, {}
+        mapper.dictionary_name = "DICT_4X4_50"
+        mapper.marker_sizes_mm = {marker_id: 70.0 for marker_id in mapper.reference_ids}
+        mapper.roi = {"x": (0, 100), "y": (0, 100)}
+        mapper.roi_enabled, mapper.roi_status = False, "stale"
+        mapper.axis_convention = "+X ID0 to ID1; +Y into board; +Z above"
+        mapper.config_path, mapper.config_sha256 = "/config.json", "abc"
+        mapper.intrinsic_path, mapper.intrinsic_sha256 = "/intrinsic.json", "def"
+        mapper.intrinsic_image_size, mapper.intrinsic_rms_px = (640, 480), 0.478
+        mapper.capture = {"width": 640, "height": 480, "fps": 30, "format": "RGB888"}
+        all_centers = {marker_id: (20 + marker_id * 30, 30 + marker_id * 20)
+                       for marker_id in mapper.reference_ids}
+        all_corners = {marker_id: np.asarray([[[x, y]] * 4], dtype=np.float32)
+                       for marker_id, (x, y) in all_centers.items()}
+        missing_one = {marker_id: corners for marker_id, corners in all_corners.items()
+                       if marker_id != 1}
+        image = np.zeros((480, 640, 3), dtype=np.uint8)
+        with patch("medicine_yolo_web.detect_table_markers",
+                   side_effect=[(all_corners, []), (missing_one, [])]):
+            valid = mapper.analyze(image, image.copy(), [])
+            invalid = mapper.analyze(image, image.copy(), [])
+        self.assertEqual(valid["validity"], "VALID_CURRENT_FRAME")
+        self.assertEqual(invalid["validity"], "INVALID_CURRENT_FRAME")
+        self.assertEqual(invalid["invalid_reason"]["missing_reference_ids"], [1])
+        self.assertIsNone(invalid["homography_image_to_table"])
 
 
 if __name__ == "__main__":

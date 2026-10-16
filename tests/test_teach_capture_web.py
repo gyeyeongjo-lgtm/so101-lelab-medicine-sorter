@@ -37,6 +37,12 @@ def ready_state():
 
 
 class TeachCaptureTests(unittest.TestCase):
+    def make_server(self, *args, **kwargs):
+        try:
+            return CaptureServer(*args, **kwargs)
+        except PermissionError as error:
+            self.skipTest(f"loopback bind is unavailable in this sandbox: {error}")
+
     def test_camera_source_override_keeps_joint_origin_separate(self):
         base = "http://192.168.50.20:8000"
         self.assertEqual(camera_stream_url("ceiling", base), base + "/camera-preview/8")
@@ -55,7 +61,7 @@ class TeachCaptureTests(unittest.TestCase):
     def test_cached_frame_exposes_original_receive_timestamp(self):
         state, _ = ready_state()
         with tempfile.TemporaryDirectory() as temporary:
-            server = CaptureServer(("127.0.0.1", 0), state, Path(temporary), "http://invalid.local")
+            server = self.make_server(("127.0.0.1", 0), state, Path(temporary), "http://invalid.local")
             worker = threading.Thread(target=server.serve_forever, daemon=True)
             worker.start()
             try:
@@ -152,8 +158,8 @@ class TeachCaptureTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             touch_root = Path(temporary) / "touch"
             waypoint_root = Path(temporary) / "waypoints"
-            server = CaptureServer(("127.0.0.1", 0), state, touch_root,
-                                   "http://invalid.local", waypoint_root)
+            server = self.make_server(("127.0.0.1", 0), state, touch_root,
+                                      "http://invalid.local", waypoint_root)
             worker = threading.Thread(target=server.serve_forever, daemon=True)
             worker.start()
             try:
@@ -206,8 +212,8 @@ class TeachCaptureTests(unittest.TestCase):
     def test_http_capture_refuses_inactive_teleoperation(self):
         state, _ = ready_state()
         with tempfile.TemporaryDirectory() as temporary:
-            server = CaptureServer(("127.0.0.1", 0), state, Path(temporary),
-                                   "http://invalid.local", allow_touch_capture=True)
+            server = self.make_server(("127.0.0.1", 0), state, Path(temporary),
+                                      "http://invalid.local", allow_touch_capture=True)
             worker = threading.Thread(target=server.serve_forever, daemon=True)
             worker.start()
             try:
@@ -233,7 +239,7 @@ class TeachCaptureTests(unittest.TestCase):
     def test_legacy_touch_capture_is_blocked_by_default(self):
         state, _ = ready_state()
         with tempfile.TemporaryDirectory() as temporary:
-            server = CaptureServer(("127.0.0.1", 0), state, Path(temporary), "http://invalid.local")
+            server = self.make_server(("127.0.0.1", 0), state, Path(temporary), "http://invalid.local")
             worker = threading.Thread(target=server.serve_forever, daemon=True)
             worker.start()
             try:
