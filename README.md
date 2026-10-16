@@ -71,22 +71,30 @@ python3 -m medicine_sorter --config configs/system.example.json validate-config
 
 ### 고정 칸 티칭 데모
 
-`ID7=C→빨강`, `ID8=B→파랑`만 실행합니다. `ID9=A`는 목적지가 정의되지
-않아 명시적으로 제외합니다. 좌표 변환을 쓰지 않고 640×480
+`ID7=C`, `ID8=B`, `ID9=A`로 유형만 구분하고 목적지는 실행 시
+`--rule C=green B=red A=blue`처럼 정합니다. A/B/C 각각 red/blue/green
+어느 바구니든 지정할 수 있고, 여러 약통을 같은 바구니에 지정해도 됩니다.
+규칙에 없는 약통은 건너뜁니다. `--rule`을 생략하면 config의
+`destination_rules`를 기본값으로 쓹니다. 좌표 변환을 쓰지 않고 640×480
 `undistorted_full_frame`의 픽셀 ROI로 slot1–3을 판정합니다. 현재 ROI는
 `provisional_verify_in_dry_run`이므로 실물 프레임 dry-run에서 반드시 칸 판정을
 확인해야 하며, 자동 실행은 차단되고 `--step`만 허용됩니다.
 
 ```bash
 python3 -m medicine_sorter --config configs/system.example.json teach
-python3 -m medicine_sorter --config configs/system.example.json run --dry-run
-python3 -m medicine_sorter --config configs/system.example.json run --step
+python3 -m medicine_sorter --config configs/system.example.json teach --resume
+python3 -m medicine_sorter --config configs/system.example.json run --dry-run --rule C=green B=red A=blue
+python3 -m medicine_sorter --config configs/system.example.json run --step --rule C=green B=red A=blue
 ```
 
-`teach`는 한 follower/leader session에서 relative-start로 16개 자세를 순서대로
-저장합니다. follower는 fresh Present raw를 Goal raw로 한 번 복사한 뒤
-Torque를 한 번만 ON하며, 이미 ALL ON이면 안정성만 확인하고 toggle하지
-않습니다. 일반 robot `connect/configure`를 우회하고 종료는
+`teach`는 한 follower/leader session에서 relative-start로 green above/release를
+포함한 18개 자세를 순서대로 저장합니다. Enter를 누를 때마다
+`configs/fixed_demo_poses.partial.json`에 바로 저장하며, 중단됐다면
+`teach --resume`으로 다음 자세부터 이어갑니다. follower는 fresh Present raw를
+Goal raw로 한 번 복사합니다. 이 Goal write가 Feetech Torque를 자동으로
+ALL ON하면 `AUTO_ENABLED_BY_GOAL`로 인정하고 추가 Torque write를 하지 않습니다.
+여전히 ALL OFF면 Torque ON을 한 번만 쓰며 mixed state는 중단합니다.
+일반 robot `connect/configure`를 우회하고 종료는
 `disconnect(disable_torque=False)`로 처리합니다. Ctrl+C는 fresh Present raw를
 Goal로 한 번 복사해 **현재 위치 유지**를 요청하며 Torque OFF가 아닙니다.
 

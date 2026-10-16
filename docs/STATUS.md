@@ -1,6 +1,33 @@
 # 현재 상태
 
-업데이트: 2026-10-16
+업데이트: 2026-10-17
+
+## 2026-10-17 실행 규칙 3×3·green 자세·resume 티칭 — 오프라인 PASS
+
+- `run --rule C=green B=red A=blue`처럼 A/B/C 각각을 red/blue/green 어느
+  바구니로든 지정하도록 변경했다. 9개 개별 조합을 모두 허용하고,
+  여러 약통의 같은 바구니 지정도 허용한다. 명령에 없는 유형은
+  건너뛰며, 잘못된 형식·약통·색·중복 약통 규칙은 camera/robot session 전에
+  오류로 종료한다. `--rule`을 생략하면 config `destination_rules`만 기본값으로
+  사용한다.
+- `green_above`, `green_release`를 추가해 `POSE_NAMES` 18개로 늘렸다.
+  rule에 A가 있으면 ID9도 실행 대상이다. 고정 C→red/B→blue 검사는
+  제거했고 config default는 합법적인 A/B/C→red/blue/green subset인지만 검사한다.
+- 사용자가 Jetson에서 재현·조정한 값을 반영했다. 모든 관절
+  max velocity `20.0`, max acceleration `60.0`, gripper settle tolerance `100.0`,
+  teach Goal-Present raw 허용치 `40`이다. teach target이 보정 범위를 넘으면 중단하지
+  않고 해당 관절의 범위 안쪽 `1°`로 clamp한다.
+- fresh raw Goal write 후 `0.2 s`를 대기하고 Goal/Torque read를 `num_retry=3`으로
+  확인한다. Goal write가 Feetech Torque를 ALL ON하면
+  `AUTO_ENABLED_BY_GOAL`로 분류하고 추가 Torque write는 `0`; 여전히 ALL OFF면
+  Torque ON 1회, mixed면 abort한다.
+- Enter로 자세를 캡처할 때마다 ignored
+  `configs/fixed_demo_poses.partial.json`에 atomic save한다. 중단 후
+  `teach --resume`은 순서대로 저장된 prefix를 검증하고 다음 pose부터 재개한다.
+- 신규 fixed-demo `27/27 PASS`, 기존 sorter `30/30 PASS`, invalid CLI rule의
+  pre-camera failure, compile, `git diff --check` PASS. 이 turn의 serial open·Goal/Torque/
+  config write·motor command는 `0`; Jetson pull·실기는 `NOT_RUN`.
+  [상세](sessions/2026-10-17-runtime-rules-resumable-teach.md).
 
 ## 2026-10-16 고정 칸 ArUco 티칭 데모 구현 — 오프라인 PASS, 실기 NOT_RUN
 

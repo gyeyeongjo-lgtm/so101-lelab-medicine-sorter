@@ -1,13 +1,17 @@
 import json
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 from medicine_sorter.config import load_config
 from medicine_sorter.fixed_demo import (
-    JOINTS, StrictWriteGate, establish_hold, load_demo_settings,
-    routes_from_snapshot, run_demo, slot_for_pixel, smooth_interpolation,
-    stage_names_for_routes,
+    JOINTS, POSE_NAMES, POST_GOAL_READ_RETRIES,
+    TEACH_GOAL_PRESENT_RAW_TOLERANCE, StrictWriteGate,
+    clamp_to_calibrated_inner_range, establish_hold, load_demo_settings,
+    load_partial_pose_file, parse_destination_rules, routes_from_snapshot,
+    run_demo, save_pose_file, slot_for_pixel, smooth_interpolation,
+    stage_names_for_routes, validate_demo_settings,
 )
 
 
@@ -41,8 +45,10 @@ class FakeBus:
             "Moving": {joint: 0 for joint in JOINTS},
         }
         self.sent = []
+        self.reads = []
 
     def sync_read(self, register, *, normalize, num_retry):
+        self.reads.append((register, normalize, num_retry))
         return dict(self.registers[register])
 
     def read(self, register, joint, *, normalize, num_retry):
@@ -83,6 +89,9 @@ class FixedDemoTests(unittest.TestCase):
     def test_fixed_marker_and_destination_contract(self):
         self.assertEqual(self.settings.marker_to_type, {7: "C", 8: "B", 9: "A"})
         self.assertEqual(self.settings.destinations, {"C": "red", "B": "blue"})
+        self.assertEqual(len(POSE_NAMES), 18)
+        self.assertIn("green_above", POSE_NAMES)
+        self.assertIn("green_release", POSE_NAMES)
 
     def test_pixel_slots(self):
         self.assertEqual(slot_for_pixel((300, 220), self.settings.slots), "slot1")
@@ -93,12 +102,41 @@ class FixedDemoTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "not_in_exactly_one"):
             slot_for_pixel((100, 100), self.settings.slots)
 
-    def test_routes_C_red_B_blue_and_A_is_explicitly_ignored(self):
+    def test_default_routes_C_red_B_blue_and_A_is_unselected(self):
         routes, ignored = routes_from_snapshot(snapshot(), self.settings)
         self.assertEqual([(item.bottle_type, item.destination) for item in routes],
                          [("C", "red"), ("B", "blue")])
         self.assertEqual(ignored[0]["bottle_type"], "A")
-        self.assertEqual(ignored[0]["reason"], "destination_rule_not_defined")
+        self.assertEqual(ignored[0]["reason"], "not_selected_by_rule")
+
+    def test_all_nine_bottle_destination_pairs_parse(self):
+        for label in ("A", "B", "C"):
+            for color in ("red", "blue", "green"):
+                self.assertEqual(parse_destination_rules([f"{label}={color}"], {}),
+                                 {label: color})
+
+    def test_config_defaults_accept_any_valid_subset_not_only_C_red_B_blue(self):
+        for rules in ({"A": "green"}, {"A": "red", "B": "red", "C": "red"}, {}):
+            validate_demo_settings(replace(self.settings, destinations=rules))
+
+    def test_same_basket_for_multiple_bottles_is_allowed(self):
+        rules = parse_destination_rules(["A=green", "B=green", "C=green"], {})
+        routes, ignored = routes_from_snapshot(snapshot(), self.settings, rules)
+        self.assertEqual([route.destination for route in routes], ["green"] * 3)
+        self.assertEqual(ignored, [])
+
+    def test_A_marker_runs_when_rule_is_present_and_unspecified_are_skipped(self):
+        rules = parse_destination_rules(["A=blue"], self.settings.destinations)
+        routes, ignored = routes_from_snapshot(snapshot(), self.settings, rules)
+        self.assertEqual([(route.marker_id, route.bottle_type, route.destination)
+                          for route in routes], [(9, "A", "blue")])
+        self.assertEqual({item["bottle_type"] for item in ignored}, {"B", "C"})
+
+    def test_invalid_runtime_rules_fail(self):
+        invalid = (["C-green"], ["D=red"], ["C=yellow"], ["C=red", "C=blue"])
+        for tokens in invalid:
+            with self.subTest(tokens=tokens), self.assertRaises(Exception):
+                parse_destination_rules(tokens, self.settings.destinations)
 
     def test_stale_frame_fails(self):
         with self.assertRaisesRegex(Exception, "camera_frame_stale"):
@@ -118,6 +156,13 @@ class FixedDemoTests(unittest.TestCase):
             "gripper_closed", "slot1_lift", "red_above", "red_release",
             "gripper_open", "red_above", "home",
         ])
+
+    def test_green_stage_uses_taught_green_poses(self):
+        routes, _ = routes_from_snapshot(
+            snapshot(centers={"7": [300, 220]}), self.settings, {"C": "green"})
+        stages = stage_names_for_routes(routes)
+        self.assertIn("green_above", stages)
+        self.assertIn("green_release", stages)
 
     def test_interpolation_preserves_common_fraction_and_two_degree_limit(self):
         start = {joint: 0.0 for joint in JOINTS}
@@ -161,6 +206,24 @@ class FixedDemoTests(unittest.TestCase):
         self.assertEqual(gate.counts["Torque_Enable"], 1)
         self.assertEqual(bus.sent[0][1], bus.registers["Present_Position"])
         self.assertEqual(bus.sent[1][0], "Torque_Enable")
+        self.assertIn(("Goal_Position", False, POST_GOAL_READ_RETRIES), bus.reads)
+        self.assertIn(("Torque_Enable", False, POST_GOAL_READ_RETRIES), bus.reads)
+
+    def test_goal_write_auto_enables_torque_without_second_torque_write(self):
+        class AutoEnableBus(FakeBus):
+            def sync_write(self, register, values, *, normalize, num_retry):
+                super().sync_write(register, values, normalize=normalize, num_retry=num_retry)
+                if register == "Goal_Position" and normalize is False:
+                    self.registers["Torque_Enable"] = {joint: 1 for joint in JOINTS}
+
+        bus = AutoEnableBus()
+        gate = StrictWriteGate(bus)
+        clock = Clock()
+        result = establish_hold(bus, gate, sleep=clock.sleep, monotonic=clock.monotonic)
+        self.assertEqual(result["hold"], "AUTO_ENABLED_BY_GOAL")
+        self.assertEqual(gate.counts["Goal_Position_raw_hold"], 1)
+        self.assertEqual(gate.counts["Torque_Enable"], 0)
+        self.assertEqual([register for register, *_rest in bus.sent], ["Goal_Position"])
 
     def test_unarmed_write_is_blocked(self):
         bus = FakeBus()
@@ -201,16 +264,45 @@ class FixedDemoTests(unittest.TestCase):
             establish_hold(bus, gate)
         self.assertEqual(bus.sent, [])
 
+    def test_calibrated_target_clamps_one_degree_inside(self):
+        bounds = {joint: (-10.0, 10.0) for joint in JOINTS}
+        values = {joint: 0.0 for joint in JOINTS}
+        values["wrist_flex"] = 107.0
+        accepted, clamped = clamp_to_calibrated_inner_range(values, bounds)
+        self.assertEqual(accepted["wrist_flex"], 9.0)
+        self.assertEqual(clamped["wrist_flex"], (107.0, 9.0))
+
+    def test_jetson_motion_and_teach_limits_are_reflected(self):
+        self.assertEqual(set(self.settings.velocity.values()), {20.0})
+        self.assertEqual(set(self.settings.acceleration.values()), {60.0})
+        self.assertEqual(self.settings.settle_tolerance["gripper"], 100.0)
+        self.assertEqual(TEACH_GOAL_PRESENT_RAW_TOLERANCE, 40)
+
+    def test_partial_pose_file_accepts_only_ordered_prefix(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "poses.partial.json"
+            positions = {joint: 0.0 for joint in JOINTS}
+            present_raw = {joint: 2000 for joint in JOINTS}
+            poses = {
+                POSE_NAMES[0]: {"position": positions, "present_raw": present_raw},
+                POSE_NAMES[1]: {"position": positions, "present_raw": present_raw},
+            }
+            save_pose_file(path, follower_serial="SERIAL", poses=poses)
+            loaded = load_partial_pose_file(path, expected_serial="SERIAL")
+            self.assertEqual(list(loaded), list(POSE_NAMES[:2]))
+
     def test_dry_run_never_constructs_hardware_session(self):
         def forbidden_factory(*_args, **_kwargs):
             raise AssertionError("hardware session must not be constructed")
 
         result = run_demo(self.config, self.settings, dry_run=True, step=False,
+                          rules={"A": "green", "C": "blue"},
                           snapshot_loader=lambda _url: snapshot(),
                           session_factory=forbidden_factory)
         self.assertEqual(result["status"], "FIXED_DEMO_PLAN")
         self.assertEqual(result["serial_open"], 0)
         self.assertEqual(result["motor_command"], 0)
+        self.assertEqual(result["destination_rules"], {"A": "green", "C": "blue"})
 
     def test_module_has_no_sudo_ownership_path(self):
         source = (ROOT / "medicine_sorter/fixed_demo.py").read_text(encoding="utf-8")

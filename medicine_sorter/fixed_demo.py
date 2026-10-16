@@ -33,8 +33,14 @@ POSE_NAMES = (
     "slot3_pre", "slot3_grasp", "slot3_lift",
     "red_above", "red_release",
     "blue_above", "blue_release",
+    "green_above", "green_release",
 )
 MAX_TEMPERATURE_C = 55
+TEACH_GOAL_PRESENT_RAW_TOLERANCE = 40
+POST_GOAL_READ_DELAY_S = 0.2
+POST_GOAL_READ_RETRIES = 3
+VALID_BOTTLE_TYPES = {"A", "B", "C"}
+VALID_DESTINATIONS = {"red", "blue", "green"}
 
 
 def _fail(code: str, observed: Any, expected: str, remedy: str) -> SorterError:
@@ -150,8 +156,9 @@ def validate_demo_settings(settings: DemoSettings) -> None:
                 raise ValueError(f"overlapping_slot_rois:{first_name}:{second_name}")
     if settings.marker_to_type != {7: "C", 8: "B", 9: "A"}:
         raise ValueError("fixed_demo_marker_mapping_must_be_7C_8B_9A")
-    if settings.destinations != {"C": "red", "B": "blue"}:
-        raise ValueError("fixed_demo_destination_rules_must_be_C_red_B_blue")
+    if (not set(settings.destinations).issubset(VALID_BOTTLE_TYPES)
+            or not set(settings.destinations.values()).issubset(VALID_DESTINATIONS)):
+        raise ValueError("fixed_demo_default_destination_rules_invalid")
     if not 0 < settings.control_period_s <= 0.2:
         raise ValueError("invalid_control_period")
     if not 0 < settings.max_step_deg <= 2.0:
@@ -190,7 +197,40 @@ def slot_for_pixel(point: Sequence[float], slots: Mapping[str, Sequence[float]])
     return matched[0]
 
 
-def routes_from_snapshot(snapshot: Mapping[str, Any], settings: DemoSettings) -> tuple[list[MarkerRoute], list[dict]]:
+def parse_destination_rules(tokens: Sequence[str] | None,
+                            defaults: Mapping[str, str]) -> dict[str, str]:
+    if tokens is None:
+        rules = {str(label).upper(): str(color).lower()
+                 for label, color in defaults.items()}
+    else:
+        rules = {}
+        for token in tokens:
+            if not isinstance(token, str) or token.count("=") != 1:
+                raise _fail("destination_rule_format_invalid", token, "A=red",
+                            "--rule C=green B=red A=blue 형식으로 입력해 주세요")
+            label, color = (part.strip() for part in token.split("=", 1))
+            label, color = label.upper(), color.lower()
+            if label not in VALID_BOTTLE_TYPES:
+                raise _fail("destination_rule_bottle_invalid", label, "A, B, or C",
+                            "약통 유형을 A/B/C 중 하나로 지정해 주세요")
+            if color not in VALID_DESTINATIONS:
+                raise _fail("destination_rule_color_invalid", color, "red, blue, or green",
+                            "바구니를 red/blue/green 중 하나로 지정해 주세요")
+            if label in rules:
+                raise _fail("destination_rule_duplicate_bottle", label, "one rule per bottle type",
+                            "같은 약통 유형은 한 번만 지정해 주세요")
+            rules[label] = color
+    if (not set(rules).issubset(VALID_BOTTLE_TYPES)
+            or not set(rules.values()).issubset(VALID_DESTINATIONS)):
+        raise _fail("default_destination_rules_invalid", rules,
+                    "A/B/C -> red/blue/green", "fixed_demo.destination_rules를 확인해 주세요")
+    return rules
+
+
+def routes_from_snapshot(snapshot: Mapping[str, Any], settings: DemoSettings,
+                         rules: Mapping[str, str] | None = None) -> tuple[list[MarkerRoute], list[dict]]:
+    active_rules = (parse_destination_rules(None, settings.destinations) if rules is None else
+                    parse_destination_rules([f"{label}={color}" for label, color in rules.items()], {}))
     if snapshot.get("ok") is not True:
         raise _fail("camera_not_ready", snapshot.get("error"), "ok=true",
                     "Astra 카메라 서비스를 확인해 주세요")
@@ -224,17 +264,18 @@ def routes_from_snapshot(snapshot: Mapping[str, Any], settings: DemoSettings) ->
             raise _fail("bottle_marker_outside_slot", {"id": marker_id, "center": center},
                         "configured slot1..3 중 정확히 하나",
                         "약통을 고정 칸 안에 놓고 dry-run을 다시 확인해 주세요") from error
-        destination = settings.destinations.get(bottle_type)
+        destination = active_rules.get(bottle_type)
         if destination is None:
             ignored.append({"marker_id": marker_id, "bottle_type": bottle_type,
-                            "slot": slot, "reason": "destination_rule_not_defined"})
+                            "slot": slot, "reason": "not_selected_by_rule"})
             continue
         routes.append(MarkerRoute(marker_id, bottle_type, slot, destination,
                                   (float(center[0]), float(center[1]))))
     routes.sort(key=lambda route: route.center_px[0])
     if not routes:
         raise _fail("no_routable_bottle_marker", {"detected": sorted(centers), "ignored": ignored},
-                    "slot 안의 ID7(C) 또는 ID8(B)", "C 또는 B 약통 마커가 보이게 놓아 주세요")
+                    "slot 안의 rule에 선택된 ID7(C)/ID8(B)/ID9(A)",
+                    "--rule에 선택한 약통 마커가 보이게 놓아 주세요")
     return routes, ignored
 
 
@@ -262,6 +303,37 @@ def save_pose_file(path: Path, *, follower_serial: str, poses: Mapping[str, Mapp
     temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     os.replace(temporary, path)
+
+
+def partial_pose_path(path: Path) -> Path:
+    return path.with_name(f"{path.stem}.partial{path.suffix}")
+
+
+def load_partial_pose_file(path: Path, *, expected_serial: str) -> dict[str, dict[str, Any]]:
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise _fail("partial_pose_file_load_failed", str(error), str(path),
+                    "기존 partial pose JSON을 확인해 주세요") from error
+    if raw.get("schema_version") != 1 or raw.get("follower_serial") != expected_serial:
+        raise _fail("partial_pose_identity_mismatch", raw.get("follower_serial"), expected_serial,
+                    "현재 follower에서 새로 티칭해 주세요")
+    poses = raw.get("poses")
+    if not isinstance(poses, dict):
+        raise _fail("partial_pose_values_invalid", type(poses).__name__, "poses object",
+                    "partial pose JSON을 확인해 주세요")
+    expected_prefix = list(POSE_NAMES[:len(poses)])
+    if list(poses) != expected_prefix:
+        raise _fail("partial_pose_order_invalid", list(poses), str(expected_prefix),
+                    "순서대로 저장된 partial pose만 --resume할 수 있습니다")
+    for name, item in poses.items():
+        position = item.get("position") if isinstance(item, dict) else None
+        present_raw = item.get("present_raw") if isinstance(item, dict) else None
+        if (not isinstance(position, dict) or set(position) != set(JOINTS)
+                or not isinstance(present_raw, dict) or set(present_raw) != set(JOINTS)):
+            raise _fail("partial_pose_values_invalid", name, "six joint positions and raw values",
+                        "partial pose JSON을 확인해 주세요")
+    return dict(poses)
 
 
 def load_pose_file(path: Path, *, expected_serial: str) -> dict[str, dict[str, float]]:
@@ -359,8 +431,8 @@ class PortLock:
             self.file = None
 
 
-def _raw(bus, register: str) -> dict[str, int]:
-    values = bus.sync_read(register, normalize=False, num_retry=0)
+def _raw(bus, register: str, *, num_retry: int = 0) -> dict[str, int]:
+    values = bus.sync_read(register, normalize=False, num_retry=num_retry)
     if set(values) != set(JOINTS) or any(type(v) is not int for v in values.values()):
         raise RuntimeError(f"invalid_raw_register:{register}")
     return {joint: values[joint] for joint in JOINTS}
@@ -463,12 +535,17 @@ def establish_hold(bus, writes: StrictWriteGate, *, sleep: Callable[[float], Non
         raise RuntimeError("moving_before_hold")
     if set(torque.values()) == {0}:
         writes.atomic_goal_raw(present)
-        if _raw(bus, "Goal_Position") != present:
+        sleep(POST_GOAL_READ_DELAY_S)
+        if _raw(bus, "Goal_Position", num_retry=POST_GOAL_READ_RETRIES) != present:
             raise RuntimeError("hold_goal_readback_mismatch")
-        if set(_raw(bus, "Torque_Enable").values()) != {0}:
-            raise RuntimeError("unexpected_torque_before_enable")
-        writes.atomic_torque_on()
-        hold_mode = "RESTORED_FROM_OFF"
+        torque_after_goal = _raw(bus, "Torque_Enable", num_retry=POST_GOAL_READ_RETRIES)
+        if set(torque_after_goal.values()) == {1}:
+            hold_mode = "AUTO_ENABLED_BY_GOAL"
+        elif set(torque_after_goal.values()) == {0}:
+            writes.atomic_torque_on()
+            hold_mode = "RESTORED_FROM_OFF"
+        else:
+            raise RuntimeError("mixed_torque_after_goal_write")
     elif set(torque.values()) == {1}:
         goal = _raw(bus, "Goal_Position")
         if any(abs(goal[joint] - present[joint]) > 10 for joint in JOINTS):
@@ -523,6 +600,24 @@ def ensure_in_bounds(values: Mapping[str, float], bounds: Mapping[str, tuple[flo
                   if not bounds[joint][0] <= values[joint] <= bounds[joint][1]}
     if violations:
         raise RuntimeError(f"target_outside_calibrated_range:{violations}")
+
+
+def clamp_to_calibrated_inner_range(values: Mapping[str, float],
+                                    bounds: Mapping[str, tuple[float, float]],
+                                    *, margin: float = 1.0) -> tuple[dict[str, float], dict[str, tuple[float, float]]]:
+    result = {}
+    clamped = {}
+    for joint in JOINTS:
+        lower, upper = bounds[joint]
+        inner_lower, inner_upper = lower + margin, upper - margin
+        if inner_lower > inner_upper:
+            raise RuntimeError(f"calibrated_range_too_narrow:{joint}")
+        requested = float(values[joint])
+        accepted = min(max(requested, inner_lower), inner_upper)
+        result[joint] = accepted
+        if accepted != requested:
+            clamped[joint] = (requested, accepted)
+    return result, clamped
 
 
 class HardwareSession:
@@ -629,13 +724,29 @@ def _slew_target(requested: Mapping[str, float], previous: Mapping[str, float],
     return {joint: previous[joint] + fraction * delta[joint] for joint in JOINTS}
 
 
-def teach(config, settings: DemoSettings, *, overwrite: bool = False,
+def teach(config, settings: DemoSettings, *, overwrite: bool = False, resume: bool = False,
           session_factory=HardwareSession) -> dict[str, Any]:
-    if settings.pose_path.exists() and not overwrite:
+    if overwrite and resume:
+        raise _fail("teach_mode_conflict", ["overwrite", "resume"], "one mode",
+                    "--overwrite와 --resume 중 하나만 사용해 주세요")
+    partial_path = partial_pose_path(settings.pose_path)
+    if settings.pose_path.exists() and not overwrite and not resume:
         raise _fail("pose_file_already_exists", str(settings.pose_path), "new path or --overwrite",
                     "기존 티칭값을 보존하려면 파일을 백업해 주세요")
+    if resume:
+        if not partial_path.is_file():
+            raise _fail("partial_pose_file_missing", str(partial_path), "saved partial pose file",
+                        "처음부터 시작하려면 --resume을 빼 주세요")
+        captured = load_partial_pose_file(partial_path,
+                                          expected_serial=config.raw["robot"]["follower_serial"])
+    else:
+        if partial_path.exists() and not overwrite:
+            raise _fail("partial_pose_file_exists", str(partial_path), "--resume or --overwrite",
+                        "이어서 하려면 --resume을 사용해 주세요")
+        if overwrite and partial_path.exists():
+            partial_path.unlink()
+        captured = {}
     session = session_factory(config, include_leader=True)
-    captured: dict[str, dict[str, Any]] = {}
     old_terminal = None
     stopping = False
 
@@ -655,13 +766,15 @@ def teach(config, settings: DemoSettings, *, overwrite: bool = False,
         if sys.stdin.isatty():
             old_terminal = termios.tcgetattr(sys.stdin.fileno())
             tty.setcbreak(sys.stdin.fileno())
-        pose_index = 0
+        pose_index = len(captured)
         while pose_index < len(POSE_NAMES) and not stopping:
             pose_name = POSE_NAMES[pose_index]
             leader_now = dict(session.leader.get_action())
-            requested = _relative_target(leader_now, leader_origin, follower_origin)
-            ensure_in_bounds(requested, session.bounds)
+            requested_unclamped = _relative_target(leader_now, leader_origin, follower_origin)
+            requested, clamped = clamp_to_calibrated_inner_range(
+                requested_unclamped, session.bounds, margin=1.0)
             emitted = _slew_target(requested, previous, settings)
+            ensure_in_bounds(emitted, session.bounds)
             if any(abs(emitted[j] - previous[j]) >
                    (settings.max_gripper_step if j == "gripper" else settings.max_step_deg) + 1e-9
                    for j in JOINTS):
@@ -669,7 +782,8 @@ def teach(config, settings: DemoSettings, *, overwrite: bool = False,
             if any(abs(emitted[j] - previous[j]) > 1e-9 for j in JOINTS):
                 session.writes.motion_goal(emitted)
                 previous = emitted
-            print(f"\r[{pose_index + 1}/{len(POSE_NAMES)}] {pose_name} 자세에서 Enter ",
+            clamp_note = f" CLAMP={','.join(clamped)}" if clamped else ""
+            print(f"\r[{pose_index + 1}/{len(POSE_NAMES)}] {pose_name} 자세에서 Enter{clamp_note} ",
                   end="", flush=True)
             readable, _, _ = select.select([sys.stdin], [], [], settings.control_period_s)
             if not readable:
@@ -682,9 +796,10 @@ def teach(config, settings: DemoSettings, *, overwrite: bool = False,
             if any(_raw(session.follower.bus, "Moving").values()):
                 print("\n아직 움직이는 중입니다. 정지 후 다시 Enter를 누르세요.")
                 continue
-            raw_present = _raw(session.follower.bus, "Present_Position")
-            raw_goal = _raw(session.follower.bus, "Goal_Position")
-            if any(abs(raw_goal[j] - raw_present[j]) > 10 for j in JOINTS):
+            raw_present = _raw(session.follower.bus, "Present_Position", num_retry=3)
+            raw_goal = _raw(session.follower.bus, "Goal_Position", num_retry=3)
+            if any(abs(raw_goal[j] - raw_present[j]) > TEACH_GOAL_PRESENT_RAW_TOLERANCE
+                   for j in JOINTS):
                 print("\nGoal-Present가 아직 수렴하지 않았습니다. 잠시 뒤 다시 Enter를 누르세요.")
                 continue
             captured[pose_name] = {
@@ -692,19 +807,25 @@ def teach(config, settings: DemoSettings, *, overwrite: bool = False,
                 "present_raw": raw_present,
                 "captured_at_utc": datetime.now(timezone.utc).isoformat(),
             }
+            save_pose_file(partial_path, follower_serial=session.follower_serial,
+                           poses=captured)
             pose_index += 1
-            print(f"\n저장: {pose_name}")
+            print(f"\n저장: {pose_name} (partial {pose_index}/{len(POSE_NAMES)})")
         if stopping:
             raise KeyboardInterrupt
         save_pose_file(settings.pose_path, follower_serial=session.follower_serial, poses=captured)
+        partial_path.unlink(missing_ok=True)
         return {"status": "TEACH_COMPLETE", "pose_file": str(settings.pose_path),
                 "pose_count": len(captured), "hold": hold,
                 "write_counts": dict(session.writes.counts)}
     except KeyboardInterrupt:
         held = session.ctrl_c_hold()
         code = "teach_stopped_current_position_held" if held else "teach_stopped_before_motion_arm"
+        remedy = ("주변과 follower Torque/Goal 상태를 확인한 뒤 teach --resume으로 이어가 주세요"
+                  if partial_path.exists() else
+                  "저장된 pose가 없습니다. 주변과 Torque/Goal 상태 확인 후 teach를 다시 실행해 주세요")
         raise _fail(code, len(captured), str(len(POSE_NAMES)),
-                    "주변과 follower Torque/Goal 상태를 확인한 뒤 teach를 처음부터 다시 실행해 주세요")
+                    remedy)
     finally:
         if old_terminal is not None:
             termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, old_terminal)
@@ -746,16 +867,20 @@ def execute_segment(session: HardwareSession, target: Mapping[str, float], setti
 
 
 def run_demo(config, settings: DemoSettings, *, dry_run: bool, step: bool,
+             rules: Mapping[str, str] | None = None,
              snapshot_loader: Callable[[str], dict[str, Any]] = fetch_snapshot,
              session_factory=HardwareSession) -> dict[str, Any]:
+    active_rules = (parse_destination_rules(None, settings.destinations) if rules is None else
+                    parse_destination_rules([f"{label}={color}" for label, color in rules.items()], {}))
     snapshot = snapshot_loader(settings.snapshot_url)
-    routes, ignored = routes_from_snapshot(snapshot, settings)
+    routes, ignored = routes_from_snapshot(snapshot, settings, active_rules)
     stages = stage_names_for_routes(routes)
     result = {
         "status": "FIXED_DEMO_PLAN" if dry_run else "FIXED_DEMO_COMPLETE",
         "frame_sequence": snapshot.get("sequence"),
         "frame_age_s": snapshot.get("frame_age_s"),
         "slot_roi_status": settings.roi_status,
+        "destination_rules": active_rules,
         "routes": [route.as_dict() for route in routes],
         "ignored_markers": ignored,
         "stages": stages,
