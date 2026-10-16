@@ -2,6 +2,20 @@
 
 업데이트: 2026-10-17
 
+## 2026-10-17 fixed-demo ROI PNG 명령 — 오프라인 PASS
+
+- 단일 진입점에 `roi-preview --output *.png`를 추가했다. 8020
+  `/manual-frame.json` 한 응답의 snapshot/JPEG를 함께 사용해 dry-run과 동일한
+  `undistorted_full_frame` 좌표에서 slot1–3, 모든 ArUco 중심, ID7–9의 A/B/C와
+  현재 slot/`OUTSIDE` 판정을 그린다.
+- 칸 밖 marker도 PNG 저장을 막지 않아 잘못된 ROI를 바로 진단할 수 있으며, 출력
+  JSON에 frame sequence·age·ROI·marker center·판정을 남긴다. stale frame,
+  좌표계/해상도 불일치, 잘못된 JPEG는 fail-closed한다.
+- fixed-demo `35/35 PASS`, 기존 sorter `30/30 PASS`, CLI help·compile·
+  `git diff --check` PASS. robot serial open·Goal/Torque/config write·motor command는
+  `0`; Jetson 실행은 `NOT_RUN`이다.
+  [상세](sessions/2026-10-17-fixed-demo-roi-preview.md).
+
 ## 2026-10-17 그리퍼 단계 분리·USB serial 포트 자동 선택 — 오프라인 PASS
 
 - `home`, slot, basket 자세는 팔 5축만 재생하고 현재 그리퍼 값을 유지한다.

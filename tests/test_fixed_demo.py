@@ -10,8 +10,8 @@ from medicine_sorter.fixed_demo import (
     TEACH_GOAL_PRESENT_RAW_TOLERANCE, StrictWriteGate,
     clamp_to_calibrated_inner_range, establish_hold, load_demo_settings,
     load_partial_pose_file, parse_destination_rules, routes_from_snapshot,
-    resolve_robot_ports, run_demo, save_pose_file, slot_for_pixel,
-    smooth_interpolation, stage_names_for_routes, target_for_stage,
+    resolve_robot_ports, roi_preview_annotations, run_demo, save_pose_file,
+    save_roi_preview, slot_for_pixel, smooth_interpolation, stage_names_for_routes, target_for_stage,
     validate_demo_settings,
 )
 
@@ -148,6 +148,48 @@ class FixedDemoTests(unittest.TestCase):
         data["table"]["coordinate_space"] = "raw_frame"
         with self.assertRaisesRegex(Exception, "pixel_coordinate_space_mismatch"):
             routes_from_snapshot(data, self.settings)
+
+    def test_roi_preview_marks_each_center_with_slot_or_outside(self):
+        data = snapshot(centers={"0": [40, 40], "7": [300, 220], "8": [600, 400]})
+        annotations = roi_preview_annotations(data, self.settings)
+        self.assertEqual(annotations["frame_sequence"], 42)
+        markers = {item["marker_id"]: item for item in annotations["markers"]}
+        self.assertEqual(markers[7]["bottle_type"], "C")
+        self.assertEqual(markers[7]["slot"], "slot1")
+        self.assertEqual(markers[8]["bottle_type"], "B")
+        self.assertEqual(markers[8]["slot"], "OUTSIDE")
+        self.assertEqual(markers[0]["bottle_type"], None)
+
+    def test_roi_preview_saves_exact_bundle_without_hardware(self):
+        calls = []
+
+        def renderer(jpeg, annotations, output):
+            calls.append((jpeg, annotations["frame_sequence"], output))
+            output.write_bytes(b"fake-png")
+
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder) / "roi.png"
+            result = save_roi_preview(
+                self.settings, output,
+                bundle_loader=lambda url: (snapshot(), b"exact-frame-jpeg"),
+                renderer=renderer)
+            self.assertEqual(calls, [(b"exact-frame-jpeg", 42, output)])
+            self.assertEqual(output.read_bytes(), b"fake-png")
+            self.assertEqual(result["status"], "ROI_PREVIEW_SAVED")
+            self.assertEqual(result["serial_open"], 0)
+            self.assertEqual(result["motor_command"], 0)
+
+    def test_roi_preview_rejects_non_png_before_camera_fetch(self):
+        called = False
+
+        def loader(_url):
+            nonlocal called
+            called = True
+            raise AssertionError("must not fetch")
+
+        with self.assertRaisesRegex(Exception, "output_must_be_png"):
+            save_roi_preview(self.settings, Path("/tmp/roi.jpg"), bundle_loader=loader)
+        self.assertFalse(called)
 
     def test_stage_order_has_grasp_close_lift_release_open_home(self):
         routes, _ = routes_from_snapshot(snapshot(centers={"7": [300, 220]}), self.settings)

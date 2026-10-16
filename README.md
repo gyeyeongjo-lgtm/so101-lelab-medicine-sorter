@@ -83,9 +83,16 @@ python3 -m medicine_sorter --config configs/system.example.json validate-config
 ```bash
 python3 -m medicine_sorter --config configs/system.example.json teach
 python3 -m medicine_sorter --config configs/system.example.json teach --resume
+python3 -m medicine_sorter --config configs/system.example.json roi-preview --output /tmp/fixed-demo-roi.png
 python3 -m medicine_sorter --config configs/system.example.json run --dry-run --rule C=green B=red A=blue
 python3 -m medicine_sorter --config configs/system.example.json run --step --rule C=green B=red A=blue
 ```
+
+`roi-preview`는 8020의 `/manual-frame.json`을 정확히 한 번 읽어 같은 응답의
+snapshot과 JPEG를 사용합니다. `slot1/2/3` 사각형, 모든 ArUco 중심, ID7–9의
+A/B/C 및 현재 칸 판정을 PNG에 그립니다. 칸 밖인 중심은 빨간색 `OUTSIDE`로
+표시하고 JSON에도 중심 pixel과 판정을 출력합니다. 이 명령은 camera HTTP read와
+PNG 저장만 하며 LeRobot을 import하거나 robot serial을 열지 않습니다.
 
 `teach`는 한 follower/leader session에서 relative-start로 green above/release를
 포함한 18개 자세를 순서대로 저장합니다. Enter를 누를 때마다

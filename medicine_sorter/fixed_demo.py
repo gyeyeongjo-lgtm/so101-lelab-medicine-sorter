@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import fcntl
 import json
 import math
@@ -187,6 +188,30 @@ def fetch_snapshot(url: str, *, timeout_s: float = 3.0) -> dict[str, Any]:
     return payload["snapshot"]
 
 
+def fetch_snapshot_with_jpeg(url: str, *, timeout_s: float = 3.0) -> tuple[dict[str, Any], bytes]:
+    request = Request(url, headers={"Accept": "application/json"})
+    try:
+        with urlopen(request, timeout=timeout_s) as response:
+            payload = json.loads(response.read(6_000_000))
+    except Exception as error:
+        raise _fail("camera_snapshot_failed", f"{type(error).__name__}: {error}",
+                    "Astra manual-frame.json 1회 응답", "8020 카메라 화면 상태를 확인해 주세요") from error
+    snapshot = payload.get("snapshot") if isinstance(payload, dict) else None
+    jpeg_base64 = payload.get("jpeg_base64") if isinstance(payload, dict) else None
+    if not isinstance(snapshot, dict) or not isinstance(jpeg_base64, str):
+        raise _fail("camera_frame_bundle_invalid", type(payload).__name__,
+                    "snapshot and jpeg_base64", "8020 카메라 서비스 버전을 확인해 주세요")
+    try:
+        jpeg = base64.b64decode(jpeg_base64, validate=True)
+    except (ValueError, TypeError) as error:
+        raise _fail("camera_jpeg_base64_invalid", str(error), "valid base64 JPEG",
+                    "8020 카메라 프레임 응답을 확인해 주세요") from error
+    if not (jpeg.startswith(b"\xff\xd8") and jpeg.endswith(b"\xff\xd9")):
+        raise _fail("camera_jpeg_invalid", len(jpeg), "complete JPEG",
+                    "8020 카메라 프레임 응답을 확인해 주세요")
+    return snapshot, jpeg
+
+
 def slot_for_pixel(point: Sequence[float], slots: Mapping[str, Sequence[float]]) -> str:
     if len(point) != 2 or any(not isinstance(v, (int, float)) or isinstance(v, bool)
                               or not math.isfinite(float(v)) for v in point):
@@ -197,6 +222,112 @@ def slot_for_pixel(point: Sequence[float], slots: Mapping[str, Sequence[float]])
     if len(matched) != 1:
         raise ValueError(f"marker_center_not_in_exactly_one_slot:{x:.3f},{y:.3f}:{matched}")
     return matched[0]
+
+
+def roi_preview_annotations(snapshot: Mapping[str, Any], settings: DemoSettings) -> dict[str, Any]:
+    if snapshot.get("ok") is not True:
+        raise _fail("camera_not_ready", snapshot.get("error"), "ok=true",
+                    "Astra 카메라 서비스를 확인해 주세요")
+    age = snapshot.get("frame_age_s")
+    if not isinstance(age, (int, float)) or isinstance(age, bool) or age > settings.snapshot_max_age_s:
+        raise _fail("camera_frame_stale", age, f"<={settings.snapshot_max_age_s}s",
+                    "카메라 프레임이 갱신되는지 확인해 주세요")
+    table = snapshot.get("table")
+    if not isinstance(table, Mapping):
+        raise _fail("aruco_result_missing", table, "table marker result",
+                    "Astra 서비스에 ArUco 작업대 설정이 로드됐는지 확인해 주세요")
+    if table.get("coordinate_space") != settings.coordinate_space:
+        raise _fail("pixel_coordinate_space_mismatch", table.get("coordinate_space"),
+                    settings.coordinate_space, "dry-run과 같은 왜곡 보정 프레임을 사용해 주세요")
+    if tuple(table.get("source_frame_size_px", ())) != settings.image_size_px:
+        raise _fail("camera_image_size_mismatch", table.get("source_frame_size_px"),
+                    str(list(settings.image_size_px)), "카메라 해상도와 ROI 설정을 맞춰 주세요")
+    centers = table.get("detected_marker_centers_px")
+    if not isinstance(centers, Mapping):
+        raise _fail("aruco_centers_missing", centers, "detected_marker_centers_px",
+                    "ArUco 검출 상태를 확인해 주세요")
+    markers = []
+    for marker_text, point in centers.items():
+        try:
+            marker_id = int(marker_text)
+        except (TypeError, ValueError, IndexError) as error:
+            raise _fail("aruco_center_invalid", {marker_text: point}, "ID -> [x, y]",
+                        "카메라 marker center 출력을 확인해 주세요") from error
+        if (not isinstance(point, Sequence) or isinstance(point, (str, bytes)) or len(point) != 2
+                or any(not isinstance(value, (int, float)) or isinstance(value, bool)
+                       or not math.isfinite(float(value)) for value in point)):
+            raise _fail("aruco_center_invalid", {marker_text: point}, "ID -> [finite x, y]",
+                        "카메라 marker center 출력을 확인해 주세요")
+        x, y = float(point[0]), float(point[1])
+        matched = [name for name, (x1, y1, x2, y2) in settings.slots.items()
+                   if x1 <= x < x2 and y1 <= y < y2]
+        slot = matched[0] if len(matched) == 1 else "OUTSIDE"
+        markers.append({"marker_id": marker_id,
+                        "bottle_type": settings.marker_to_type.get(marker_id),
+                        "center_px": [x, y], "slot": slot})
+    markers.sort(key=lambda item: item["marker_id"])
+    return {
+        "frame_sequence": snapshot.get("sequence"),
+        "frame_age_s": age,
+        "pixel_coordinate_space": settings.coordinate_space,
+        "image_size_px": list(settings.image_size_px),
+        "slots": {name: list(rect) for name, rect in settings.slots.items()},
+        "markers": markers,
+    }
+
+
+def _render_roi_preview_png(jpeg: bytes, annotations: Mapping[str, Any], output: Path) -> None:
+    try:
+        import cv2
+        import numpy as np
+    except ImportError as error:
+        raise _fail("roi_preview_opencv_missing", str(error), "LeLab Python with OpenCV",
+                    "기존 LeLab Python 절대 경로로 실행해 주세요") from error
+    image = cv2.imdecode(np.frombuffer(jpeg, dtype=np.uint8), cv2.IMREAD_COLOR)
+    expected_width, expected_height = annotations["image_size_px"]
+    if image is None or image.shape[:2] != (expected_height, expected_width):
+        shape = None if image is None else list(image.shape)
+        raise _fail("camera_jpeg_size_mismatch", shape,
+                    f"{expected_width}x{expected_height}", "8020 프레임 크기를 확인해 주세요")
+    colors = {"slot1": (255, 120, 0), "slot2": (0, 200, 255), "slot3": (120, 255, 80)}
+    for name, rect in annotations["slots"].items():
+        x1, y1, x2, y2 = (round(value) for value in rect)
+        color = colors[name]
+        cv2.rectangle(image, (x1, y1), (x2 - 1, y2 - 1), color, 2)
+        cv2.putText(image, name, (x1 + 4, max(18, y1 + 20)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2, cv2.LINE_AA)
+    for marker in annotations["markers"]:
+        x, y = (round(value) for value in marker["center_px"])
+        slot = marker["slot"]
+        color = colors.get(slot, (0, 0, 255))
+        cv2.drawMarker(image, (x, y), color, cv2.MARKER_CROSS, 18, 2)
+        bottle = f"/{marker['bottle_type']}" if marker["bottle_type"] else ""
+        label = f"ID{marker['marker_id']}{bottle} {slot} ({x},{y})"
+        cv2.putText(image, label, (min(x + 8, expected_width - 220), max(20, y - 8)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.48, color, 2, cv2.LINE_AA)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    if not cv2.imwrite(str(output), image):
+        raise _fail("roi_preview_write_failed", str(output), "writable PNG path",
+                    "출력 폴더 권한을 확인해 주세요")
+
+
+def save_roi_preview(settings: DemoSettings, output: Path, *,
+                     bundle_loader: Callable[[str], tuple[dict[str, Any], bytes]] = fetch_snapshot_with_jpeg,
+                     renderer: Callable[[bytes, Mapping[str, Any], Path], None] = _render_roi_preview_png,
+                     ) -> dict[str, Any]:
+    if output.suffix.lower() != ".png":
+        raise _fail("roi_preview_output_must_be_png", str(output), "*.png",
+                    "--output 경로를 .png로 끝내 주세요")
+    snapshot, jpeg = bundle_loader(settings.snapshot_url)
+    annotations = roi_preview_annotations(snapshot, settings)
+    renderer(jpeg, annotations, output)
+    return {
+        "status": "ROI_PREVIEW_SAVED",
+        "output": str(output.resolve()),
+        **annotations,
+        "serial_open": 0,
+        "motor_command": 0,
+    }
 
 
 def parse_destination_rules(tokens: Sequence[str] | None,

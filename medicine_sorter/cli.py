@@ -7,7 +7,7 @@ from pathlib import Path
 from .config import load_config
 from .errors import SorterError
 from .fixed_demo import (load_demo_settings, parse_destination_rules, run_demo,
-                         teach)
+                         save_roi_preview, teach)
 from .robot import (LiveRobotAdapter, MockRobotAdapter, RobotController,
                     SO101ReadOnlyStatusAdapter)
 from .workflow import SorterApplication
@@ -25,6 +25,10 @@ def build_parser() -> argparse.ArgumentParser:
                               help="기존 pose JSON을 명시적으로 교체합니다")
     teach_parser.add_argument("--resume", action="store_true",
                               help="매 자세마다 저장된 partial JSON에서 이어갑니다")
+    preview_parser = sub.add_parser(
+        "roi-preview", help="로봇 연결 없이 Astra 한 프레임에 고정 칸 ROI를 그려 저장합니다")
+    preview_parser.add_argument("--output", type=Path, required=True,
+                                help="저장할 PNG 경로")
     run_parser = sub.add_parser("run", help="ArUco 고정 칸→티칭 자세 재생 데모")
     run_parser.add_argument("--dry-run", action="store_true",
                             help="카메라 1프레임으로 계획만 출력하고 로봇을 열지 않습니다")
@@ -60,6 +64,8 @@ def main(argv=None, *, status_adapter_factory=None) -> int:
         elif args.mode == "teach":
             payload = teach(config, load_demo_settings(config), overwrite=args.overwrite,
                             resume=args.resume)
+        elif args.mode == "roi-preview":
+            payload = save_roi_preview(load_demo_settings(config), args.output)
         elif args.mode == "run":
             settings = load_demo_settings(config)
             rules = parse_destination_rules(args.rule, settings.destinations)
