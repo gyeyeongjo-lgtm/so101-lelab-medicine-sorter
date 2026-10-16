@@ -1,0 +1,38 @@
+--- a/lelab/teleoperate.py
++++ b/lelab/teleoperate.py
+@@ -44,7 +44,8 @@
+ from .relative_start_teleop import (
+     calibrated_action_bounds,
+     capture_origins,
+     dispatch_guarded_relative_action,
++    arm_only_relative_target,
+     first_relative_target,
+     out_of_range_targets,
+     oversized_arm_steps,
+@@ -277,6 +278,7 @@
+                 while teleoperation_active:
+                     if cycle_trace is None or relative_mode:
+                         if relative_mode:
++                            empirical_arm_only = cycle_trace is not None and cycle_trace.capture_kind == "empirical_relative_teaching"
+                             command_sent = False
+                             leader_now = teleop_device.get_action()
+                             if first_relative_target_pending:
+@@ -284,5 +286,5 @@
+                                 action = first_relative_target(origins)
+                                 first_relative_target_pending = False
+                             else:
+-                                action = relative_target(leader_now, origins)
++                                action = arm_only_relative_target(leader_now, origins) if empirical_arm_only else relative_target(leader_now, origins)
+                             violations = out_of_range_targets(action, servo_bounds)
+@@ -317,4 +319,5 @@
+                                     lambda candidate, previous: guarded_elbow_send(
+                                         robot, candidate, previous, logger
+                                     ),
++                                    arm_only=empirical_arm_only,
+                                 )
+@@ -360,4 +363,5 @@
+                             leader_action=leader_now,
+                             relative_target=action,
+                             command_sent=command_sent,
++                            gripper_goal_sent=not empirical_arm_only,
+                             read_feedback=lambda: robot.bus.sync_read("Present_Position"),

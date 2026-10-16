@@ -106,10 +106,10 @@ def load_grasp_fk(urdf_path: Path, tcp_config_path: Path) -> Callable[[dict[str,
     """Pin the installed URDF and existing PICK TCP before a trace opens ports."""
     import numpy as np
 
-    if __package__ == "scripts":
-        from scripts.urdf_forward_kinematics import UrdfKinematics
-    else:
+    if __package__:
         from .urdf_forward_kinematics import UrdfKinematics
+    else:
+        from urdf_forward_kinematics import UrdfKinematics
 
     config = json.loads(Path(tcp_config_path).read_text(encoding="utf-8"))
     expected_sha = config["urdf_sha256"]
@@ -172,6 +172,98 @@ def verify_relative_start_stillness(
     return {"samples": count, "duration_s": duration_s, "present_raw_origin": dict(baseline)}
 
 
+def load_pre_connect_snapshot(path: Path) -> dict:
+    """Load the last independent, write-blocked follower sample (no bus open)."""
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    if data.get("motor_write_calls") != 0 or data.get("torque_change_calls") != 0:
+        raise ValueError("pre-connect snapshot was not write-blocked")
+    samples = data.get("samples")
+    if not isinstance(samples, list) or not samples:
+        raise ValueError("pre-connect follower snapshot missing")
+    sample = _startup_sample(samples[-1])
+    age_ns = time.time_ns() - sample.get("unix_ns", 0)
+    if not 0 <= age_ns <= 60_000_000_000:
+        raise ValueError("pre-connect follower snapshot is missing or stale")
+    return sample
+
+
+def _startup_sample(values: Mapping[str, object]) -> dict:
+    """Keep raw and calibrated evidence, without requiring FK before arming."""
+    if not isinstance(values, Mapping):
+        raise ValueError("startup telemetry missing")
+    fields = ("goal_raw", "present_raw", "goal_degree_or_percent",
+              "present_degree_or_percent", "moving", "present_load_diagnostic",
+              "temperature_c")
+    checked = _validate_diagnostics({
+        field: values[field] for field in fields
+    } | {"fk_grasp_tcp_mm": [0.0, 0.0, 0.0]})
+    result = {field: checked[field] for field in fields}
+    if "unix_ns" in values:
+        result["unix_ns"] = int(values["unix_ns"])
+    return result
+
+
+def pre_arm_settle(
+    *,
+    read_diagnostics: Callable[[], Mapping[str, object]],
+    record: Callable[[str, Mapping[str, object]], None],
+    pre_connect: Mapping[str, object],
+    first_post_connect: Mapping[str, object],
+    active: Callable[[], bool] = lambda: True,
+    monotonic: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
+    stable_s: float = 1.0,
+    max_wait_s: float = 5.0,
+) -> dict:
+    """Read-only, bounded settle gate; no leader/follower target is generated."""
+    if not 0.5 <= stable_s <= 1.0 or max_wait_s < stable_s:
+        raise ValueError("invalid pre-arm settle duration")
+    before = _startup_sample(pre_connect)
+    first = _startup_sample(first_post_connect)
+    # First post-connect data precedes LeRobot calibration/configuration writes.
+    # A goal change after that point is unexpected and must fail closed.
+    goal_baseline = first["goal_raw"]
+    if first["goal_raw"] != before["goal_raw"]:
+        raise RuntimeError("pre-arm unexpected Goal change at connect")
+    if any(abs(first["present_degree_or_percent"][name]
+               - before["present_degree_or_percent"][name]) >= 1.0
+           for name in MOTORS[:-1]):
+        raise RuntimeError("pre-arm Present drift >=1 degree at connect")
+    start = monotonic()
+    stable_since = None
+    stable_anchor = None
+    while active():
+        if monotonic() - start > max_wait_s:
+            raise RuntimeError("pre-arm settle timeout")
+        current = _startup_sample(read_diagnostics())
+        record("PRE_ARM_SETTLE", current)
+        if current["goal_raw"] != goal_baseline:
+            raise RuntimeError("pre-arm unexpected Goal change")
+        if any(abs(current["present_degree_or_percent"][name]
+                   - before["present_degree_or_percent"][name]) >= 1.0
+               for name in MOTORS[:-1]):
+            raise RuntimeError("pre-arm Present drift >=1 degree")
+        if all(value == 0 for value in current["moving"].values()):
+            if stable_since is None:
+                stable_since = monotonic()
+                stable_anchor = current
+            elif any(abs(current["present_raw"][name] - stable_anchor["present_raw"][name]) > 1
+                     for name in MOTORS):
+                stable_since = monotonic()
+                stable_anchor = current
+            elif monotonic() - stable_since >= stable_s:
+                record("SETTLED", current)
+                return {"first": first, "settled": current, "drift_degree": {
+                    name: current["present_degree_or_percent"][name]
+                    - before["present_degree_or_percent"][name] for name in MOTORS[:-1]
+                }}
+        else:
+            stable_since = None
+            stable_anchor = None
+        sleep(0.05)
+    raise RuntimeError("pre-arm stopped before settle")
+
+
 def _positions(values: Mapping[str, float], *, suffix: str, source: str) -> dict[str, float]:
     expected = {name + suffix for name in MOTORS}
     if set(values) != expected:
@@ -189,24 +281,171 @@ class CycleTrace:
         if capture_kind not in {"full_cycle", "empirical_relative_teaching"}:
             raise ValueError("unsupported trace capture kind")
         ticket = os.environ.get("LELAB_TELEOP_TRACE_ONCE_TICKET")
-        if ticket:
+        if ticket and capture_kind != "empirical_relative_teaching":
             # An exact, single-use ticket makes later teleop starts fail closed
             # before any robot bus is opened. A failed session needs re-arming.
             Path(ticket).unlink()
+        if ticket and capture_kind == "empirical_relative_teaching" and not Path(ticket).is_file():
+            raise FileNotFoundError(ticket)
+        self.ticket = Path(ticket) if ticket else None
         self.session_dir = Path(session_dir)
         self.capture_kind = capture_kind
         self.session_dir.mkdir(parents=True, exist_ok=False)
         self.path = self.session_dir / "cycles.jsonl"
         self.errors_path = self.session_dir / "errors.jsonl"
         self.events_path = self.session_dir / "events.jsonl"
+        self.requests_path = self.session_dir / "requests.jsonl"
         self._cycles = self.path.open("x", encoding="utf-8")
         self._errors = self.errors_path.open("x", encoding="utf-8")
         self.events_path.touch(exist_ok=False)
+        self.requests_path.touch(exist_ok=False)
+        self.startup_path = self.session_dir / "startup.jsonl"
+        self.startup_path.touch(exist_ok=False)
+        self._pre_connect_degrees = None
+        self.armed = False
+        self.started = False
+        self.first_sent_goal_recorded = False
         self.count = 0
         self.error_count = 0
         self.closed = False
         self.first_cycle_monotonic_ns: int | None = None
         self.last_cycle_monotonic_ns: int | None = None
+
+    def record_startup(self, phase: str, values: Mapping[str, object]) -> None:
+        if self.closed or self.armed:
+            raise RuntimeError("startup record after teaching arm")
+        sample = _startup_sample(values)
+        if phase == "PRE_CONNECT_PRESENT":
+            self._pre_connect_degrees = sample["present_degree_or_percent"]
+        drift = None if self._pre_connect_degrees is None else {
+            name: sample["present_degree_or_percent"][name] - self._pre_connect_degrees[name]
+            for name in MOTORS[:-1]
+        }
+        with self.startup_path.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps({"phase": phase, "recorded_unix_ns": time.time_ns(),
+                                     "telemetry": sample, "drift_degree_from_pre_connect": drift},
+                                    separators=(",", ":")) + "\n")
+
+    def record_settle_result(self, result: Mapping[str, object]) -> None:
+        if self.closed or self.armed:
+            raise RuntimeError("settle result after teaching arm")
+        first = _startup_sample(result["first"])
+        settled = _startup_sample(result["settled"])
+        summary = {
+            "PRE_CONNECT_PRESENT": self._pre_connect_degrees,
+            "FIRST_POST_CONNECT_PRESENT": first["present_degree_or_percent"],
+            "FIRST_POST_CONNECT_GOAL": first["goal_degree_or_percent"],
+            "FIRST_MOVING_STATE": first["moving"],
+            "SETTLED_PRESENT": settled["present_degree_or_percent"],
+            "SETTLED_GOAL": settled["goal_degree_or_percent"],
+            "drift_degree_per_arm_joint": result["drift_degree"],
+        }
+        if "reference_exact_match" in result:
+            summary["REFERENCE_EXACT_MATCH"] = bool(result["reference_exact_match"])
+            summary["CURRENT_FRESH_STABILITY"] = bool(result["current_fresh_stability"])
+            summary["reference_present_delta_raw"] = result["reference_present_delta_raw"]
+            summary["reference_goal_delta_raw"] = result["reference_goal_delta_raw"]
+        (self.session_dir / "startup_summary.json").write_text(
+            json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+
+    def record_startup_failure(self, error: Exception) -> None:
+        if self.closed or self.armed:
+            return
+        with self.startup_path.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps({"phase": "PRE_ARM_ABORT", "recorded_unix_ns": time.time_ns(),
+                                     "error_type": type(error).__name__, "message": str(error)[:200]},
+                                    separators=(",", ":")) + "\n")
+
+    def arm_teaching(self) -> None:
+        if self.capture_kind != "empirical_relative_teaching" or self.closed or self.armed:
+            raise RuntimeError("invalid teaching arm transition")
+        self.armed = True
+        with self.startup_path.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps({"phase": "TEACHING_ARMED", "recorded_unix_ns": time.time_ns()},
+                                    separators=(",", ":")) + "\n")
+
+    def start_teaching(self) -> None:
+        if self.capture_kind != "empirical_relative_teaching" or self.closed or not self.armed or self.started:
+            raise RuntimeError("invalid teaching start transition")
+        if self.ticket is not None:
+            consumed = self.ticket.with_name(self.ticket.name + f".consumed-{os.getpid()}-{time.time_ns()}")
+            self.ticket.rename(consumed)
+        self.started = True
+        with self.startup_path.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps({"phase": "TEACHING_STARTED", "recorded_unix_ns": time.time_ns(),
+                                     "ticket_consumed": self.ticket is not None},
+                                    separators=(",", ":")) + "\n")
+
+    def record_relative_request(
+        self, *, leader_action: Mapping[str, float],
+        relative_target: Mapping[str, float], previous_target: Mapping[str, float],
+        step_violations: Mapping[str, tuple[float, float, float]],
+        actual_diagnostics: Mapping[str, object],
+    ) -> dict:
+        """Durably log an empirical target before the worker acts on a guard.
+
+        The caller computes the existing step violations, writes this row, and
+        only then decides HOLD/ABORT/SEND. No bus writes happen here.
+        """
+        if self.capture_kind != "empirical_relative_teaching" or not self.started or self.closed:
+            raise RuntimeError("empirical request outside active teaching")
+        leader = _positions(leader_action, suffix=".pos", source="leader")
+        target = _positions(relative_target, suffix=".pos", source="relative target")
+        previous = _positions(previous_target, suffix=".pos", source="previous target")
+        diagnostics = _validate_diagnostics(actual_diagnostics)
+        deltas = {name: target[name] - previous[name] for name in MOTORS[:-1]}
+        if not isinstance(step_violations, Mapping) or any(
+            name not in MOTORS[:-1] or not isinstance(values, tuple) or len(values) != 3
+            for name, values in step_violations.items()
+        ):
+            raise ValueError("step violations shape invalid")
+        limited = {}
+        for name, values in step_violations.items():
+            before, after, delta = values
+            if any(not math.isfinite(float(value)) for value in values):
+                raise ValueError("step violation nonfinite")
+            if not (math.isclose(before, previous[name], abs_tol=1e-9) and
+                    math.isclose(after, target[name], abs_tol=1e-9) and
+                    math.isclose(delta, deltas[name], abs_tol=1e-9)):
+                raise ValueError("step violation disagrees with request")
+            limited[name] = float(delta)
+        row = {
+            "phase": "PRE_GUARD_REQUEST", "recorded_unix_ns": time.time_ns(),
+            "leader_position": leader, "requested_target": target,
+            "previous_target": previous, "requested_delta_per_arm_joint": deltas,
+            "limited_joint_step_degree": limited,
+            "actual_present_raw": diagnostics["present_raw"],
+            "actual_present_degree_or_percent": diagnostics["present_degree_or_percent"],
+            "actual_grasp_tcp_xyz_mm": diagnostics["fk_grasp_tcp_mm"],
+            "goal_raw_before_guard": diagnostics["goal_raw"],
+        }
+        with self.requests_path.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(row, separators=(",", ":")) + "\n")
+            stream.flush()
+        return row
+
+    def record_first_sent_goal(
+        self, *, requested_target: Mapping[str, float], goal_raw: Mapping[str, int]
+    ) -> dict | None:
+        """Persist the first successful arm Goal readback, never a planned send."""
+        if self.capture_kind != "empirical_relative_teaching" or not self.started or self.closed:
+            raise RuntimeError("first Goal outside active teaching")
+        if self.first_sent_goal_recorded:
+            return None
+        target = _positions(requested_target, suffix=".pos", source="sent target")
+        if not isinstance(goal_raw, Mapping) or set(goal_raw) != set(MOTORS) or any(
+            type(value) is not int for value in goal_raw.values()
+        ):
+            raise ValueError("first Goal raw shape invalid")
+        row = {"phase": "FIRST_SENT_GOAL", "recorded_unix_ns": time.time_ns(),
+               "requested_target": target,
+               "goal_raw_after_send": {name: goal_raw[name] for name in MOTORS}}
+        with self.requests_path.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(row, separators=(",", ":")) + "\n")
+            stream.flush()
+        self.first_sent_goal_recorded = True
+        return row
 
     def capture_cycle(
         self,
@@ -217,6 +456,8 @@ class CycleTrace:
     ) -> dict:
         if self.closed:
             raise RuntimeError("cycle trace is closed")
+        if self.capture_kind == "empirical_relative_teaching":
+            raise RuntimeError("empirical relative teaching cannot use absolute send")
         seq = self.count + self.error_count
         stage = "leader_read"
         started_ns = time.time_ns()
@@ -277,6 +518,7 @@ class CycleTrace:
         leader_action: Mapping[str, float],
         relative_target: Mapping[str, float],
         command_sent: bool,
+        gripper_goal_sent: bool = True,
         read_feedback: Callable[[], Mapping[str, float]],
         read_diagnostics: Callable[[dict[str, float]], Mapping[str, object]],
     ) -> dict:
@@ -288,6 +530,8 @@ class CycleTrace:
         """
         if self.closed:
             raise RuntimeError("cycle trace is closed")
+        if self.capture_kind == "empirical_relative_teaching" and not self.started:
+            raise RuntimeError("teaching observation before start")
         seq = self.count + self.error_count
         stage = "leader_validation"
         started_ns = time.time_ns()
@@ -297,6 +541,8 @@ class CycleTrace:
             command = _positions(relative_target, suffix=".pos", source="relative target")
             if not isinstance(command_sent, bool):
                 raise ValueError("command_sent must be boolean")
+            if not isinstance(gripper_goal_sent, bool):
+                raise ValueError("gripper_goal_sent must be boolean")
             stage = "follower_present_position"
             follower = _positions(read_feedback(), suffix="", source="follower feedback")
             feedback_ns = time.time_ns()
@@ -313,6 +559,7 @@ class CycleTrace:
                 "leader_position": leader,
                 "relative_target": command,
                 "command_sent": command_sent,
+                "gripper_goal_sent": command_sent and gripper_goal_sent,
                 "follower_feedback": follower,
                 "follower_diagnostics": diagnostics,
                 "arm_unit": "degree",

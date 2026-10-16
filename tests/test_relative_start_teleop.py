@@ -5,6 +5,7 @@ from scripts.relative_start_teleop import (
     ACTION_KEYS,
     JOINTS,
     RelativeOrigins,
+    arm_only_relative_target,
     calibrated_action_bounds,
     capture_origins,
     dispatch_guarded_relative_action,
@@ -95,6 +96,35 @@ class RelativeStartTeleopTests(unittest.TestCase):
         self.assertEqual(target["elbow_flex.pos"], 85.0)
         self.assertEqual(target["gripper.pos"], 65.0)
         self.assertEqual(target["shoulder_pan.pos"], 0.0)
+
+    def test_arm_only_target_holds_gripper_despite_leader_motion(self):
+        origins = RelativeOrigins(action(gripper=20.0), action(gripper=30.0))
+        target = arm_only_relative_target(action(shoulder_pan=1.0, gripper=5.0), origins)
+        self.assertEqual(target["shoulder_pan.pos"], 1.0)
+        self.assertEqual(target["gripper.pos"], 30.0)
+
+    def test_arm_only_dispatch_omits_gripper_goal(self):
+        previous = action(elbow_flex=30.0, gripper=20.0)
+        target = action(shoulder_pan=1.0, elbow_flex=29.0, gripper=20.0)
+        robot = self.FakeRobot(30.0)
+        result = dispatch_guarded_relative_action(
+            target, 30.0, previous,
+            lambda candidate, prior: guarded_elbow_send(
+                robot, candidate, prior, logging.getLogger("test.arm_only")
+            ), arm_only=True,
+        )
+        self.assertTrue(result.sent)
+        self.assertEqual(set(robot.sent[0]), set(ACTION_KEYS) - {"gripper.pos"})
+        self.assertEqual(result.previous_relative_target["gripper.pos"], 20.0)
+
+    def test_arm_only_dispatch_rejects_changed_gripper_before_send(self):
+        robot = self.FakeRobot(30.0)
+        with self.assertRaisesRegex(RuntimeError, "changed gripper hold"):
+            dispatch_guarded_relative_action(
+                action(gripper=21.0), 30.0, action(gripper=20.0),
+                lambda candidate, prior: robot.send_action(candidate), arm_only=True,
+            )
+        self.assertEqual(robot.sent, [])
 
     def test_loaded_calibration_limits_use_le_robot_normalization_for_all_six_axes(self):
         class Bus:

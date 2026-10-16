@@ -1,6 +1,286 @@
 # 현재 상태
 
-업데이트: 2026-10-14
+업데이트: 2026-10-15
+
+## 2026-10-15 UNKNOWN Torque writer 진단 — firewall 배치, Jetson test 네트워크 차단
+
+- 설치 소스 정적 확인에서 일반 `SO101Follower.connect→configure→torque_disabled→enable_torque`는 implicit Torque writer임을 확인했다. 그러나 실패한 SINGLE_SESSION_DEMO는 이 경로가 아니라 `bus.connect(handshake=False)`를 사용하며, 해당 connect는 포트 open/timeout만 수행한다. Goal address 42/2와 Torque address 40/1도 겹치지 않는다. 따라서 실패한 live path의 실제 writer는 아직 `NOT_CONFIRMED`; 외부/firmware 변화 가능성도 미확정이다.
+- 모든 Python bus write API와 low-level/raw serial write를 register·motor ID·value·timestamp·call stack과 함께 기록하고 전송 전에 차단하는 connect-only firewall 진단을 추가했다. 기본은 hardware-free이고 별도 `RUN TORQUE WRITER DIAGNOSTIC` 승인 없이는 포트를 열지 않는다. 로컬 단위 `5/5`, 관련 회귀 포함 `46/46 PASS`, compile/dry-run PASS이며 write는 전부 0이다.
+- Jetson에 스크립트·테스트를 복사했고 SHA가 로컬과 일치했으나 설치 Python compile/test 중 SSH timeout, 재접속도 timeout이었다. 따라서 `JETSON_TEST=BLOCKED_NETWORK/NOT_COMPLETED`, live connect diagnostic·serial open·motor/Goal/Torque/config write·teaching 모두 `NOT_RUN/0`, `READY_FOR_SINGLE_SESSION_DEMO=NO`, `NEXT_LIVE_COMMAND=NONE`. [상세](sessions/2026-10-15-torque-writer-diagnostic-ready.md). `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-15 SINGLE SESSION DEMO 실기 2 — Goal 복사 후 예상 밖 Torque ON으로 중단
+
+- 사용자 현장 4조건 확인 및 helper 기반 양 포트 FREE·LeLab 세 제어 inactive 확인 뒤 single-session live를 1회 시작했다. fresh/pre-sync는 Present `[2021,835,3091,2585,1942,487]`, Goal `[2025,839,3093,2570,1941,481]`, Torque OFF, Moving0, Tmax37°C였다.
+- fresh Present raw를 Goal에 1회 exact copy한 뒤 readback은 Present=Goal이었으나, 절차의 Torque_Enable packet 전에 전 축 ON이 관측돼 `unexpected_torque:expected_all_0`로 즉시 ABORT했다. audit write attempts는 Goal 1, Torque 0; 추가 write·자동 재시도 0. Goal readback 시 Moving0였다.
+- HOLD stability/firewall handoff/fresh origins/recorder/teaching은 `NOT_RUN`, cycle 0, approach trajectory/final pose 미생성, one-shot 미소비. 종료 후 양 포트 FREE, SSH 종료. 사용자는 현장에서 **예상 밖 움직임이 전혀 없었다**고 확인했다. `NEXT_LIVE_COMMAND=NONE`. [상세](sessions/2026-10-15-single-session-demo-attempt2-unexpected-torque.md). `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-15 SINGLE_SESSION_DEMO 고정 포트 ownership helper gate PASS
+
+- 직전 `port_ownership_unknown` blocker만 수정했다. SINGLE_SESSION_DEMO가 사용하는 `SystemBusProbe`를 기존 root-owned no-argument helper에 연결해 `/dev/ttyACM0,/dev/ttyACM1`의 `FREE`만 empty owner로 허용하고, `OCCUPIED(pid/process)`는 busy, helper 오류·누락·형식 오류·scope 밖 포트는 모두 `port_ownership_unknown`으로 fail-closed한다. process kill/signal, broad sudo, serial write 권한은 추가하지 않았다.
+- Jetson 격리본 백업·배치 후 설치 Python compile, helper parser fake `6/6`, 로컬 관련 회귀 `131/131 PASS`. 첫 Jetson fake는 helper 소스의 격리 test mirror 누락으로 import FAIL했고 이를 기록한 뒤 동일 read-only source를 추가해 통과했다. 실제 helper와 probe는 LeLab controls idle, canonical ACM0=`5AE6085272`/ACM1=`5AE6058306`, owner set 양쪽 empty를 반환했고 follower/leader lease gate가 serial open 없이 PASS했다.
+- 실제 helper 전/후 ACM0/ACM1 모두 `FREE`; 기본 single-session dry-run의 serial/motor/Goal/Torque/config write 전부 0. LeLab 서비스와 calibration/HOLD/teaching/2° 로직은 변경하지 않았고 SSH 종료. `PORT_HELPER=PASS`, `PORT_OWNERSHIP_GATE=PASS`, 다음 별도 live 후보 `RUN SINGLE SESSION DEMO`. [상세](sessions/2026-10-15-single-session-port-helper-gate-deploy.md). `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-15 SINGLE SESSION DEMO 실기 1 — port ownership unknown으로 무장 전 중단
+
+- 사용자 `RUN SINGLE SESSION DEMO` 승인 및 현장 팔 지지·전체 비접촉·주변 clear·즉시 중단 준비 확인 후, 양 포트 FREE와 LeLab teleoperation/recording/inference inactive 및 배치 SHA를 확인했다. 새 one-shot으로 live entrypoint를 1회 호출했으나 첫 exclusive lease에서 `PreflightError:port_ownership_unknown`으로 fail-closed했다.
+- bus 객체/serial open 전 중단돼 HOLD raw copy, Torque ON, 3초 stability, teaching/recorder arm 모두 `NOT_RUN`; audit `[]`, cycle 0, ticket 미소비. motor/Goal/Torque/config write `0`, 자동 재시도 0. 종료 후 양 포트 FREE, SSH 종료. 접근 trajectory/final pose는 저장되지 않았고 `NEXT_LIVE_COMMAND=NONE`. [상세](sessions/2026-10-15-single-session-demo-attempt1-port-ownership-unknown.md). `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-15 SINGLE_SESSION_DEMO — Jetson fake 배치 PASS, 실기 NOT_RUN
+
+- atomic HOLD, no-reconfigure teaching 및 UI safe worker의 종료 경로는 모두 `disconnect(disable_torque=False)`를 명시하고 Stop도 torque API를 호출하지 않는다. 따라서 검증된 entrypoint 코드 범위의 `TORQUE_OFF_ON_SESSION_END=NO`; 과거 실제 Torque OFF 변화의 주체/원인은 계속 `UNKNOWN`이다.
+- 기존 `restore_hold()`와 `run_teaching_from_hold()` 사이에 disconnect 없이 write firewall만 atomic raw 2-packet 단계에서 armed teaching Goal-only 단계로 넘기는 얇은 `single_session_demo.py`를 추가했다. Goal raw exact copy 1회, Torque ON 1회, 3초 HOLD, 동일 연결 fresh diagnostics/origins, first Goal skip, recorder 및 기존 2° 공통분율 slew를 그대로 사용한다. config/추가 torque API는 계속 차단한다.
+- 로컬 관련 회귀 `125/125 PASS`; Jetson 격리 폴더에 기존 파일 백업 후 배치하고 설치 Python 3.14.7 compile·fake `84/84 PASS`, SHA 일치. 통합 fake는 connect 1회, 단계 사이 disconnect 0회, Torque OFF packet 0, `+5.3°→+2,+2,+1.3°`, 최대 step `2.0°`, recorder complete를 확인했다. 기본 dry-run은 serial/motor/Goal/Torque/config write 전부 0, 종료 후 양 포트 `FREE`, SSH 종료. LeLab 서비스·설정은 변경·재시작하지 않았다. `SINGLE_SESSION_DEMO_READY=PASS_FAKE_DEPLOYED`, 실제 실기 `NOT_RUN`, 다음 별도 승인 후보 `RUN SINGLE SESSION DEMO`. [상세](sessions/2026-10-15-single-session-demo-fake-deploy.md). `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-15 DEMO CAPTURE RUN — follower Torque OFF로 LIVE PRECHECK 중단
+
+- 사용자 진술상 다른 컴퓨터의 LeLab은 종료됐다. LeLab teleoperation/recording/inference inactive 및 canonical 양 포트 무점유를 확인하고 follower/leader를 각각 read-only 3회 측정했다. follower는 Present `[2021,835,3091,2585,1942,487]`, Goal `[2025,839,3093,2570,1941,481]`, Torque 전 축 OFF, Moving 전 축 0, Tmax `37°C`; leader는 Present `[2062,904,3066,2469,2194,2068]`, Goal 전 축 0, Torque 전 축 OFF, Moving 전 축 0, Tmax `30°C`였다. 각 세 표본은 동일해 drift는 없었다.
+- 필수 조건 `follower Torque=ALL ON` 실패로 첫 gate에서 `ABORT_BEFORE_ARMING`. 3초 settle/fresh origins/recorder/teaching/approach/grasp/lift는 모두 `NOT_RUN`, 자동 재시도 0. 이번 run의 물리 비접촉은 새로 확인하기 전에 Torque gate에서 중단되어 `NOT_CONFIRMED_CURRENT_RUN`이다.
+- motor/Goal/Torque/config write `0`; 임의 HOLD restore·Goal sync·Torque toggle·자세 복구 없음. 이전 `ATOMIC_HOLD_RESTORE=FAIL`과 Torque 상태 변화 원인 `UNKNOWN` 유지. 종료 시 LeLab 세 제어 inactive, 양 포트 `FREE`, SSH 종료. `NEXT_LIVE_COMMAND=NONE`. [상세](sessions/2026-10-15-demo-capture-live-precheck-torque-off.md). `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-15 LeLab UI 안전 텔레옵 / 고정 포트 read-only 권한 배치 PASS
+
+- root-owned `/usr/local/sbin/so101-fixed-port-occupancy`는 인자 없이 canonical `/dev/ttyACM0,/dev/ttyACM1`만 `/proc`에서 조회한다. sudoers는 이 helper의 **no-argument invocation 하나만** NOPASSWD로 허용하며 `visudo` PASS; 추가 인자는 TTY 없는 서비스 문맥에서 거부됐다. `fuser/lsof/shell`, signal/kill, 임의 path/device 권한은 추가하지 않았다.
+- 실제 두 포트 모두 `FREE` 조회 PASS. 각 포트를 `O_RDONLY|O_NONBLOCK|O_NOCTTY`로만 잠깐 열었을 때 각각 `OCCUPIED / PID 581735 / python`, 닫은 뒤 다시 `FREE`를 확인했다. helper AST에는 device-open/process-control 호출이 없다. serial data/termios/motor/Goal/Torque/config write 모두 0.
+- LeLab UI Start/Stop/Status/Joints를 `LELAB_UI_NO_RECONFIG=1`에서 no-reconfigure relative-start adapter에 연결했다. 3초 HOLD gate, fresh origins, first Goal skip, 2° 공통분율 slew, 기존 calibration/Elbow/gripper guards, exclusive owner 확인, same-owner cache를 유지한다. recorder/inference/replay OFF이며 일반 초기화 경로는 안전 모드에서 실행되지 않는다.
+- 로컬 관련 fake/회귀 **95/95 PASS**. Jetson 설치 Python compile/import, helper parser, serial-open 차단 status/joints, installed fake Start/duplicate/Stop lifecycle, recorder-free core `DRY_RUN_ONLY` PASS. service drop-in 적용 재시작 후 active, safe status `INACTIVE`, recording/inference inactive, 양 포트 `FREE`. 실제 teleop/Goal send는 `NOT_RUN/0`; 다음 별도 live 후보 `RUN SUPERVISED C APPROACH TEACHING`. [상세](sessions/2026-10-15-lelab-ui-safe-teleop-fixed-port-permission-deploy.md). `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-15 CURRENT HOLD 사용 가능 판정 / UI 연결은 권한 승인 대기
+
+- 사용자 지지·정지·전체 비접촉 확인 후 실제 read-only **18표본/3.171초 PASS**. Present=Goal `[2066,1098,2902,2502,1612,490]` raw, Present span/잔차 전 축 0, Goal 불변, Torque ON·Moving0·Tmax38°C. `CURRENT_HOLD_USABLE=true`는 이 관측 구간의 판정이다. 기존 `ATOMIC_HOLD_RESTORE=FAIL`, Torque ON 원인 `UNKNOWN` 유지; 추가 sync/torque toggle/보정 없음.
+- 사용자 선택은 **LeLab UI 시작·종료 버튼을 안전 경로에 연결**하는 것이다. 기존 제어 코어에 명시적인 recorder OFF 재사용만 로컬 준비했고 관련 fake/회귀 **85/85 PASS**. 3초 settle/fresh origin/first Goal skipped/2° 보간/기존 guards 유지. Jetson 배치·UI handler 연결·실제 UI teleop은 `NOT_RUN/NOT_COMPLETED`다.
+- UI 서비스 문맥에서 일반 포트 owner 조회는 `/proc` Permission denied, privileged 비대화형 조회는 password required/exit1이었다. 안전한 독점 확인을 우회하지 않고 **두 canonical tty의 read-only 점유 조회에 한정한 권한 변경 승인 대기**로 보류했다. 서비스/env/sudoers 변경·재시작 0. motor/Goal/Torque/config write 0, teleop/recorder/inference inactive, 종료 시 privileged 양 포트 무점유·SSH 종료. `NEXT_LIVE_COMMAND=NONE`. [상세](sessions/2026-10-15-current-hold-usable-ui-teleop-permission-blocked.md). `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-15 ATOMIC HOLD 실기 1회 — Goal 복사 후 예상 밖 Torque ON으로 FAIL
+
+- 사용자 `RUN ATOMIC HOLD RESTORE` 1회 승인·현장 지지/정지/전체 비접촉/다른 제어 OFF/즉시 중단 확인 후, 배치 SHA·설치 SDK retry=0·canonical follower `/dev/ttyACM1=5AE6058306`·privileged 양 포트 무점유·LeLab 세 제어 inactive를 확인했다. 단일 exclusive 세션의 fresh/recheck는 Present `[2066,1098,2902,2502,1612,490]`, Goal all 0, Torque all OFF, Moving all 0로 동일했다.
+- fresh raw Goal **1회** 복사 뒤 exact readback과 Present 불변은 확인됐으나 **명시적 Torque_Enable 전송 전 전 축 ON**이 관측돼 `unexpected_torque:expected_all_0`로 즉시 ABORT했다. audit write attempts는 `Goal_Position=1`, `Torque_Enable=0`; config/추가 correction/토글/재시도 0, 3초 stability `NOT_RUN`. 상태 변경 주체·원인은 `UNKNOWN`이며 성공이나 무명령 종료로 바꾸지 않는다.
+- 종료 후 read-only 3회는 Present=Goal `[2066,1098,2902,2502,1612,490]`, 차이/Present span 전 축 0 raw, Torque ON·Moving0·Tmax 38°C. 사용자는 **지지·정지·자세 유지·전체 비접촉**을 확인했다. 절차 결과 `ATOMIC_HOLD_RESTORE=FAIL` 유지, teaching/gripper open `NOT_RUN`, `NEXT_LIVE_COMMAND=NONE`. 사후 포트 무점유·SSH 종료. [상세](sessions/2026-10-15-atomic-hold-restore-attempt1-unexpected-torque.md). `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-15 DEMO — slew / atomic HOLD Jetson 격리 배치·fake PASS
+
+- 기존 Jetson `/home/jetson3/so101-current-hold-teaching-20261014/`에 teaching slew 변경·새 atomic HOLD 진입점 및 해당 테스트 **4개 파일만** 배치했다. 기존 2파일은 `deploy-slew-atomic-20261015-yaMH2b/backup/`에 보존했으며 새 코드/테스트 4개와 기존 의존 4개의 SHA가 로컬과 일치한다. LeLab 서비스·worker·설정·calibration/reference 변경 없음.
+- 설치 Python `3.14.7`에서 fake **88/88 PASS**, 두 기본 CLI dry-run·compile PASS. serial open을 차단한 fake에서 최대 emitted arm step `2.0°`, 공통 fraction, exclusive acquire/connect/close/lock release, raw exact-copy/Goal readback, Torque ON packet 1회, 31표본/3.0초 fake stability를 확인했다. 최초 테스트 이름 import는 설치된 동명 `tests` 패키지 충돌로 실패했으며 로그를 보존하고 로컬 테스트 discovery로 해결했다. 제어 코드 변경/실기 재시도는 없다.
+- 실제 serial open·motor/Goal/Torque/config write `0`, `SERIAL_LIVE=false`, 실제 HOLD restore/teaching `NOT_RUN`. 종료 시 LeLab 세 제어 inactive, SSH 종료. 실제 장치의 현 상태·포트 독점/3초 안정성은 이번에 검증하지 않았다. 다음 별도 승인 후보 `RUN ATOMIC HOLD RESTORE`. [상세](sessions/2026-10-15-two-degree-slew-atomic-hold-jetson-deploy.md). `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-15 DEMO — 2° 공통분율 추종 / atomic HOLD restore offline 준비
+
+- teaching의 기존 arm command `2.0°` guard를 유지한 채 큰 leader 요청을 같은 interpolation fraction으로 여러 cycle에 분할한다. `+5.3° → +2,+2,+1.3°`, fake 최대 emitted arm step `2.0°`. 전체 requested target의 calibration/gripper 검사, emitted 2° 검사, 최신 입력의 방향 반전·STOP/HOLD 처리를 검증했다. trajectory convergence tolerance·reference·GRASP TCP·torque/gain은 변경하지 않았다.
+- 새 독립 `scripts/atomic_hold_restore.py`는 단일 exclusive follower session에서 fresh raw를 그대로 Goal 1회 복사 → Torque OFF/Goal exact readback → Torque ON packet 1회(retry=0) → 즉시 readback 및 실제 표본 간 3초 exact stability를 검사한다. 연결 전부터 config/임의 write 차단, 실패 시 추가 Goal/torque rollback/자동 재시도 없음. 여기서 atomic은 세션 독점이지 서보 전체의 하드웨어 원자성 보장이 아니다.
+- 로컬 fake/회귀 **149/149 PASS**, 기본 CLI 비실기 경로·compile·diff-check PASS. Jetson 배치, 실제 serial 연결/fresh 재측정/HOLD restore/teaching은 `NOT_RUN`; 실제 motor/Goal/Torque/config write `0`. 최신 사용자 확인 Torque OFF·Goal 0·지지/정지/비접촉과 `TEACHING=ABORT_BEFORE_ARMING`을 유지한다. 다음 별도 승인 후보는 `RUN ATOMIC HOLD RESTORE`이며 배치·설치본 확인·fresh/현장 gate 전에는 실행하지 않는다. [상세](sessions/2026-10-15-two-degree-slew-atomic-hold-offline.md). `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-15 teaching 재실행 준비 — Torque OFF / Goal 0로 ABORT_BEFORE_ARMING
+
+- `다시 해봐` 요청 후 fresh read-only 3회는 Present `[2066,1098,2901,2503,1612,490]`, Goal 전 축 0, Torque 전 축 OFF, Moving 전 축 0, Tmax 37°C로 동일했다. 직전 대비 Lift/Elbow 자세가 바뀌었으며 사용자가 **지지·정지·비접촉, 의도한 변경**이라고 확인했다.
+- startup Torque ON·bounded residual 미충족으로 live/3초 settle/recorder/ticket 생성 전 중단. motor/Goal/Torque/config write 0, 자동 재시도 0, GRASP/LIFT NOT_RUN, NEXT_LIVE_COMMAND=NONE. 양 포트 해제·LeLab 세 제어 inactive 확인. 2° 제한 질문에는 per-send target 변화량 제한임을 설명했고, 제한 해제/보간 수정은 하지 않았다. [상세](sessions/2026-10-15-teaching-retry-held-torque-off.md). `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-15 supervised teaching 재실행 — 실제 gate PASS, Elbow step ABORT
+
+- 새 사용자 실행 요청으로 단일 no-reconfigure teaching을 시작했다. PRE_ARM_SETTLE 실제 **17표본/3.051초 PASS**, fresh origins·첫 Goal 생략·recorder arm 완료. 독립 runner라 LeLab UI teleoperation 표시와 별개다.
+- 6축 Goal 2회 전송 뒤 Elbow 요청 step `−3.956°`가 기존 `2.0°` 제한을 넘어 전송 전 자동 ABORT했다. guard 전 target/delta/제한 축·첫 실제 Goal을 기록했다. 94개 cycle에서 follower Present span은 전 축 0, gripper target raw 490 유지; C approach 성공 아님.
+- 사용자 정지·전체 비접촉 확인, 사후 read-only 3회 Present `[2065,1468,2649,2498,1612,490]`, Goal `[2066,1468,2649,2499,1612,490]`, Torque ON·Moving 0·Tmax 37°C. 양 포트 무점유·LeLab 세 제어 inactive 확인. trace와 post-stop 3회는 Jetson `run-20261015-CIHBPb/`에 저장. torque/config write 0, 자동 재시도 0, GRASP/LIFT NOT_RUN, NEXT_LIVE_COMMAND=NONE. [상세](sessions/2026-10-15-supervised-c-approach-teaching-elbow-step-abort.md). `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-15 supervised teaching — 실제 3초 gate PASS, 무조작 정상 종료
+
+- 승인·현장 확인 후 no-reconfigure 실기 1회. 양 포트 단독, Torque ON·Moving 0·Goal 불변·Present drift 0·잔차 최대 2 raw·정상 온도로 PRE_ARM_SETTLE **17표본/3.062초 PASS**. fresh origins·첫 Goal 생략·recorder arm 완료.
+- 사용자 정렬 완료 입력에 즉시 SIGINT로 정상 종료했다. 126 cycles/34.583초, Goal 전송 `0`, leader/follower 전 축 span `0`, 최종 read-only 3회 저장. 사용자가 **조작하지 않았고 정렬 입력은 실수**라고 정정했으므로 C 접근/정렬 성공이 아니며 `C_APPROACH_EMPIRICAL=NOT_CONFIRMED_NOT_REGISTERED`다.
+- 정지 trace와 최종 측정은 Jetson `run-20261015-u5o9sK/`에 보존. one-shot 소비, 정상 포트 해제·LeLab 세 제어 inactive 확인. motor/Goal/Torque/config write `0`, 자동 재시도 `0`, GRASP/LIFT `NOT_RUN`. 새 실행 요청 전 재시작하지 않는다. [상세](sessions/2026-10-15-supervised-c-approach-teaching-armed-no-motion.md). `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-15 DEMO critical path — PRE_ARM_HOLD_STABILITY Jetson fake PASS
+
+- 기존 실측 stationary HOLD에서 Torque 전 축 ON·Moving 0·Present span 0인 10개 연속 표본(약 1초)에 Goal−Present 최대 `10 raw`가 유지된 기록을 확인했다. 직전 fresh Lift `2 raw`는 3회 동일했다. 큰 잔차는 정지 판정과 trajectory 수렴을 구별해야 하며, 성공적인 teaching의 증거로 승격하지 않는다.
+- no-reconfigure **quantized teaching의 PRE_ARM 판정에만** 실측 상한 `10 raw`, 3초 Present drift 0, Goal 불변·잔차 비증가를 적용했다. Torque/Moving/온도·pre/post-connect 일치·현장 비접촉·fresh origin·첫 Goal 생략·기존 guard는 유지한다. 기존 exact-zero/`hold_stable_quantized ≤1 raw`, historical reference, trajectory convergence tolerance는 변경하지 않았다.
+- Jetson 격리 진입점과 fake 테스트만 백업 후 배치, SHA 일치. 로컬/Jetson 관련 `44/44 PASS`, Jetson 설치 Python 기본 dry-run PASS; 실제 serial/teaching/Goal/Torque/config/motor write `0`, GRASP/LIFT `NOT_RUN`. 다음 live 후보 `RUN SUPERVISED C APPROACH TEACHING`은 별도 승인과 fresh gate 전까지 실행하지 않는다. [상세](sessions/2026-10-15-demo-critical-pre-arm-hold-stability.md). `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-15 C approach supervised teaching — Lift 2 raw gate로 ABORT_BEFORE_ARMING
+
+- 사용자 live 승인과 현장 지지·정지·전체 비접촉 확인 후 Jetson canonical 양 포트, privileged 무점유, LeLab 세 제어 inactive, 배치 SHA를 확인했다. 쓰기 차단 follower read-only 3회는 Present `[2065,1468,2649,2498,1612,490]`, Goal `[2065,1466,2649,2497,1611,490]`, Torque 전 축 ON, Moving 전 축 0, 표본 간 drift 0, Tmax `41°C`였다.
+- **Lift Goal–Present `2 raw`**가 기존 quantized startup gate `≤1 raw`를 넘었다. 기준을 완화하거나 Goal을 동기화하지 않고 `TEACHING=ABORT_BEFORE_ARMING`으로 중단했다. 3초 settle, leader 연결, fresh origin, recorder, one-shot ticket, 실제 teaching 모두 `NOT_RUN`; motor/Goal/Torque/config write `0`, 자동 재시도 `0`, GRASP/LIFT `NOT_RUN`, `NEXT_LIVE_COMMAND=NONE`. read-only follower 포트는 해제했고 종료 후 privileged 양 포트 무점유를 확인했다. [상세](sessions/2026-10-15-supervised-c-approach-teaching-lift-raw-gate-block.md). `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-14 supervised teaching FK 직접 실행 import 수정 — Jetson 비실기 PASS
+
+- 직전 `ABORT_BEFORE_ARMING`과 motor/Goal/Torque/config write `0` 기준을 유지했다. Jetson 격리 폴더의 설치 Python·직접 실행 import 문맥에서 `teleop_cycle_trace.py:112` 상대 import 오류를 serial 없이 재현했다. 원인 `A: package context 없는 relative import`로 확정했다.
+- FK import 분기 한 곳만 수정해 직접 실행은 형제 모듈 top-level import, 패키지 실행은 상대 import로 유지했다. Jetson 격리 폴더에만 배치하고 기존 파일을 보존했다. 설치 LeLab 서비스·FK 수식·GRASP TCP·calibration·reference·safety gate 변경 없음.
+- Jetson 직접 실행 FK smoke/CLI dry-run/compile/package import와 fake `39/39 PASS`; 로컬 관련 `39/39 PASS`, 배치 SHA 일치. 실제 serial/teleop/recorder live 및 motor/Goal/Torque/config write `0`; 다음 live 명령 후보 `RUN SUPERVISED C APPROACH TEACHING`은 **별도 승인 전 실행 금지**. [상세](sessions/2026-10-14-supervised-teaching-fk-direct-import-fix.md). `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-14 C approach supervised teaching — FK import 오류로 ABORT_BEFORE_ARMING
+
+- 사용자 승인과 현장 지지·정지·전체 비접촉 확인 뒤 fresh follower 3회 read-only는 Present `[2065,1467,2649,2498,1612,490]`, Goal `[2065,1466,2649,2497,1611,490]`, Torque ON, Moving 0, Tmax `36°C`, 최대 diff 1 raw로 동일했다. LeLab 세 제어 inactive, canonical 양 포트 무점유였다.
+- 단일 `--live` 호출은 현장 확인 직후 `load_grasp_fk()`의 직접 스크립트 import 경로 오류(`attempted relative import with no known parent package`)로 **port open 및 PRE_ARM_SETTLE 전** 종료됐다. 실제 teaching·recorder arm·Goal/Torque/config/motor write `0`; 자동 재시도 `0`, GRASP/LIFT `NOT_RUN`. 현장 정지·전체 비접촉 재확인, trace 미생성, 미소비 ticket은 `.aborted-before-arm`으로 이름 변경해 보존했다.
+- `TEACHING=ABORT_BEFORE_ARMING`, `NEXT_LIVE_COMMAND=NONE`. import 경로의 별도 오프라인 수정·검증 및 새 승인 전 재실행하지 않는다. [상세](sessions/2026-10-14-supervised-c-approach-teaching-import-abort.md). `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-14 fresh-origin/reference 분리 Jetson 격리 배치 — fake PASS
+
+- historical reference와 exact-zero 경로는 그대로다. quantized 경로만 exact reference 불일치를 기록·비차단 처리하고, 3초 settle 뒤 fresh leader/follower origin을 상대제어에 사용한다.
+- Jetson 독립 격리 진입점·기록 모듈·테스트 3개 배치, 이전 파일 복구 사본 보존. 설치 Python `3.14.7` compile·fake `19/19`·기본 dry-run PASS, 로컬/Jetson SHA 일치. LeLab 서비스·설치 worker·환경은 변경하지 않았고 세 제어 inactive다.
+- 이번에는 실제 serial·teaching·motor/Goal/Torque/config write `0`. 현재 물리 상태의 fresh 확인과 live 3초 gate는 `NOT_RUN`; 다음 별도 승인 문구는 `RUN SUPERVISED C APPROACH TEACHING` 하나다. [상세](sessions/2026-10-14-fresh-origin-separation-jetson-fake-deploy.md). `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-14 relative-start fresh origin / historical reference 분리 — offline only
+
+- historical reference `[2065,1467,2649,2497,1612,490]`은 불변이다. 직전 fresh Present Wrist Flex `2498`은 관측값으로만 유지하고, 3회 표본이 서로 같았다는 별도 안정성 증거로 기록했다. 실제 3초 live startup은 `NOT_RUN`.
+- relative-start 수학은 3초 settle 뒤 읽는 fresh follower/leader origin을 사용하며 historical reference를 사용하지 않는다. quantized 경로의 historical exact-match는 차단 gate에서 비교·기록 필드로 분리하고, exact-zero 경로는 그대로 보존했다. fresh pre/post-connect 일치·3초 안정·Goal–Present ≤1 raw·Torque/Moving·기존 guard는 유지한다.
+- 로컬 관련 fake `61/61 PASS`, compile/기본 dry-run/diff-check PASS. Jetson 새 코드 배치·실제 serial/teaching 재시도 `NOT_RUN`; motor/Goal/Torque/config write `0`, `NEXT_LIVE_COMMAND=NONE`. [상세](sessions/2026-10-14-relative-start-fresh-origin-reference-separation-offline.md). `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-14 SUPERVISED C APPROACH TEACHING 승인 후 fresh reference 불일치 — live 미시작
+
+- 현장 팔 지지·정지·전체 비접촉과 즉시 중단 준비를 확인했다. LeLab 세 제어 inactive, canonical 양 포트와 privileged 무점유, 진입점 SHA 일치를 확인한 뒤 follower만 쓰기 차단 3회 read-only 측정했다. 모두 Present `[2065,1467,2649,2498,1612,490]`, Goal `[2065,1466,2649,2497,1611,490]`, Torque ON, Moving 0, Tmax `36°C`, Goal–Present 최대 1 raw였다.
+- 배치된 quantized 기준 Present의 Wrist Flex `2497`과 fresh `2498`이 `+1 raw` 불일치한다. 별도의 고정 start-reference gate가 0 raw drift를 요구하므로 teaching 진입 전 차단했다. reference 자동 갱신/완화·재시도는 하지 않았다. leader 연결, recorder arm, teaching/Goal/config/Torque/motor write `NOT_RUN/0`; `NEXT_LIVE_COMMAND=NONE`. [상세](sessions/2026-10-14-supervised-c-approach-teaching-fresh-reference-blocked.md). `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-14 HOLD_STABLE_QUANTIZED Jetson 격리 배치·비실기 검증
+
+- 독립 no-reconfigure teaching 진입점과 quantized fake 테스트를 Jetson 기존 격리 폴더에 배치했다. 이전 두 파일은 복구용 사본으로 보존했고, 설치 LeLab 서비스·worker·설정은 변경하지 않았다. Jetson 설치 Python `3.14.7` compile·fake `17/17`·기본 dry-run PASS, 로컬 관련 `59/59 PASS`, 로컬/Jetson SHA 일치다.
+- 기록된 6회/21.79초 read-only 표본에 `HOLD_STABLE_QUANTIZED=PASS`, 기존 exact-zero `CURRENT_HOLD_STABLE=false`를 유지한다. fake에서 0/1 raw 허용, 2 raw/Moving/Present·Goal drift/온도 fault 차단, 3초 이후 fresh origin·첫 Goal 생략·recorder arm과 write firewall을 확인했다.
+- 이번에는 **실제 serial read도 하지 않았다**. 현재 순간의 Torque/Moving/물리 비접촉은 미확인이고 live 직전 fresh·현장 gate가 필요하다. motor/config/torque write `0`, 실제 teaching `NOT_RUN`. 다음 승인 문구 후보는 `RUN SUPERVISED C APPROACH TEACHING` 하나다. [상세](sessions/2026-10-14-quantized-hold-jetson-fake-deploy.md). 변경 `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-14 HOLD_STABLE_QUANTIZED 별도 오프라인 판정
+
+- 기존 `CURRENT_HOLD_STABLE=false` 및 exact-zero 기준을 변경하지 않았다. 기록된 read-only 6개/약 21.79초 표본의 Present·Goal은 각각 일정했고 Lift/Roll만 `1 raw` 차이, Moving 전 축 0, Torque 전 축 ON, Tmax `36°C`라 새 명시적 `HOLD_STABLE_QUANTIZED=PASS`다.
+- 별도 판정과 teaching 진입점의 명시적 `quantized` 정책을 추가했다. 기존 `exact_zero` 호출은 1 raw에서 계속 차단된다. 로컬 fake 6필수 사례와 회귀 포함 `58/58 PASS`, compile/기본 dry-run/diff-check PASS. 실제 Jetson 배치·serial/teaching은 `NOT_RUN`; motor/config/torque write `0`.
+- 다음 live 승인 문구 후보는 `RUN SUPERVISED C APPROACH TEACHING` 하나다. Jetson 설치본 반영 및 실행 직전 fresh/현장 gate 확인 전에는 실행하지 않는다. [상세](sessions/2026-10-14-hold-stable-quantized-offline.md). 변경 `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-14 CURRENT HOLD 3초 재확인·no-reconfigure teaching offline 준비
+
+- 현장 팔 지지·정지·전체 비접촉 유지 확인 뒤 Jetson 기존 쓰기 차단 도구로 1.0초 간격 3회 및 21초 뒤 0.2초 간격 3회를 읽었다. 총 6회에서 Present raw `[2065,1467,2649,2497,1612,490]`와 Goal raw `[2065,1466,2649,2497,1611,490]` 고정, Torque 전 축 ON, Moving 전 축 0, Tmax `36°C`; 3초 이상 drift 없음. 하지만 직전 승인 기준 `Goal−Present=0 raw` 대비 Lift/Roll 각 `1 raw` 차이이므로 기준을 넓히지 않고 `CURRENT_HOLD_STABLE=false`로 판정했다. read-only motor/Goal/Torque/config write `0`; 포트 무점유·SSH 종료.
+- 독립 `scripts/supervised_teaching_from_current_hold.py`는 기존 relative-start/Elbow guard/CycleTrace를 재사용한다. LeLab `/move-arm`·configure를 호출하지 않고 버스 write firewall, 3초 no-send stillness, fresh origins, 첫 Goal 생략, 그리퍼 포함 상대제어, recorder 기록, 0 raw HOLD gate를 구현했다. 닫힘·과속 개방·과거 human-confirmed `34.577723%` 초과 개방은 송신 전 차단한다. 로컬 관련 `49/49 PASS`, Jetson **격리 폴더** fake `7/7 PASS`, 설치 Python compile/dry-run PASS, SHA 일치; 실제 serial/teaching/motor 명령 `0`. 설치 LeLab/서비스 미변경.
+- `NO_RECONFIG_TEACHING_READY=PASS_OFFLINE_ONLY`, 현재 `LIVE_READY=NO`, `NEXT_LIVE_COMMAND=NONE`. Torque ON 주체 `UNKNOWN`, HOLD recovery 원래 절차 FAIL 유지. [상세](sessions/2026-10-14-current-hold-no-reconfigure-teaching-offline.md). 변경 `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-14 CURRENT POSE HOLD RECOVERY 재시도 — Torque gate FAIL, 사후 ALL ON
+
+- 사용자는 이전 fingertip/table 접촉이 해제되고 팔 지지·정지·전체 비접촉이라고 재확인했다. local Goal-only fake `6/6 PASS`, Jetson 설치 도구 SHA 일치, LeLab 세 제어 inactive, canonical follower 및 privileged 포트 무점유를 확인했다. 쓰기 차단 사전 3회는 Present raw `[2065,1466,2649,2497,1611,490]`, Goal 전 축 `0`, Torque 전 축 OFF, Moving 전 축 `0`, Tmax `36°C`로 동일했다.
+- 승인된 Goal-only 도구 1회 실행은 `GOAL_PRESENT_SYNC_FAIL:RuntimeError:torque_not_all_off`로 종료했다. 자동 재시도 없음. 이후 별도 read-only 3회는 Goal raw와 Present raw가 전 축 `[2065,1466,2649,2497,1611,490]`로 동일(최대 diff `0`), Moving 전 축 `0`, **Torque 전 축 ON**, 온도 관측 최대 `48°C`였다. Goal이 0에서 현재 raw로 변한 것은 관측됐으나 도구 실패 출력에는 write 단계/횟수가 없어 단독 원인을 확정하지 않는다. Torque ON 주체·시점도 `UNKNOWN`이다.
+- 요청한 `TORQUE=ALL_OFF` 종료조건 실패이므로 `GOAL_SYNC=FAIL/NOT_ACCEPTED`, `NEXT_LIVE_COMMAND=NONE`; 토크 토글·재시도·teaching `0`. 사용자가 사후 **팔 지지·정지·전체 비접촉 유지**를 확인했다. 종료 뒤 privileged 두 포트 무점유. [상세](sessions/2026-10-14-current-pose-hold-recovery-attempt2.md). 이번 기록 `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-14 CURRENT POSE HOLD RECOVERY — 현장 접촉으로 Goal sync 보류
+
+- Elbow fresh `+69.494505°`는 기존 upper 이내여서 해당 out-of-range 차단은 해제했다. Goal-only sync 도구는 로컬 fake `6/6 PASS`; 실제 Jetson에서는 LeLab 세 제어 inactive, canonical follower `/dev/ttyACM1=5AE6058306`, privileged 양 포트 무점유 상태에서 3회 read-only 측정했다. Present raw `[2029,1472,2774,2658,1612,489]`, Goal raw 전 축 `0`, Torque 전 축 OFF, Moving 전 축 `0`, Tmax `36°C`로 3회 동일했다.
+- 사용자가 **그리퍼 끝과 테이블 접촉 중**이며 수동 해제가 어렵다고 현장 확인했다. 따라서 물리 비접촉 gate 미충족으로 Goal sync 실행 `0`, Torque ON `0`, teaching `NOT_RUN`. 현재 절차는 중단하며, 별도 안전한 접촉 해제 방식과 승인 없이는 재개하지 않는다. 측정 도구 motor/torque write `0/0`, 종료 뒤 포트 무점유. [상세](sessions/2026-10-14-current-pose-hold-recovery-contact-blocked.md). 이번 기록 `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-14 Elbow fresh 재확인 — +69.495° (3회 동일)
+
+- 사용자 제공 인증으로 Jetson에 접속했다. LeLab teleoperation/recording/inference 모두 inactive, canonical follower `/dev/ttyACM1=5AE6058306`, privileged 양 USB 포트 무점유, 기존 read-only 도구 SHA `7c440b81…f3c56` 일치를 확인했다.
+- follower 3회 read-only에서 Elbow Present raw `2774` / `+69.494505°`가 모두 동일했다. 이전 raw `3122` / `+100.087912°`보다 `−30.593407°`이며 기존 upper `+95.011°` 안이다. 다른 축 Present raw `[2029,1472,2774,2658,1612,489]`, Goal raw 전 축 `0`, Torque 전 축 OFF, Moving 전 축 `0`, Tmax `37°C`였다. 현재 자세는 되돌리지 않았다.
+- 측정 도구 motor/torque write `0/0`, 종료 뒤 양 USB 포트 무점유 확인. Elbow 범위 문제는 현재 표본에서는 해소됐지만 Goal 0/Torque OFF와 전체 자세 변경 때문에 teaching은 계속 `NOT_RUN`, `NEXT_LIVE_COMMAND=NONE`. [상세](sessions/2026-10-14-elbow-fresh-recheck.md). 이번 기록 `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-14 Elbow 재확인 요청 — fresh register 측정 BLOCKED
+
+- 직전 read-only 3회 Elbow Present는 raw `3122` / `+100.087912°`, 기존 upper `+95.011°` 초과였다. 재확인 2회 모두 Jetson SSH 연결은 됐으나 인증이 거부되어 새 Present/Goal/Torque/Moving register 측정은 `NOT_RUN`; 이 과거 값을 현재값으로 단정하지 않는다.
+- 열린 LeLab 화면은 Ready와 이전 teleoperation 오류만 표시하며 현재 Elbow register를 제공하지 않는다. teleop 버튼은 누르지 않았다. 실제 모터/Goal/Torque write `0`, 현재 자세 유지. [상세](sessions/2026-10-14-elbow-recheck-auth-blocked.md). 이번 기록 `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-14 CONTACT_RELEASED 현장 확인 — C approach teaching live HOLD
+
+- 사용자가 현재 그리퍼–테이블 비접촉, 팔·리더 정지, finger opening 충분, 팔 지지 및 Torque OFF/자세 변경이 의도됐음을 확인했다. `CONTACT_RELEASED=true`는 **현재 상태**이며 `CONTACT_RELEASE_ATTEMPT1=FAIL`은 유지한다. 현재 pose는 되돌리지 않았다.
+- fresh follower read-only 3회 동일: Present raw `[2030,891,3122,2423,1613,494]`, arm `[-6.286,-93.495,+100.088,+30.110,-22.110]°`, gripper `4.957%`, Goal raw 전 축 `0`, Torque 전 축 `0`, Moving 전 축 `0`, Tmax `36°C`. 기존 servo bound상 Elbow upper `+95.011°`를 넘는다. canonical 두 USB/privileged 무점유, LeLab 3제어 inactive. 따라서 supervised teaching startup은 `BLOCKED`; Torque/Goal/teleop/그리퍼 명령 `0`, GRASP/LIFT `NOT_RUN`.
+- guard 판정 전 target/delta/제한 축/fresh Present·FK와 첫 전송 Goal을 남기는 최소 기록 추가는 로컬 `35/35` 및 Jetson 격리 stage fake PASS. 설치 LeLab 파일·서비스는 그대로이며 실제 teaching은 `NOT_RUN`, `NEXT_LIVE_COMMAND=NONE`. [상세](sessions/2026-10-14-c-approach-teaching-released-pose-held.md). `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-14 CONTACT_RELEASE attempt1 재분석 — B 중단 원인, 단일 후보 오프라인 전용
+
+- 저장된 attempt1 표본/코드만 재분석했다. 첫 송신 Goal, 실패 직전 위반 축·요청 delta는 기록되지 않아 복원 불가. 실제 Present는 Pan `+0.615385°`, Wrist Flex `−0.351648°`; GRASP TCP Z `2.906663→3.285876 mm`(`+0.379213 mm`). 마지막 관측 Goal 예측 Z `5.002420 mm`는 첫 Goal이 아니다. `arm_step_exceeds_existing_guard`로 실행이 끝난 것은 확정이므로 중단 원인 `B`; 물리 접촉 해제에 필요한 높이와 추종 부족의 기여는 미확정이다.
+- 마지막 Present에서 반응했던 Wrist Flex만 raw `2390→2384`로 내리는 1-waypoint 오프라인 가설을 계산했다. FK Z `+0.581173 mm`, 단일축 최대 `0.527473°`, 보간 Z 단조 증가. 실제 finger/table 간극·tracking은 검증되지 않았고 현재 entrypoint는 1축 Goal을 허용하지 않으므로 `LIVE_READY=NO`, `NEXT_LIVE_COMMAND=NONE`. 코드/한계/UI/캘리브레이션 변경, Jetson 접속 및 hardware command `0`. [상세](sessions/2026-10-14-contact-release-attempt1-single-candidate-offline.md). `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-14 LeLab UI 텔레옵 시작 오류 — 원인 확인, 접촉 때문에 활성화 보류
+
+- 사용자 UI 오류 `LELABTELEOP TRACE PRE CONNECT JSON`은 실행 중 empirical teaching trace 설정의 필수 `LELAB_TELEOP_TRACE_PRE_CONNECT_JSON` 누락과 일치한다. trace root/kind는 남았고 one-shot ticket 파일도 없다. 설치 worker는 해당 값을 로봇 연결 전에 읽으므로 이 오류는 연결 전 fail-closed다.
+- 그리퍼–테이블 접촉은 사용자 확인상 여전히 유지된다. trace 설정만 꺼 일반 UI relative-start를 열면 시작 과정의 calibration/configure/토크 관련 write와 이후 그리퍼 포함 6축 Goal이 가능하다. 현재 접촉 상태에서 이를 안전한 복구로 보지 않아 서비스 설정·재시작·텔레옵 시작을 하지 않았다. 세 LeLab 제어 inactive, privileged 두 포트 무점유. 이번 턴 motor/Goal/Torque write `0`, `NEXT_LIVE_COMMAND=NONE`; LeLab UI 복구 `BLOCKED`다. [상세](sessions/2026-10-14-lelab-ui-teleop-trace-preconnect-blocked.md). `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-14 CONTACT_RELEASE_ONLY attempt1 오프라인 원인 분석 — live command 0
+
+- 사전/사후 read-only 표본과 동일 URDF/GRASP TCP FK로 실제 GRASP TCP Z `2.906663→3.285876 mm` (`+0.379213 mm`)를 계산했다. 관측된 움직임은 상승 방향이지만 사용자 현장 확인상 접촉은 유지됐다. 실행은 기존 arm `2.0°` step guard에서 중단되었으므로 분류 `B`가 지지된다. 실패를 일으킨 미송신 target은 FK 검사 전에 거부되어 그 방향은 `NOT_RECORDED`다.
+- 최초 송신 Goal·제한 축·실패 표본의 축별 요청 delta는 trace가 없어 `NOT_RECORDED`; post-stop Goal을 최초 송신으로 오인하지 않는다. 실제 Present delta는 Pan `+0.615385°`, Wrist Flex `−0.351648°`, 다른 축 `0`. 물리 fingertip/table 간극이 없으므로 충분한 최소 one-shot 해제 target은 검증할 수 없다. global step limit·mapping·calibration은 변경하지 않았고 새 Jetson 접속/Goal/Torque/motor write `0`, 자동 재시도 `0`, `NEXT_LIVE_COMMAND=NONE`이다. [상세](sessions/2026-10-14-contact-release-attempt1-offline-analysis.md). `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-14 CONTACT_RELEASE_ONLY 실기 1 — FAIL, 접촉 유지
+
+- 사용자 승인 및 현장 지지·정지·주변 clear 확인 뒤 독립 contact-release entrypoint를 1회 실행했다. 시작 전 follower read-only 3회는 Moving 전 축 `0`, Torque 전 축 `1`, Goal−Present 최대 `3 raw`, Tmax `36°C`; canonical leader/follower 및 단독 포트를 확인했다. 3초 정지 gate는 통과했고 recorder/teaching/inference/replay는 시작하지 않았다.
+- fresh origin과 첫 Goal 생략 후 arm-only 상대제어가 잠시 무장됐다. 이후 `arm_step_exceeds_existing_guard`로 ABORT. **오류 전에 팔 Goal이 1회 이상 전송됐다**: Goal raw `[2032,1642,2752,2396,1612,490]→[2046,1642,2750,2388,1612,490]`. 정확한 송신 횟수는 기록되지 않았다. “모터 명령 없이 종료”라는 중간 안내는 잘못이어서 정정했다. 그리퍼 Goal `490`과 Torque 전 축 ON은 불변이며 write firewall이 gripper/torque/config write를 차단했다.
+- 종료 뒤 별도 read-only 3회는 Present raw `[2036,1643,2755,2390,1612,489]`, Moving 전 축 `0`, Torque 전 축 `1`, Tmax `36°C`로 동일. 사용자 현장 확인은 `정지·아직 접촉`; 따라서 `CONTACT_RELEASE=FAIL`, `PHYSICAL_NON_CONTACT=NO`. 포트 해제, LeLab teleoperation inactive, 자동 재시도 `0`. 일반 텔레옵이나 teaching으로 이어가지 않는다. [상세](sessions/2026-10-14-contact-release-attempt1.md). `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-14 CONTACT_RELEASE_ONLY 독립 entrypoint — offline/Jetson fake PASS, live NOT_RUN
+
+- 사용자 고정 기준선은 Torque 전 축 ON, Moving 전 축 0, Goal−Present 최대 4 raw, gripper Present `4.651%`, 현장 arm supported/stopped 및 gripper-table 접촉이다. Torque OFF→ON 변화 주체는 `UNKNOWN`으로 기록만 유지하고 원인 추적을 확장하지 않았다.
+- 일반 LeLab `/move-arm`을 건드리지 않고, 기존 `relative_start_teleop`의 fresh origin·arm-only relative target·arm-only dispatch·servo/2° step guard와 기존 Elbow guard를 재사용한 별도 `scripts/contact_release_only.py`를 만들었다. recorder/teaching/inference/replay를 시작하지 않는다. follower·leader 버스는 `connect(handshake=False)`로만 열며 `write_calibration`/`configure`를 호출하지 않고 write firewall이 config/torque 및 gripper Goal을 막는다. 현재 raw Goal/Present baseline·Torque ON·Moving 0·leader Torque OFF를 확인하고 3초 정지·fresh origin을 지나도 첫 Goal을 생략한다. 그 뒤 explicit onsite arm 확인이 있어야 arm 5축만 전송 가능하다. 기존 PIN/GRASP TCP와 calibration은 변경하지 않았다.
+- 기존 설치 `SO101Follower.send_action`는 입력된 `.pos` 키만 Goal로 보내며 누락된 gripper를 보충하지 않음을 설치 소스로 확인했다. 독립 FK는 기존 pinned URDF/GRASP TCP JSON을 읽기만 한다. 로컬 `tests.test_contact_release_only` + 기존 relative-start `24/24 PASS`, 기본 CLI dry-run은 serial/motor/torque/gripper write `0`. Jetson 격리 폴더 `/home/jetson3/so101-contact-release-20261014/`에만 배치해 설치 Python fake `7/7 PASS`, FK 입력 로드·SHA 일치·dry-run PASS; 설치 LeLab 소스/서비스/env는 변경·재시작하지 않았다. 종료 뒤 세 제어 inactive, privileged 두 USB 포트 무점유.
+- `CONTACT_RELEASE_ENTRYPOINT=PASS`는 **오프라인/fake 검증만** 의미한다. 실제 follower/leader 연결, startup stillness, 현장 contact release는 `NOT_RUN`; 실제 모터/Goal/Torque command `0`. 다음 승인 문구는 `RUN CONTACT RELEASE ONLY` 하나다. 현장에서 팔 지지·즉시 정지 준비를 다시 확인하고, live gate가 baseline 또는 leader passive 조건을 통과하지 못하면 무명령 ABORT한다. [상세](sessions/2026-10-14-contact-release-entrypoint-dry-run-ready.md). 변경 `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-14 CONTACT_RELEASE_ONLY fresh snapshot·offline 후보 — 현재 live FAIL
+
+- 사용자는 gripper/table 접촉 중이라고 보고했다. 이번 범위는 follower 6축 read-only 3회와 기존 relative-start 기반 arm-only contact-release 후보의 오프라인 검토다. 실제 Goal/Torque/motor write, teleop, 설정 변경, 서비스 재시작 `0`.
+- LeLab 세 control inactive, canonical follower `/dev/ttyACM1=5AE6058306`, privileged 포트 무점유에서 설치 Python `3.14.7`·SHA 일치 read-only 도구로 0.2초 간격 3회를 측정했다. 세 표본 모두 동일: Present raw `[2028,1643,2754,2394,1612,489]`, Goal raw `[2032,1642,2752,2396,1612,490]`, Goal−Present raw `[+4,-1,-2,+2,0,+1]`, Torque 전 축 `1`, Moving 전 축 `0`, Tmax `38°C`. 축별 °/%·온도는 [세션](sessions/2026-10-14-contact-release-offline-candidate.md)에 기록. read 후 leader/follower privileged fuser 무점유, SSH 종료.
+- 직전 read-only는 Torque 전 축 `0`, Goal 전 축 `0`이었고 Goal-only 도구는 Torque gate에서 write 전 중단됐는데, 지금 Goal은 그 이전 Present raw와 정확히 같고 Torque가 전 축 ON이다. **상태 전환 주체·시점은 UNKNOWN**; 이번 턴에서 임의로 동기화/토크 변경하지 않았다.
+- 설치된 일반 `relative_start`는 그리퍼 포함 6축 action을 보낸다. 이미 존재하는 `arm_only_relative_target`/`dispatch_guarded_relative_action(..., arm_only=True)`는 로컬 회귀 `17/17 PASS`지만 현재 설치 worker는 이 분기를 empirical recorder 세션에서만 선택한다. 설치 `SO101Follower.configure()`는 `torque_disabled()`로 전 축 토크를 OFF→ON 하고 그리퍼 설정도 쓰므로 현재 접촉 상태에서 일반 `/move-arm` 시작은 불가하다.
+- 오프라인 후보는 trace/teaching 없는 별도 contact-release 선택에서 기존 relative-start origin/arm-only dispatch를 재사용하되, follower calibration/configure 및 startup 첫 Goal send를 건너뛰고 fresh Torque/Goal/Present·3초 정지 gate 후 **팔 5축의 상승 방향 목표만** 허용하며 gripper Goal은 보내지 않는 것이다. 현재 이 통합 분기는 `NOT_IMPLEMENTED/NOT_DEPLOYED`, leader 상태·원인 불명 상태 전환·startup no-jump 검증도 남아 `CONTACT_RELEASE_MODE_READY=FAIL`, `GRIPPER_FROZEN=NO`(현재 일반 entrypoint). `NEXT_LIVE_COMMAND=NONE`; 현장 별도 승인 전 실제 contact release 금지. 변경 `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-14 CONTACT_RELEASE_ONLY entrypoint read-only audit — live NOT_RUN
+
+- 사용자가 현재 그리퍼와 테이블의 접촉을 보고해 teaching/gripper open 중단을 유지했다. 이번 요청은 `teleop_trace_pre_connect_json`의 역할과 recorder 없는 relative-start 실행 경로 확인만이며 실제 teleop 승인은 아니다.
+- Jetson 설치 Python `3.14.7`, 실제 8000 `lelab.server`/`teleoperate.py`를 읽기 전용으로 확인했다. 실행 중 서비스 환경은 `LELAB_TELEOP_MODE=relative_start`, `LELAB_TELEOP_TRACE_KIND=empirical_relative_teaching`, `LELAB_TELEOP_TRACE_ROOT` 설정, `LELAB_TELEOP_TRACE_PRE_CONNECT_JSON` 미설정, `LELAB_TELEOP_TRACE_ONCE_TICKET` 경로는 남았으나 파일은 없음. pre-connect JSON은 trace 시작 전 읽는 snapshot 파일 경로이지 launcher가 아니다. 실제 launcher는 `POST /move-arm`→`handle_start_teleoperation`; UI Teleoperation 버튼도 live 시작이므로 누르지 않았다.
+- 현재 API teleoperation/recording/inference 모두 inactive, leader/follower privileged fuser 무점유, replay 관련 별도 프로세스 미발견. 일반 trace 없는 `relative_start`는 같은 `/move-arm` 경로에서 follower origin을 잡지만 **그리퍼 포함 6축** 목표를 보낸다. 시작 전 follower/leader connect, calibration/configure가 있으며 토크 관련 write 가능성이 있으므로 직전 Torque 상태 불일치 및 현재 table contact에서 이를 `CONTACT_RELEASE_ONLY`에 안전하다고 승인할 수 없다. 현재 trace root가 설정된 채로는 pre-connect JSON 누락 때문에 empirical startup도 fail-closed될 가능성이 높다.
+- 설정 변경·서비스 재시작·serial open·Goal/Torque/motor command·teleop 시작 모두 `0`/`NOT_RUN`. `NEXT_LIVE_COMMAND=NONE`; 접촉 해제용으로 그리퍼 목표를 배제한 경로와 startup torque/Goal 상태를 별도 검증하고 현장 승인을 받기 전에는 `/move-arm`을 호출하지 않는다. [상세](sessions/2026-10-14-contact-release-entrypoint-readonly-audit.md). 변경 `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-14 Goal/Present raw 동기화 시도 — Torque OFF gate FAIL, Goal write 0
+
+- 사용자 승인 범위는 현재 물리 자세를 바꾸지 않고 **Torque OFF 상태에서** 여섯 축 fresh Present raw를 Goal raw로 1회 복사하는 것까지였다. 사용자는 현장 팔 지지·정지·비접촉·즉시 중단 준비를 확인했다. 토크 ON, 그리퍼 개방, 텔레옵, teaching은 승인 범위가 아니다.
+- 시작 전 기존 read-only 도구 3회는 모두 동일: Present raw `[2032,1642,2752,2396,1612,490]`, arm `[-6.109890,-27.472527,+67.560440,+27.736264,-22.197802]°`, gripper `4.712362%`, Goal raw 전 축 `0`, Torque 전 축 `0`, Moving 전 축 `0`, Tmax `38°C`. LeLab 3제어 inactive, canonical follower `/dev/ttyACM1=5AE6058306`, privileged fuser 무점유였다.
+- 기존 hold 복구 도구는 Goal 직후 Torque ON까지 실행해 이번 범위에 맞지 않아, Goal-only 전용 도구를 추가했다. 로컬 fake `6/6 PASS`, Jetson 설치 Python compile·배치 SHA 일치. 그러나 실제 전용 도구의 **첫 연결 후 snapshot에서 `torque_not_all_off`**가 나와 Goal write 전에 fail-closed 종료했다. 어느 축이 ON인지 이 시도는 기록하지 못했고, 최초 read-only와 달라진 원인은 `UNKNOWN`; 임의로 OFF하거나 재시도하지 않았다.
+- `GOAL_PRESENT_SYNC=FAIL`, 실제 Goal/Torque/motor command `0`, 이후 Goal readback `NOT_RUN`, 현 시점 Torque 상태 `UNKNOWN`(실행 직전 OFF gate 실패), 물리 이동 `NOT_VERIFIED`(추가 현장 확인 없음). 종료 뒤 LeLab 3제어 inactive, privileged follower 포트 무점유, SSH 종료. `NEXT_LIVE_COMMAND=NONE`; fresh 원인 확인과 현장 재확인 전 Torque ON/그리퍼/teaching 금지. [상세](sessions/2026-10-14-goal-present-sync-aborted-torque-gate.md). 변경 `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-14 그리퍼 재개방 준비 — Torque OFF·자세 변경으로 live 차단
+
+- 사용자는 C approach teaching 전 실제 손가락이 닫혀 있다고 정정했고, 이번 run의 이전 수용 개방값(Gripper Present `34.577723%`, 과거 Goal raw `985`)을 넘기지 않으며 전체 opening sweep 비접촉을 현장에서 확인했다. 아직 새 gripper-only RUN 승인은 받지 않았다.
+- Jetson 8000 세 control inactive, privileged canonical follower `/dev/ttyACM1=5AE6058306` 포트 무점유 확인 뒤 쓰기 API를 막은 follower read-only 3회가 동일했다. 현 Present arm `[-6.109890,-27.472527,+67.560440,+27.736264,-22.197802]°`, gripper encoder `4.712362%/raw 490`; Moving 전 축 `0`, Tmax `38°C`. **Torque_Enable 전 축 `0`, Goal raw 전 축 `0`**으로 직전 teaching attempt1 종료 상태(Torque ON, Lift `-67.385°`, Elbow `+83.648°`)와 크게 달랐다. read-only 측정 종료 뒤 포트 무점유.
+- 사용자에게 현장 상태를 물었고 **정지·비접촉, Torque OFF와 자세 변경은 의도한 상태**라고 확인받았다. 이 확인은 토크 재인가나 Goal write 승인이 아니다. 현재 Goal raw `0`에서 토크를 켜면 예기치 않은 이동 가능성을 배제할 수 없어 명령을 보내지 않았다. gripper target/arm target/Goal/Torque write `0`; teleop·teaching `NOT_RUN`, `PRE_ARM_SETTLE` 실제 연결 `NOT_RUN`, GRASP/LIFT `NOT_RUN`.
+- 다음은 현 자세에서 토크 재인가 범위와 순서를 별도 승인받고, 현장 안전/Goal=Present 동기화 절차를 검증하는 것이다. 기존 그리퍼 runner의 과거 시작 자세 gate를 우회하지 않는다. [상세](sessions/2026-10-14-gripper-open-held-torque-off.md). 변경 `NOT_COMMITTED/NOT_PUSHED`, 이슈 `NOT_RUN`.
+
+## 2026-10-14 C approach teaching retry — gripper physical opening 미충족으로 시작 전 HOLD
+
+- 사용자가 `RUN SUPERVISED C APPROACH TEACHING RETRY`를 승인하고 현장 정지·비접촉·리더 3초 정지 준비를 확인했다. 그러나 곧 **실제 그리퍼가 벌어져 있지 않다**고 정정했다. C를 두 finger 사이에 비접촉으로 넣는 이번 teaching의 물리 조건이 성립하지 않아 시작 전 중단했다.
+- Jetson SSH 로그인 후 teleoperation/recording/inference API가 모두 inactive임만 읽기 전용 확인했다. fresh follower snapshot, 새 one-shot ticket, 서비스 설정/재시작, 실제 serial open, teleop 시작, Goal/Torque/motor write 모두 `0`/`NOT_RUN`. 기존 소진 ticket의 fail-closed 상태를 변경하지 않았다. `TEACHING_ATTEMPT2=NOT_STARTED/HOLD`, GRASP/LIFT `NOT_RUN`.
+- 다음은 현장 finger sweep 비접촉 확인과 **별도 gripper-only opening 승인** 또는 사용자가 현재 opening으로 C가 안전하게 들어갈 수 있다고 물리적으로 재확인하는 것이다. encoder 수치만으로 실제 opening을 판정하지 않는다. [상세](sessions/2026-10-14-c-approach-teaching-retry-held-gripper-closed.md). 이번 변경 `NOT_COMMITTED/NOT_PUSHED`, 이슈 `NOT_RUN`(대상 미지정).
+
+## 2026-10-14 C approach PRE_ARM_SETTLE — Jetson 설치본 fake/dry-run PASS, 실제 teaching NOT_RUN
+
+- 사용자 승인 범위는 Jetson 패치 배치·모터 비동작 검증이다. 설치 Python `3.14.7`, 실제 설치 경로 `/home/jetson3/.local/share/uv/tools/lelab/lib/python3.14/site-packages/lelab/`를 확인했다. 8000 `lelab.service`의 teleoperation/recording/inference 모두 inactive, privileged canonical `/dev/ttyACM0`·`/dev/ttyACM1` fuser 무점유에서 작업했다.
+- 설치 전 SHA `teleoperate.py 3235370b…12bb6`, `teleop_cycle_trace.py 032bc9e9…65684`를 격리 폴더 `/home/jetson3/so101-prearm-20261014-1LuthP/installed-backup/`에 원본 그대로 백업했다. 패치 후보를 설치한 뒤 SHA `3a8d6a13…3122f`, `5e19e172…94fdb`가 로컬·격리 stage와 일치했고 설치 Python compile/import PASS다.
+- Jetson 설치 Python에서 staged 및 **실제 설치본 worker 소스**를 fake leader/follower로 각각 실행했다. 연결 직후 Moving 1·1 뒤 안정 PASS, Goal 변경 ABORT/ticket 보존, Present drift ≥1° ABORT/ticket 보존, settle 뒤 fresh relative origins, arm/start 전 follower send 0, 첫 Goal/Present/Moving/Load/Temperature와 `startup.jsonl`·`startup_summary.json` 생성, 시작 시에만 ticket 소비 PASS. 일반 relative-start fake 보존, legacy absolute trace 충돌 fail-closed, 3회 fake final read도 PASS다.
+- 서비스만 idle 상태에서 재시작했고 새 PID의 health 정상이다. `server.py`가 patched `teleoperate`를 import하며 설치 파일 SHA와 별도 import check가 일치한다. 재시작 후 세 제어 inactive, privileged 두 포트 무점유. 과거 소진 ticket 경로와 미설정 pre-connect snapshot을 그대로 두어 live teleop은 fail-closed다. 실제 serial open/Goal/Torque/motor command `0`, `TELEOP_ACTUAL_RUN=false`; physical settle behavior는 `NOT_VERIFIED`다.
+- [상세](sessions/2026-10-14-c-approach-pre-arm-settle-jetson-deploy.md). 다음 별도 승인 문구 `RUN SUPERVISED C APPROACH TEACHING RETRY` 전에는 fresh 쓰기차단 pre-connect snapshot·새 one-shot ticket·현장 정지/비접촉 확인이 필요하다. 이번 변경 `NOT_COMMITTED/NOT_PUSHED`; GitHub 이슈 갱신 `NOT_RUN`(대상 번호 미지정).
+
+## 2026-10-14 C approach teaching PRE_ARM_SETTLE — 로컬 fake PASS, Jetson 적용 보류
+
+- attempt1 `FAIL_AT_STARTUP_GATE`, trace cycle `0`, 종료 후 Elbow drift `+1.318681°`를 기준선으로 유지한다. gate 완화·자동 재시도·GRASP/LIFT는 없다.
+- empirical trace에 한해 별도 write-blocked pre-connect snapshot(60초 이내)을 요구하고, follower 연결 직후 calibration/configure 전에 첫 Goal/Present/Moving/Load/Temperature를 같은 bus owner로 기록하도록 LeLab worker 패치를 준비했다. 이후 매 0.05초 read-only `PRE_ARM_SETTLE`에서 전 축 Moving=0, raw Present 변화 1 count 이내가 연속 1.0초일 때만 통과한다. Goal 변화, arm Present의 pre-connect 대비 1° 이상 drift, 통신/온도 오류, 5초 timeout은 ABORT한다. 이전처럼 최초 Moving=1 자체만으로 ticket을 소비하지 않는다.
+- settle 뒤 fresh leader/follower origin을 읽고 기존 3초 startup stillness를 통과한 뒤 `TEACHING_ARMED`, 첫 실제 teleop loop 진입 직전에만 one-shot ticket을 소비한다. pre-arm/armed-before-start 실패 시 ticket은 보존한다. `startup.jsonl`에 pre-connect/first-post-connect/매 settle sample/SETTLED/ABORT, `startup_summary.json`에 첫 Goal·Moving, settled Goal·Present, 축별 drift를 남긴다.
+- 로컬 unit `34/34 PASS`, mock LeLab worker fake에서 startup·fresh origin 순서·arm 전 follower send 0·gripper Goal 제외·3회 final fake read·파일 생성·일반 relative-start 보존·legacy trace 충돌 fail-closed PASS. patch dry-run, Python compile, diff-check PASS. 실제 serial open/Goal/Torque/motor command `0`.
+- **Jetson 설치본 배치·실제 Python fake·서비스 재시작·하드웨어 연결은 NOT_RUN.** 로컬 SSH batch 인증 실패(`Permission denied`), 따라서 Jetson runtime READY 또는 live retry 승인 요청으로 보고하지 않는다. 기존 Jetson one-shot ticket 소비 상태도 유지된다. 다음은 별도 비동작 배치/설치본 fake 검증, 이후 새 현장 승인이다. [상세](sessions/2026-10-14-c-approach-pre-arm-settle-local-ready.md). 이번 변경 `NOT_COMMITTED/NOT_PUSHED`; 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-14 CURRENT→C APPROACH supervised teaching 시도 1 — startup Moving gate FAIL
+
+- 사용자 `RUN CURRENT TO C APPROACH TEACHING`과 현장 정지·비접촉·opening 유지 확인 후 fresh read-only 3회가 동일했다. arm `[-6.286,-67.385,+82.330,+28.440,-22.110]°`, gripper encoder `5.018%`, Moving 전 축 `0`, Tmax `38°C`, Torque 전 축 `1`. 세 LeLab 제어 inactive, canonical USB leader/follower 확인, privileged 두 포트 무점유였다.
+- Jetson one-shot `empirical_relative_teaching` trace를 실제 8000 worker 환경에 설정하고 서비스를 idle 상태에서 재시작했다. ticket/환경 적용 확인 후 UI로 supervised teleop을 1회 시작했으나, worker가 첫 cycle 전에 `startup follower moving before teaching`으로 종료됐다. trace manifest `cycle_count=0`, `error_count=0`, `stop_reason=worker_error`, `data_complete=false`; Goal/Present trajectory `NOT_RECORDED`. 자동 재시도 `0`; 그리퍼 닫기·GRASP·LIFT `NOT_RUN`. 초기 LeRobot calibration/config/torque 관련 write 가능성을 포함해 전체 하드웨어 write `0`이라고 주장하지 않는다.
+- 종료 뒤 API `teleoperation_active=false`, privileged 포트 무점유, 사용자 정지·비접촉 확인. read-only 3회 동일 arm `[-6.286,-67.385,+83.648,+28.440,-22.198]°`, gripper encoder `5.018%`, Moving 전 축 `0`, Tmax `38°C`, Torque 전 축 `1`. 시작 대비 Elbow `+1.319°`, Wrist Roll `−0.088°`; Elbow Goal−Present `−1.846°`. one-shot ticket은 소비되어 현재 서비스의 재시작은 fail-closed; 새 승인 전 재무장·재실기 없음. [상세](sessions/2026-10-14-c-approach-teaching-attempt1.md). 변경 `NOT_COMMITTED/NOT_PUSHED`, 이슈 갱신 `NOT_RUN`.
+
+## 2026-10-14 C approach teaching arm-only 배치·예기치 않은 untraced 텔레옵 시작 — STOPPED
+
+- 사용자는 이번 trace를 canonical PICK_READY 전체 경로가 아닌 **fresh CURRENT→C APPROACH 구간만** 기록하기로 정했다. 현장에서 정지·비접촉·현재 실제 finger opening 충분함을 확인했다. Jetson user `lelab.service` active, 세 제어 idle, privileged leader/follower `fuser` 무점유였으며 read-only 3회 CURRENT는 arm `[-6.286,-67.385,+81.538,+28.000,-22.198]°`, gripper encoder `4.957%`, Moving 전 축 `0`, Tmax `39°C`; FK GRASP TCP `[33.325,-223.854,59.061] mm`였다. 실제 aperture는 사용자의 현장 확인에 한정한다.
+- teaching trace에서만 `relative_start` arm 5축을 전송하고 gripper Goal을 **아예 제외**하도록 최소 수정했다. 기존 full-cycle/일반 relative-start는 보존한다. 로컬 관련 `28/28 PASS`; Jetson staged·설치본 fake worker에서 7 cycle 기록, gripper Goal send `0`, Goal/Present/Moving/signed Load/Temperature/FK/3회 fake pose 출력 PASS. 기존 설치 3파일을 SHA 확인 후 격리 폴더에 백업하고 설치·서비스 재시작했다. 실제 trace 설정/ticket은 **아직 무장하지 않았다**.
+- 이후 LeLab UI의 `Teleoperation` 버튼을 단순 설정 화면으로 오인해 눌러, trace가 무장되지 않은 짧은 live relative-start 세션이 **예기치 않게 시작**됐다. 즉시 뒤로 가기로 종료했고 UI 알림, API `teleoperation_active=false`, privileged 두 포트 무점유를 확인했다. 이 세션의 실제 Goal 명령 수는 별도 trace가 없어 미확정이며 `MOTOR_COMMAND=0`이라고 주장하지 않는다. read-only 3회 post-stop은 arm `[-6.286,-67.385,+82.330,+28.440,-22.110]°`, gripper encoder `5.018%`, Moving 전 축 `0`, Torque 전 축 `1`, Tmax `39°C`; 시작 전 대비 Elbow `+0.791°`, Wrist Flex `+0.440°` 변화다. 사용자가 현장 정지·비접촉을 재확인했다.
+- `C_APPROACH_EMPIRICAL=NOT_RECORDED`, trace `NOT_RECORDED`, GRASP/LIFT `NOT_RUN`. 새 명시적 승인 전 trace 무장·텔레옵 재시작 없음. [상세](sessions/2026-10-14-c-approach-arm-only-deploy-and-untraced-start.md). 변경 `NOT_COMMITTED/NOT_PUSHED`; 이슈 갱신 `NOT_RUN`(대상 미지정).
+
+## 2026-10-14 C approach 전체 supervised teaching 요청 — 현재 세션에서 기록 시작 HOLD
+
+- 사용자는 `PICK_READY/START_POSE→C PRE_APPROACH→C APPROACH` 전체 follower trace를 요청했고, LeLab 텔레옵을 이미 켰다고 알렸다. 현 세션의 trace 설정·single-owner·startup stillness는 확인되지 않았으며 새 recorder는 세션 생성 시에만 붙는다. 기존 세션에 중간부터 붙여 전체 trace로 표시하지 않는다.
+- 현재 `relative_start`는 leader의 gripper delta도 follower 목표에 포함한다. 직전 gripper encoder 변화와 물리 손가락 무동작 보고 때문에 실제 aperture는 `UNKNOWN`; 이번 조건인 gripper opening 유지와 무닫힘이 현재 설치 동작으로 보장되지 않는다.
+- 사용자에게 leader 정지와 기존 텔레옵의 정상 종료를 요청했다. 종료 뒤 단일 세션, 시작 자세, gripper Goal 차단, trace one-shot 설정, 3초 stillness를 검증하기 전 새 teaching을 시작하지 않는다. 이번 턴 motor/Goal/Torque write `0`; trace `NOT_RECORDED`, approach/GRASP/LIFT `NOT_RUN`. [상세](sessions/2026-10-14-c-approach-teaching-start-hold.md).
+
+## 2026-10-14 C 그리퍼 단독 20% 닫기 — 레지스터 변화·물리 동작 FAIL/UNVERIFIED
+
+- 사용자가 closing sweep 비접촉·정지 준비와 `RUN GRIPPER CLOSE TO 20 ONLY`를 승인했다. singleton 그리퍼 Goal `raw 740`을 **1회** 전송했고 arm target/torque write/자동 재시도는 `0`. **모터 레지스터의** Present는 `raw 918→747`(`30.905753→20.440636%`)로 변했고 arm command 중 Present drift `0°`, arm Goal raw 불변, Moving 전 축 `0`, Tmax `46°C`였다. 그러나 사용자가 종료 후 **실제 그리퍼 손가락은 움직이지 않았다**고 정정했다. 따라서 `GRIPPER_REGISTER_RESPONSE=PASS`, `PHYSICAL_FINGER_MOTION=FAIL/UNVERIFIED`, `GRIPPER_CLOSE_TO_20_PASS=false`로 정정한다. Load는 diagnostic only(최종 gripper `+40`, transient 최대 `+208`). 원인 미확정, 추가 명령·자동 재시도 금지.
+- 사용자의 `STOPPED`와 feedback으로 `physical_stop=FEEDBACK_AND_HUMAN_CONFIRMED`(정지 확인일 뿐 손가락 이동 확인 아님). 종료 후 read-only 3회 arm `[+14.197802,+3.384615,+54.637363,-45.846154,-22.549451]°`, 그리퍼 **encoder 값** `20.440636%/raw 747`, Torque 전 축 `1`, LeLab 세 control inactive, leader/follower port free. 실제 finger aperture는 **UNKNOWN**. SUPERVISED TEACHING은 `NOT_RUN/HOLD`; 손가락·링크 상태를 현장에서 확인하기 전 추가 motion 없음. [상세](sessions/2026-10-14-c-gripper-close-to-20-attempt1.md).
+- 전용 runner/config를 Jetson 격리 폴더에 배치했다. 사용자의 물리 무동작 지적 후, **눈에 보이는 finger 이동**을 별도로 확인하지 않으면 PASS를 출력하지 않도록 runner를 고쳐 Jetson SHA 일치·compile/dry-run, 로컬 fake/회귀 `27/27 PASS`를 확인했다. 실제 재실행 `0`; 변경 `NOT_COMMITTED/NOT_PUSHED`, 사용자 소유 SVG/PDF 삭제는 건드리지 않았다.
+
+## 2026-10-14 C empirical teaching 종료 후 3회 측정 — 자세 기록, 자동 접근 보류
+
+- 사용자는 현장 `정렬·종료·비접촉`을 확인했다. 기존 LeLab 텔레옵이 이미 활성·포트 소유 중이어서 본 작업은 새 세션을 시작하거나 recorder를 무장하지 않았다. 종료 후 LeLab 세 control inactive, 두 포트 무점유를 확인하고 쓰기 차단 follower 측정을 정확히 3회 수행했다. agent motor/Goal/Torque write `0`, 종료 후 포트 해제, Moving 전 축 `0`, Torque 전 축 `1`, Tmax `42°C`; `physical_stop=FEEDBACK_AND_HUMAN_CONFIRMED`.
+- Present `[+14.285714,+3.296703,+54.637363,-45.846154,-22.549451]°`, gripper `30.905753%`. 동일 3회 표본과 FK TCP `[-67.465500,-331.309799,+100.623809] mm`를 `configs/poses.yaml`에 `C_PREAPPROACH_EMPIRICAL=RECORDED`로 보존했다. 이는 **측정 endpoint**이며 자동 접근 PASS가 아니다.
+- 사용자가 `C PREAPPROACH PHYSICALLY ALIGNED`로 실제 gripper center/C 정렬을 확인하고, 이어 현재 `30.906%` 개방이 C를 비접촉으로 받아들이기에 충분하다고 확인했다. 이는 **현재 측정 상태 한정**이며 global opening gate를 바꾸지 않는다. 기존 C pre-approach 기준점과 FK XY 차이 `36.316870 mm`는 그대로이며 원인을 확정하지 않는다. 실기 teaching trajectory는 recorder 미무장으로 `NOT_RECORDED`; replay `NOT_APPROVED`, 기존 자동 경로의 `PRE_APPROACH_PASS=false`, APPROACH/GRASP/LIFT `NOT_RUN`. 새 APPROACH는 empirical pose에서 별도 오프라인 검증·승인 전 명령 없음; [상세](sessions/2026-10-14-c-preapproach-empirical-post-stop.md). 이번 변경 `NOT_COMMITTED/NOT_PUSHED`.
+- empirical 자세에서 TCP XY/orientation을 유지하며 Z `100.624→80.000 mm`로 내리는 12-waypoint 오프라인 후보를 계산했다. max step `0.941°`, predicted XY drift max `0.481 mm`, TCP/table point proxy minimum `25.341 mm`, self centerline proxy `64.775 mm`, servo margin `40.374°`. 현재 Elbow Goal−Present `−3.077°`와 과거 미세 보정 무반응 때문에 **live ready 아님**; full mesh/environment `NOT_VERIFIED`, 실행 runner 배치·실기 `NOT_RUN`. 기존 PIN TCP approach plan은 사용하지 않는다.
 
 ## 2026-10-14 C empirical teaching trace — Jetson 배치·fake PASS, 실기 NOT_RUN
 

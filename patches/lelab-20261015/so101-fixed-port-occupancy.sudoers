@@ -1,0 +1,2 @@
+Cmnd_Alias SO101_FIXED_PORT_OCCUPANCY = /usr/local/sbin/so101-fixed-port-occupancy ""
+jetson3 ALL=(root) NOPASSWD: SO101_FIXED_PORT_OCCUPANCY

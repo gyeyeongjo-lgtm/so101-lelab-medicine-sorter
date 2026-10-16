@@ -1,0 +1,47 @@
+--- a/lelab/teleoperate.py
++++ b/lelab/teleoperate.py
+@@ -332,6 +332,20 @@
+                                 first_relative_target_pending = False
+                             else:
+                                 action = arm_only_relative_target(leader_now, origins) if empirical_arm_only else relative_target(leader_now, origins)
++                            # Record the requested target and fresh actual pose
++                            # before either servo-range or step-guard decision.
++                            pre_guard_step_violations = None
++                            if empirical_arm_only:
++                                pre_guard_step_violations = oversized_arm_steps(
++                                    action, previous_relative_target
++                                )
++                                cycle_trace.record_relative_request(
++                                    leader_action=leader_now,
++                                    relative_target=action,
++                                    previous_target=previous_relative_target,
++                                    step_violations=pre_guard_step_violations,
++                                    actual_diagnostics=read_same_owner_diagnostics(robot, grasp_fk),
++                                )
+                             violations = out_of_range_targets(action, servo_bounds)
+                             if violations:
+                                 signature = tuple(sorted(violations.items()))
+@@ -345,8 +359,7 @@
+                                 last_relative_hold = signature
+                             else:
+-                                step_violations = oversized_arm_steps(
+-                                    action, previous_relative_target
+-                                )
++                                step_violations = pre_guard_step_violations if empirical_arm_only else oversized_arm_steps(
++                                    action, previous_relative_target)
+                                 if step_violations:
+                                     raise RuntimeError(
+                                         "relative_start arm command step exceeds 2 degrees: "
+@@ -369,5 +382,12 @@
+                                 previous_elbow_target_deg = dispatch.previous_elbow_target_deg
+                                 previous_relative_target = dispatch.previous_relative_target
+                                 command_sent = dispatch.sent
++                                if empirical_arm_only and command_sent and not cycle_trace.first_sent_goal_recorded:
++                                    cycle_trace.record_first_sent_goal(
++                                        requested_target=action,
++                                        goal_raw=robot.bus.sync_read(
++                                            "Goal_Position", normalize=False, num_retry=2
++                                        ),
++                                    )
+                         else:
+                             if first_action is not None:

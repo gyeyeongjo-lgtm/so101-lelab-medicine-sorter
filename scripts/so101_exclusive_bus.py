@@ -20,6 +20,7 @@ from urllib.error import URLError
 
 FOLLOWER_SERIAL = "5AE6058306"
 FOLLOWER_PORT = Path("/dev/ttyACM0")
+FIXED_PORT_OCCUPANCY_HELPER = Path("/usr/local/sbin/so101-fixed-port-occupancy")
 
 
 class PreflightError(RuntimeError):
@@ -74,6 +75,37 @@ class SystemBusProbe:
     def owner_pids(self, port: Path) -> set[int]:
         if not port.exists():
             raise PreflightError("follower_port_missing")
+        if port not in (Path("/dev/ttyACM0"), Path("/dev/ttyACM1")):
+            raise PreflightError("port_ownership_query_outside_fixed_scope")
+        if FIXED_PORT_OCCUPANCY_HELPER.is_file():
+            result = self._run(["sudo", "-n", str(FIXED_PORT_OCCUPANCY_HELPER)])
+            if result.returncode != 0 or result.stderr.strip():
+                raise PreflightError("port_ownership_unknown")
+            records: dict[Path, list[tuple[str, str, str]]] = {
+                Path("/dev/ttyACM0"): [], Path("/dev/ttyACM1"): []}
+            for line in result.stdout.splitlines():
+                fields = line.split("\t")
+                if len(fields) != 4:
+                    raise PreflightError("port_ownership_unknown")
+                try:
+                    record_port = Path(fields[0])
+                except TypeError as error:
+                    raise PreflightError("port_ownership_unknown") from error
+                if record_port not in records:
+                    raise PreflightError("port_ownership_unknown")
+                records[record_port].append((fields[1], fields[2], fields[3]))
+            if any(not values for values in records.values()):
+                raise PreflightError("port_ownership_unknown")
+            owners: set[int] = set()
+            for state, pid_text, name in records[port]:
+                if state == "FREE" and pid_text == "-" and name == "-":
+                    if len(records[port]) != 1:
+                        raise PreflightError("port_ownership_unknown")
+                    continue
+                if state != "OCCUPIED" or not pid_text.isdecimal() or not name:
+                    raise PreflightError("port_ownership_unknown")
+                owners.add(int(pid_text))
+            return owners
         result = self._run(["fuser", str(port)])
         # On this Jetson, an unprivileged fuser reports /proc permission errors
         # even when the tty is free. Do not infer "unowned" from that partial

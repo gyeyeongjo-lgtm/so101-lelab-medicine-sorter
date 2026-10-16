@@ -4,10 +4,12 @@ pose_roles:
   HOME: STORAGE_PARKING_ONLY
   SAFE_HIGH: RECOVERY_FALLBACK_OPTIONAL_TRANSPORT
   PICK_READY: CANONICAL_RUNTIME_START_VISION_READY
+  C_PREAPPROACH_EMPIRICAL: HUMAN_TAUGHT_C_PRE_APPROACH_NOT_AUTOMATICALLY_REPLAYABLE
 pose_status:
   HOME: RECORDED
   SAFE_HIGH: RECORDED
   PICK_READY: RECORDED
+  C_PREAPPROACH_EMPIRICAL: RECORDED
 poses:
   SAFE_HIGH:
     name: SAFE_HIGH
@@ -372,3 +374,51 @@ poses:
       and zero torque changes. Present_Load remains diagnostic only. Automatic
       A/B/C and RED/GREEN/BLUE paths and full mesh/environment collision remain
       NOT_VERIFIED.
+  C_PREAPPROACH_EMPIRICAL:
+    name: C_PREAPPROACH_EMPIRICAL
+    sample_count: 3
+    recorded_at: '2026-10-14T14:58:08+09:00'
+    joints:
+      shoulder_pan: {raw_mean: 2264.0, raw_std: 0.0, degree_mean: 14.285714285714286, degree_std: 0.0}
+      shoulder_lift: {raw_mean: 1992.0, raw_std: 0.0, degree_mean: 3.2967032967032965, degree_std: 0.0}
+      elbow_flex: {raw_mean: 2605.0, raw_std: 0.0, degree_mean: 54.637362637362635, degree_std: 0.0}
+      wrist_flex: {raw_mean: 1559.0, raw_std: 0.0, degree_mean: -45.84615384615385, degree_std: 0.0}
+      wrist_roll: {raw_mean: 1608.0, raw_std: 0.0, degree_mean: -22.54945054945055, degree_std: 0.0}
+      gripper: {raw_mean: 918.0, raw_std: 0.0, degree_mean: 30.905752753977968, degree_std: 0.0}
+    fk_grasp_tcp_mm: {x: -67.46549974424643, y: -331.3097987274941, z: 100.62380905651159}
+    ideal_ik_reference:
+      joints_deg: {shoulder_pan: 14.845130, shoulder_lift: -16.993354, elbow_flex: 70.591582, wrist_flex: -37.176891, wrist_roll: -12.536328}
+      joint_difference_empirical_minus_ideal_deg: {shoulder_pan: -0.5594157142857128, shoulder_lift: 20.290057296703296, elbow_flex: -15.954219362637367, wrist_flex: -8.669262846153849, wrist_roll: -10.013122549450552}
+      fk_grasp_tcp_mm: {x: -62.635356, y: -295.315566, z: 100.000001}
+      task_space_difference_empirical_minus_ideal_mm: {x: -4.830143744246428, y: -35.994232727494136, z: 0.6238080565115922}
+      task_space_position_error_norm_mm: 36.32222755727493
+    temperature_c:
+      shoulder_pan: {mean: 33.666666666666664, maximum: 34, std: 0.4714045207910317}
+      shoulder_lift: {mean: 35.0, maximum: 35, std: 0.0}
+      elbow_flex: {mean: 42.0, maximum: 42, std: 0.0}
+      wrist_flex: {mean: 35.0, maximum: 35, std: 0.0}
+      wrist_roll: {mean: 33.0, maximum: 33, std: 0.0}
+      gripper: {mean: 37.0, maximum: 37, std: 0.0}
+    telemetry_at_record:
+      goal_raw: {shoulder_pan: 2265, shoulder_lift: 1983, elbow_flex: 2570, wrist_flex: 1558, wrist_roll: 1607, gripper: 911}
+      present_raw: {shoulder_pan: 2264, shoulder_lift: 1992, elbow_flex: 2605, wrist_flex: 1559, wrist_roll: 1608, gripper: 918}
+      moving: {shoulder_pan: 0, shoulder_lift: 0, elbow_flex: 0, wrist_flex: 0, wrist_roll: 0, gripper: 0}
+      torque_enable: {shoulder_pan: 1, shoulder_lift: 1, elbow_flex: 1, wrist_flex: 1, wrist_roll: 1, gripper: 1}
+      present_load_diagnostic: {shoulder_pan: 0, shoulder_lift: 48, elbow_flex: 152, wrist_flex: 0, wrist_roll: 0, gripper: 40}
+      motor_write_calls: 0
+      torque_change_calls: 0
+      port_released_on_exit: true
+    teleop_trajectory_trace: NOT_RECORDED
+    physical_alignment: HUMAN_CONFIRMED
+    gripper_opening_for_c: HUMAN_CONFIRMED_CURRENT_30_905753_PERCENT
+    verification_status: FK_C_GEOMETRY_DISCREPANCY
+    automatic_replay: NOT_APPROVED
+    note: >-
+      User confirmed C pre-approach physical alignment after teleop ended and
+      finger/link noncontact. Three post-stop read-only samples were identical and all
+      Moving registers were zero. The teaching recorder was not armed, so the
+      movement trajectory was not captured. FK differs from the existing C
+      pre-approach reference by 36.317 mm in XY and the gripper opening is
+      30.906%, not the earlier 34.517%. The user subsequently confirmed this
+      current opening accepts C without finger contact. FK/C geometry still
+      differs, and no automatic replay or approach command is approved.

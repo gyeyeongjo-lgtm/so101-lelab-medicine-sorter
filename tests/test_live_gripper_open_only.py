@@ -18,6 +18,13 @@ from scripts.live_gripper_open_only import (
     load_plan,
     run,
 )
+from scripts.live_gripper_close_to_20_only import (
+    RUN_PHRASE as CLOSE_RUN_PHRASE,
+    SCOPE as CLOSE_SCOPE,
+    SITE_PHRASE as CLOSE_SITE_PHRASE,
+    load_plan as load_close_plan,
+    run as run_close,
+)
 from scripts.staged_cycle_execution import Feedback, JOINT_UNITS
 
 
@@ -529,6 +536,74 @@ class LiveGripperOpenOnlyTests(unittest.TestCase):
         result = evaluate_gripper_open(before, after, plan)
         self.assertFalse(result["arm_present_drift_within_limit"])
         self.assertFalse(result["pass"])
+
+
+class LiveGripperCloseTo20Tests(unittest.TestCase):
+    PLAN = Path("configs/live_gripper_close_to_20_only_20261014.json")
+
+    def _transport(self, **kwargs):
+        plan = load_close_plan(self.PLAN)
+        return FakeTransport({
+            **plan["confirmed_start_arm_deg"],
+            "gripper": plan["confirmed_start_gripper_percent"],
+        }, **kwargs)
+
+    def _run(self, transport, answers):
+        return run_close(
+            self.PLAN, live=True, confirm_scope=CLOSE_SCOPE,
+            input_fn=lambda _prompt: next(answers),
+            transport_factory=lambda: transport,
+            settle_fn=settled_immediately,
+            controller_factory=FakeController,
+            source_hash_fn=lambda _robot: EXPECTED_SO_FOLLOWER_SOURCE_SHA256,
+            bus_source_hash_fn=lambda _robot: dict(EXPECTED_BUS_SOURCE_HASHES),
+        )
+
+    def test_close_plan_and_dry_run_send_nothing(self):
+        plan = load_close_plan(self.PLAN)
+        self.assertFalse(plan["arm_joint_target_allowed"])
+        self.assertFalse(plan["automatic_retry"])
+        opened = []
+        self.assertEqual(run_close(
+            self.PLAN, live=False, confirm_scope=None,
+            transport_factory=lambda: opened.append(True)), 0)
+        self.assertEqual(opened, [])
+
+    def test_exactly_one_gripper_only_close(self):
+        transport = self._transport()
+        answers = iter([CLOSE_RUN_PHRASE, CLOSE_SITE_PHRASE, "STOPPED"])
+        with patch("sys.stdout", new_callable=io.StringIO) as stdout:
+            result = self._run(transport, answers)
+        self.assertEqual(result, 0)
+        self.assertEqual(transport.gripper_only_sends, [20.012239902080783])
+        self.assertEqual(transport.full_goal_send_calls, 0)
+        self.assertEqual(transport.close_after_calls, 1)
+        self.assertIn("GRIPPER_CLOSE_TO_20_PASS", stdout.getvalue())
+
+    def test_wrong_start_raw_blocks_before_send(self):
+        transport = self._transport()
+        transport.present_raw["gripper"] += 1
+        result = self._run(transport, iter([CLOSE_RUN_PHRASE]))
+        self.assertEqual(result, 1)
+        self.assertEqual(transport.gripper_only_sends, [])
+
+    def test_encoder_change_without_visual_finger_motion_is_not_pass(self):
+        transport = self._transport()
+        answers = iter([CLOSE_RUN_PHRASE, "GRIPPER CLOSE CONFIRMED", "STOPPED"])
+        with patch("sys.stdout", new_callable=io.StringIO) as stdout:
+            result = self._run(transport, answers)
+        self.assertEqual(result, 1)
+        self.assertEqual(len(transport.gripper_only_sends), 1)
+        self.assertIn("GRIPPER_REGISTER_RESPONSE_PASS_PHYSICAL_MOTION_UNVERIFIED",
+                      stdout.getvalue())
+        self.assertNotIn("GRIPPER_CLOSE_TO_20_PASS", stdout.getvalue())
+
+    def test_arm_goal_change_fails_without_retry(self):
+        transport = self._transport(change_arm_goal_raw=True)
+        result = self._run(transport, iter([CLOSE_RUN_PHRASE, "STOPPED"]))
+        self.assertEqual(result, 1)
+        self.assertEqual(len(transport.gripper_only_sends), 1)
+        self.assertEqual(transport.full_goal_send_calls, 0)
 
 
 if __name__ == "__main__":

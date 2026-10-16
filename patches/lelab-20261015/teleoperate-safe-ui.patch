@@ -1,0 +1,63 @@
+--- a/lelab/teleoperate.py
++++ b/lelab/teleoperate.py
+@@
+ _state_lock = threading.Lock()
++
++
++def _safe_ui_enabled() -> bool:
++    return os.environ.get("LELAB_UI_NO_RECONFIG") == "1"
++
++
++def _safe_ui_mark_inactive() -> None:
++    global teleoperation_active, teleoperation_thread, current_robot, current_teleop
++    with _state_lock:
++        teleoperation_active = False
++        teleoperation_thread = None
++        current_robot = None
++        current_teleop = None
+@@
+ def handle_start_teleoperation(request: TeleoperateRequest, websocket_manager=None) -> dict[str, Any]:
+@@
+     from . import record as _record, rollout as _rollout
++
++    if _safe_ui_enabled():
++        from . import current_hold_ui_teleop as _safe_ui
++
++        with _state_lock:
++            if teleoperation_active:
++                return {"success": False, "message": "Teleoperation is already active"}
++            if _record.recording_active:
++                return {"success": False, "message": "Recording is currently active. Stop it first."}
++            if _rollout.inference_active:
++                return {"success": False, "message": "Inference is currently active. Stop it first."}
++            teleoperation_active = True
++        result = _safe_ui.start(request, websocket_manager,
++                                on_inactive=_safe_ui_mark_inactive)
++        if not result.get("success") and not _safe_ui.status()["teleoperation_active"]:
++            _safe_ui_mark_inactive()
++        return result
+@@
+ def handle_stop_teleoperation() -> dict[str, Any]:
+@@
+     global teleoperation_active, teleoperation_thread
++
++    if _safe_ui_enabled():
++        from . import current_hold_ui_teleop as _safe_ui
++        return _safe_ui.stop()
+@@
+ def handle_teleoperation_status() -> dict[str, Any]:
+@@
++    global teleoperation_active
++    if _safe_ui_enabled():
++        from . import current_hold_ui_teleop as _safe_ui
++        result = _safe_ui.status()
++        teleoperation_active = bool(result["teleoperation_active"])
++        return result
+@@
+ def handle_get_joint_positions() -> dict[str, Any]:
+@@
+     global current_robot
++
++    if _safe_ui_enabled():
++        from . import current_hold_ui_teleop as _safe_ui
++        return _safe_ui.joint_positions()

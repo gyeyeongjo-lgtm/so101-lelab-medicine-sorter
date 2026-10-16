@@ -21,6 +21,7 @@ JOINTS = (
     "gripper",
 )
 ACTION_KEYS = tuple(f"{joint}.pos" for joint in JOINTS)
+ARM_ACTION_KEYS = ACTION_KEYS[:-1]
 SUPPORTED_MODES = ("absolute", "relative_start")
 ARM_JOINTS = JOINTS[:-1]
 MAX_ARM_COMMAND_STEP_DEG = 2.0
@@ -91,6 +92,19 @@ def relative_target(
     }
 
 
+def arm_only_relative_target(
+    leader_now: Mapping[str, float], origins: RelativeOrigins
+) -> dict[str, float]:
+    """Follow the leader's arm while keeping the gripper at its fresh origin.
+
+    The gripper value remains in the validated target and trace, but an
+    arm-only dispatch must omit it from the motor command altogether.
+    """
+    target = relative_target(leader_now, origins)
+    target["gripper.pos"] = origins.follower["gripper.pos"]
+    return target
+
+
 def dispatch_guarded_relative_action(
     action: Mapping[str, float],
     previous_elbow_target_deg: float | None,
@@ -98,6 +112,8 @@ def dispatch_guarded_relative_action(
     guarded_sender: Callable[
         [dict[str, float], float | None], Mapping[str, float] | None
     ],
+    *,
+    arm_only: bool = False,
 ) -> RelativeSendResult:
     """Send one validated relative target, or preserve state on HOLD.
 
@@ -109,13 +125,23 @@ def dispatch_guarded_relative_action(
     previous = _finite_action(
         previous_relative_target, source="previous relative target"
     )
-    sent_action = guarded_sender(target, previous_elbow_target_deg)
+    if arm_only:
+        if target["gripper.pos"] != previous["gripper.pos"]:
+            raise RuntimeError("arm-only relative target changed gripper hold value")
+        send_target = {key: target[key] for key in ARM_ACTION_KEYS}
+    else:
+        send_target = target
+    sent_action = guarded_sender(send_target, previous_elbow_target_deg)
     if sent_action is None:
         return RelativeSendResult(
             sent=False,
             previous_elbow_target_deg=previous_elbow_target_deg,
             previous_relative_target=previous,
         )
+    if arm_only:
+        if set(sent_action) != set(ARM_ACTION_KEYS):
+            raise RuntimeError("arm-only dispatch returned unexpected motor keys")
+        sent_action = {**sent_action, "gripper.pos": previous["gripper.pos"]}
     sent = _finite_action(sent_action, source="guarded sent action")
     return RelativeSendResult(
         sent=True,

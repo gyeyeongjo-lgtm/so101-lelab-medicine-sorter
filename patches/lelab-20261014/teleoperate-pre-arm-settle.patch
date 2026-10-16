@@ -1,0 +1,97 @@
+--- a/lelab/teleoperate.py
++++ b/lelab/teleoperate.py
+@@ -29,7 +29,7 @@
+ from .utils.devices import safe_disconnect_device
+ from .teleop_cycle_trace import (
+     CycleTrace, load_grasp_fk, read_same_owner_diagnostics,
+-    verify_relative_start_stillness,
++    load_pre_connect_snapshot, pre_arm_settle, verify_relative_start_stillness,
+ )
+ from .temporary_elbow_direction_guard import guarded_elbow_send
+ from .relative_start_teleop import (
+@@ -154,6 +154,8 @@
+     teleop_device = None
+     cycle_trace = None
+     grasp_fk = None
++    pre_connect = None
++    first_post_connect = None
+     try:
+         trace_root = os.environ.get("LELAB_TELEOP_TRACE_ROOT")
+         if trace_root:
+@@ -165,9 +167,14 @@
+                     Path(os.environ["LELAB_TELEOP_TRACE_URDF"]),
+                     Path(os.environ["LELAB_TELEOP_TRACE_TCP_JSON"]),
+                 )
++                pre_connect = load_pre_connect_snapshot(
++                    Path(os.environ["LELAB_TELEOP_TRACE_PRE_CONNECT_JSON"])
++                )
+             cycle_trace = CycleTrace(
+                 Path(trace_root) / str(time.time_ns()), capture_kind=trace_kind
+             )
++            if trace_kind == "empirical_relative_teaching":
++                cycle_trace.record_startup("PRE_CONNECT_PRESENT", pre_connect)
+             logger.info("Teleop cycle trace: %s", cycle_trace.session_dir)
+         logger.info(
+             f"Starting teleoperation with leader port: {request.leader_port}, follower port: {request.follower_port}"
+@@ -202,6 +209,9 @@
+         logger.info("Connecting to follower arm...")
+         try:
+             robot.bus.connect()
++            if cycle_trace is not None and cycle_trace.capture_kind == "empirical_relative_teaching":
++                first_post_connect = read_same_owner_diagnostics(robot, grasp_fk)
++                cycle_trace.record_startup("FIRST_POST_CONNECT", first_post_connect)
+         except Exception as e:
+             raise RuntimeError(
+                 f"Could not connect to the follower arm on {request.follower_port}. "
+@@ -254,6 +263,16 @@
+                 if relative_mode:
+                     if cycle_trace is not None and cycle_trace.capture_kind != "empirical_relative_teaching":
+                         raise RuntimeError("relative_start cannot record an absolute teleop cycle")
++                    if cycle_trace is not None:
++                        settled = pre_arm_settle(
++                            read_diagnostics=lambda: read_same_owner_diagnostics(robot, grasp_fk),
++                            record=cycle_trace.record_startup,
++                            pre_connect=pre_connect,
++                            first_post_connect=first_post_connect,
++                            active=lambda: teleoperation_active,
++                        )
++                        cycle_trace.record_settle_result(settled)
++                        logger.info("Empirical teaching pre-arm settled: %s", settled)
+                     origins = capture_origins(
+                         teleop_device.get_action,
+                         lambda: robot.bus.sync_read("Present_Position"),
+@@ -269,6 +288,9 @@
+                             leader_origin=origins.leader,
+                         )
+                         logger.info("Empirical teaching startup stillness: %s", stillness)
++                        if not teleoperation_active:
++                            raise RuntimeError("teaching stopped before arm")
++                        cycle_trace.arm_teaching()
+                     logger.warning(
+                         "relative_start origins captured from fresh calibrated values; "
+                         "static wrist/elbow offsets are disabled"
+@@ -299,5 +321,7 @@
+                         if relative_mode:
+                             empirical_arm_only = cycle_trace is not None and cycle_trace.capture_kind == "empirical_relative_teaching"
++                            if empirical_arm_only and not cycle_trace.started:
++                                cycle_trace.start_teaching()
+                             command_sent = False
+                             leader_now = teleop_device.get_action()
+                             if first_relative_target_pending:
+@@ -389,6 +413,8 @@
+                     time.sleep(0.001)
+             except Exception as e:
+                 stop_reason = "worker_error"
++                if cycle_trace is not None:
++                    cycle_trace.record_startup_failure(e)
+                 logger.error(f"Error during teleoperation loop: {e}")
+             finally:
+                 if cycle_trace is not None:
+@@ -424,6 +450,7 @@
+         _safe_disconnect(teleop_device)
+         teleoperation_active = False
+         if cycle_trace is not None and not cycle_trace.closed:
++            cycle_trace.record_startup_failure(e)
+             cycle_trace.finish(stop_reason="startup_error")
+         current_robot = None
+         current_teleop = None
