@@ -18,6 +18,7 @@ from medicine_sorter.fixed_demo import (
     resolve_robot_ports, roi_preview_annotations, run_demo, save_pose_file,
     save_roi_preview, slot_for_pixel, smooth_interpolation, stage_names_for_routes,
     target_for_stage, teach, validate_demo_settings, _read_temperatures,
+    verify_expected_marker_layout,
 )
 
 
@@ -34,9 +35,9 @@ def snapshot(*, centers=None, age=0.1):
             "coordinate_space": "undistorted_full_frame",
             "source_frame_size_px": [640, 480],
             "detected_marker_centers_px": centers or {
-                "7": [300.0, 220.0],
+                "7": [450.0, 220.0],
                 "8": [380.0, 220.0],
-                "9": [450.0, 220.0],
+                "9": [300.0, 220.0],
             },
         },
     }
@@ -101,6 +102,20 @@ class FixedDemoTests(unittest.TestCase):
             "gripper_closed_A", "gripper_closed_B", "gripper_closed_C"})
         self.assertIn("green_above", POSE_NAMES)
         self.assertIn("green_release", POSE_NAMES)
+        self.assertEqual(self.settings.roi_status, "verified")
+        self.assertEqual(self.settings.expected_bottle_slots,
+                         {"A": "slot1", "B": "slot2", "C": "slot3"})
+
+    def test_verified_three_bottle_layout_passes_and_mismatch_reports_reason(self):
+        layout = verify_expected_marker_layout(snapshot(), self.settings)
+        self.assertEqual(layout["status"], "PASS")
+        self.assertEqual(layout["observed"]["A"]["slot"], "slot1")
+        wrong = snapshot()
+        wrong["table"]["detected_marker_centers_px"]["9"] = [450.0, 220.0]
+        with self.assertRaises(SorterError) as caught:
+            verify_expected_marker_layout(wrong, self.settings)
+        self.assertEqual(caught.exception.code, "expected_marker_layout_mismatch")
+        self.assertEqual(caught.exception.observed["failures"][0]["bottle_type"], "A")
 
     def test_pixel_slots(self):
         self.assertEqual(slot_for_pixel((300, 220), self.settings.slots), "slot1")
@@ -114,7 +129,7 @@ class FixedDemoTests(unittest.TestCase):
     def test_default_routes_C_red_B_blue_and_A_is_unselected(self):
         routes, ignored = routes_from_snapshot(snapshot(), self.settings)
         self.assertEqual([(item.bottle_type, item.destination) for item in routes],
-                         [("C", "red"), ("B", "blue")])
+                         [("B", "blue"), ("C", "red")])
         self.assertEqual(ignored[0]["bottle_type"], "A")
         self.assertEqual(ignored[0]["reason"], "not_selected_by_rule")
 
@@ -560,9 +575,9 @@ class FixedDemoTests(unittest.TestCase):
               patch("medicine_sorter.fixed_demo.establish_hold", return_value={"hold": "TEST"}),
               patch("medicine_sorter.fixed_demo.execute_segment", side_effect=fault)):
             with self.assertRaises(SorterError) as caught:
-                run_demo(self.config, verified, dry_run=False, step=False,
+                run_demo(self.config, verified, dry_run=False, step=False, auto=True,
                          rules={"C": "red"},
-                         snapshot_loader=lambda _url: snapshot(centers={"7": [300, 220]}),
+                         snapshot_loader=lambda _url: snapshot(),
                          session_factory=FaultSession)
         observed = caught.exception.observed
         self.assertEqual(caught.exception.code, "demo_fault_current_position_held")
@@ -640,6 +655,106 @@ class FixedDemoTests(unittest.TestCase):
         self.assertEqual(result["serial_open"], 0)
         self.assertEqual(result["motor_command"], 0)
         self.assertEqual(result["destination_rules"], {"A": "green", "C": "blue"})
+        self.assertEqual(result["marker_layout_preflight"]["status"], "PASS")
+
+    def test_marker_layout_mismatch_blocks_before_session(self):
+        def forbidden_factory(*_args, **_kwargs):
+            raise AssertionError("hardware session must not be constructed")
+
+        wrong = snapshot()
+        wrong["table"]["detected_marker_centers_px"].pop("9")
+        with self.assertRaisesRegex(SorterError, "expected_marker_layout_mismatch"):
+            run_demo(self.config, self.settings, dry_run=False, step=False, auto=True,
+                     rules={"A": "blue"}, snapshot_loader=lambda _url: wrong,
+                     session_factory=forbidden_factory)
+
+    def test_auto_runs_eleven_stages_without_input_and_reports_progress(self):
+        class Session:
+            def __init__(self, *_args, **_kwargs):
+                bus = FakeBus()
+                bus.registers["Torque_Enable"] = {joint: 1 for joint in JOINTS}
+                bus.registers["Goal_Position"] = dict(bus.registers["Present_Position"])
+                self.follower = SimpleNamespace(bus=bus)
+                self.writes = SimpleNamespace(counts={"Goal_Position_motion": 0})
+
+            def connect(self):
+                return None
+
+            def ctrl_c_hold(self):
+                raise AssertionError("hold not expected")
+
+            def close(self):
+                return None
+
+        poses = {name: {joint: 2000.0 for joint in JOINTS} for name in ALL_POSE_NAMES}
+        progress = []
+
+        def fake_segment(_session, target, _settings, *, stage, **_kwargs):
+            return {"final_target": dict(target), "contact_relief": None,
+                    "temperatures_c": {joint: 31 for joint in JOINTS}}
+
+        with (patch("medicine_sorter.fixed_demo.load_pose_file", return_value=poses),
+              patch("medicine_sorter.fixed_demo.establish_hold", return_value={"hold": "TEST"}),
+              patch("medicine_sorter.fixed_demo.execute_segment", side_effect=fake_segment),
+              patch("builtins.input", side_effect=AssertionError("auto must not call input"))):
+            result = run_demo(
+                self.config, self.settings, dry_run=False, step=False, auto=True,
+                rules={"A": "blue"}, snapshot_loader=lambda _url: snapshot(),
+                session_factory=Session, install_signal_handlers=False,
+                progress_callback=progress.append)
+        running = [item for item in progress if item["status"] == "RUNNING"]
+        self.assertEqual(len(running), 11)
+        self.assertEqual(running[0]["stage"], "home")
+        self.assertEqual(running[-1]["stage"], "home")
+        self.assertEqual(result["status"], "FIXED_DEMO_COMPLETE")
+        self.assertEqual(result["prestart_temperatures_c"],
+                         {joint: 30 for joint in JOINTS})
+        self.assertEqual(result["final_temperatures_c"],
+                         {joint: 31 for joint in JOINTS})
+
+    def test_prestart_temperature_50_blocks_before_any_motor_write(self):
+        class HotBus(FakeBus):
+            def __init__(self):
+                super().__init__()
+                self.motors = {joint: SimpleNamespace(id=index + 1)
+                               for index, joint in enumerate(JOINTS)}
+
+            def read(self, register, joint, *, normalize, num_retry):
+                if register == "Present_Temperature" and joint == "gripper":
+                    return 50
+                return super().read(register, joint, normalize=normalize, num_retry=num_retry)
+
+        class Session:
+            instance = None
+
+            def __init__(self, *_args, **_kwargs):
+                Session.instance = self
+                self.follower = SimpleNamespace(bus=HotBus())
+                self.writes = SimpleNamespace(counts={"Goal_Position_motion": 0})
+                self.ctrl_hold_calls = 0
+
+            def connect(self):
+                return None
+
+            def ctrl_c_hold(self):
+                self.ctrl_hold_calls += 1
+                return True
+
+            def close(self):
+                return None
+
+        poses = {name: {joint: 0.0 for joint in JOINTS} for name in ALL_POSE_NAMES}
+        with patch("medicine_sorter.fixed_demo.load_pose_file", return_value=poses):
+            with self.assertRaises(SorterError) as caught:
+                run_demo(self.config, self.settings, dry_run=False, step=False, auto=True,
+                         rules={"A": "blue"}, snapshot_loader=lambda _url: snapshot(),
+                         session_factory=Session, install_signal_handlers=False)
+        self.assertEqual(caught.exception.code, "demo_startup_preflight_failed_no_motion")
+        fault = caught.exception.observed["fault"]
+        self.assertEqual(fault["affected_motors"][0]["motor_id"], 6)
+        self.assertEqual(fault["affected_motors"][0]["temperature_c"], 50)
+        self.assertEqual(Session.instance.writes.counts["Goal_Position_motion"], 0)
+        self.assertEqual(Session.instance.ctrl_hold_calls, 0)
 
     def test_module_has_no_sudo_ownership_path(self):
         source = (ROOT / "medicine_sorter/fixed_demo.py").read_text(encoding="utf-8")

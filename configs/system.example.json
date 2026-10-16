@@ -53,7 +53,8 @@
     "pose_file": "configs/fixed_demo_poses.json",
     "marker_id_to_type": {"7": "C", "8": "B", "9": "A"},
     "destination_rules": {"C": "red", "B": "blue"},
-    "slot_roi_status": "provisional_verify_in_dry_run",
+    "slot_roi_status": "verified",
+    "expected_bottle_slots": {"A": "slot1", "B": "slot2", "C": "slot3"},
     "slot_pixel_rois": {
       "slot1": [270, 150, 345, 290],
       "slot2": [345, 150, 415, 290],

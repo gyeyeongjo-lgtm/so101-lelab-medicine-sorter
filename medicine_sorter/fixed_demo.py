@@ -11,6 +11,7 @@ import signal
 import sys
 import tempfile
 import termios
+import threading
 import time
 import tty
 from dataclasses import dataclass
@@ -42,6 +43,7 @@ TYPE_GRIPPER_POSES = (
 )
 ALL_POSE_NAMES = POSE_NAMES + TYPE_GRIPPER_POSES
 MAX_TEMPERATURE_C = 55
+PRESTART_MAX_TEMPERATURE_C_EXCLUSIVE = 50
 GRIPPER_CONTACT_RELIEF_BIAS = 1.0
 TEACH_GOAL_PRESENT_RAW_TOLERANCE = 40
 POST_GOAL_READ_DELAY_S = 0.2
@@ -100,6 +102,7 @@ class DemoSettings:
     marker_to_type: dict[int, str]
     destinations: dict[str, str]
     slots: dict[str, tuple[float, float, float, float]]
+    expected_bottle_slots: dict[str, str]
     roi_status: str
     control_period_s: float
     max_step_deg: float
@@ -126,6 +129,9 @@ def load_demo_settings(config) -> DemoSettings:
             for name, rect in raw["slot_pixel_rois"].items()
         }
         marker_to_type = {int(k): str(v) for k, v in raw["marker_id_to_type"].items()}
+        expected_bottle_slots = {
+            str(label): str(slot) for label, slot in raw["expected_bottle_slots"].items()
+        }
         destinations = {str(k): str(v) for k, v in raw["destination_rules"].items()}
         motion = raw["motion"]
         velocity = {joint: float(motion["max_velocity"][joint]) for joint in JOINTS}
@@ -141,6 +147,7 @@ def load_demo_settings(config) -> DemoSettings:
             marker_to_type=marker_to_type,
             destinations=destinations,
             slots=slots,
+            expected_bottle_slots=expected_bottle_slots,
             roi_status=str(raw.get("slot_roi_status", "UNSPECIFIED")),
             control_period_s=float(motion["control_period_s"]),
             max_step_deg=float(motion["max_emitted_step_deg"]),
@@ -181,6 +188,10 @@ def validate_demo_settings(settings: DemoSettings) -> None:
                 raise ValueError(f"overlapping_slot_rois:{first_name}:{second_name}")
     if settings.marker_to_type != {7: "C", 8: "B", 9: "A"}:
         raise ValueError("fixed_demo_marker_mapping_must_be_7C_8B_9A")
+    if settings.expected_bottle_slots != {"A": "slot1", "B": "slot2", "C": "slot3"}:
+        raise ValueError("fixed_demo_expected_slots_must_match_verified_layout")
+    if settings.roi_status not in {"verified", "provisional_verify_in_dry_run"}:
+        raise ValueError("fixed_demo_slot_roi_status_invalid")
     if (not set(settings.destinations).issubset(VALID_BOTTLE_TYPES)
             or not set(settings.destinations.values()).issubset(VALID_DESTINATIONS)):
         raise ValueError("fixed_demo_default_destination_rules_invalid")
@@ -432,6 +443,42 @@ def routes_from_snapshot(snapshot: Mapping[str, Any], settings: DemoSettings,
                     "slot 안의 rule에 선택된 ID7(C)/ID8(B)/ID9(A)",
                     "--rule에 선택한 약통 마커가 보이게 놓아 주세요")
     return routes, ignored
+
+
+def verify_expected_marker_layout(snapshot: Mapping[str, Any],
+                                  settings: DemoSettings) -> dict[str, Any]:
+    annotations = roi_preview_annotations(snapshot, settings)
+    observed = {
+        item["bottle_type"]: item
+        for item in annotations["markers"]
+        if item["bottle_type"] in VALID_BOTTLE_TYPES
+    }
+    failures = []
+    for bottle_type, expected_slot in settings.expected_bottle_slots.items():
+        marker = observed.get(bottle_type)
+        if marker is None:
+            failures.append({"bottle_type": bottle_type, "reason": "marker_missing",
+                             "expected_slot": expected_slot})
+        elif marker["slot"] != expected_slot:
+            failures.append({"bottle_type": bottle_type, "marker_id": marker["marker_id"],
+                             "reason": "unexpected_slot", "expected_slot": expected_slot,
+                             "observed_slot": marker["slot"],
+                             "center_px": marker["center_px"]})
+    layout = {
+        "status": "PASS" if not failures else "FAIL",
+        "expected": dict(settings.expected_bottle_slots),
+        "observed": {
+            label: {"marker_id": item["marker_id"], "slot": item["slot"],
+                    "center_px": item["center_px"]}
+            for label, item in observed.items()
+        },
+        "failures": failures,
+    }
+    if failures:
+        raise _fail("expected_marker_layout_mismatch", layout,
+                    "A=slot1, B=slot2, C=slot3 with all three markers visible",
+                    "세 약통을 검증된 칸에 놓고 카메라 인식을 확인해 주세요")
+    return layout
 
 
 def stage_names_for_routes(routes: Sequence[MarkerRoute]) -> list[str]:
@@ -721,6 +768,25 @@ def _read_temperatures(bus, *, stage: str) -> dict[str, int]:
             "temperature_limit_exceeded",
             {"stage": stage, "register": "Present_Temperature",
              "affected_motors": affected, "temperatures_c": temperatures},
+        )
+    return temperatures
+
+
+def verify_prestart_temperatures(bus) -> dict[str, int]:
+    temperatures = _read_temperatures(bus, stage="prestart_temperature_check")
+    affected = [
+        {"motor_name": joint, "motor_id": _motor_id(bus, joint),
+         "temperature_c": value,
+         "required": f"<{PRESTART_MAX_TEMPERATURE_C_EXCLUSIVE}C"}
+        for joint, value in temperatures.items()
+        if value >= PRESTART_MAX_TEMPERATURE_C_EXCLUSIVE
+    ]
+    if affected:
+        raise SegmentSafetyFault(
+            "prestart_temperature_not_below_50c",
+            {"stage": "prestart_temperature_check",
+             "register": "Present_Temperature", "affected_motors": affected,
+             "temperatures_c": temperatures},
         )
     return temperatures
 
@@ -1209,14 +1275,19 @@ def _relieve_blocked_gripper(session: HardwareSession, *, stage: str,
 def execute_segment(session: HardwareSession, target: Mapping[str, float], settings: DemoSettings,
                     *, stage: str,
                     sleep: Callable[[float], None] = time.sleep,
-                    monotonic: Callable[[], float] = time.monotonic) -> dict[str, Any]:
+                    monotonic: Callable[[], float] = time.monotonic,
+                    stop_requested: Callable[[], bool] = lambda: False) -> dict[str, Any]:
     ensure_in_bounds(target, session.bounds)
     start = _positions(session.follower.bus)
     for point in smooth_interpolation(start, target, settings):
+        if stop_requested():
+            raise KeyboardInterrupt
         session.writes.motion_goal(point)
         sleep(settings.control_period_s)
     deadline = monotonic() + settings.settle_timeout_s
     while True:
+        if stop_requested():
+            raise KeyboardInterrupt
         present = _positions(session.follower.bus)
         moving = _raw(session.follower.bus, "Moving")
         if (not any(moving.values()) and
@@ -1235,12 +1306,23 @@ def execute_segment(session: HardwareSession, target: Mapping[str, float], setti
 
 
 def run_demo(config, settings: DemoSettings, *, dry_run: bool, step: bool,
+             auto: bool = False,
              rules: Mapping[str, str] | None = None,
              snapshot_loader: Callable[[str], dict[str, Any]] = fetch_snapshot,
-             session_factory=HardwareSession) -> dict[str, Any]:
+             session_factory=HardwareSession,
+             progress_callback: Callable[[Mapping[str, Any]], None] | None = None,
+             stop_requested: Callable[[], bool] = lambda: False,
+             install_signal_handlers: bool = True) -> dict[str, Any]:
+    if step and auto:
+        raise _fail("run_mode_conflict", ["step", "auto"], "one execution mode",
+                    "--step 또는 --auto 중 하나만 사용해 주세요")
+    if not dry_run and not (step or auto):
+        raise _fail("run_execution_mode_required", None, "--step or --auto",
+                    "감독 실행은 --step, 연속 실행은 --auto를 사용해 주세요")
     active_rules = (parse_destination_rules(None, settings.destinations) if rules is None else
                     parse_destination_rules([f"{label}={color}" for label, color in rules.items()], {}))
     snapshot = snapshot_loader(settings.snapshot_url)
+    marker_layout = verify_expected_marker_layout(snapshot, settings)
     routes, ignored = routes_from_snapshot(snapshot, settings, active_rules)
     stages = stage_names_for_routes(routes)
     result = {
@@ -1251,6 +1333,7 @@ def run_demo(config, settings: DemoSettings, *, dry_run: bool, step: bool,
         "destination_rules": active_rules,
         "routes": [route.as_dict() for route in routes],
         "ignored_markers": ignored,
+        "marker_layout_preflight": marker_layout,
         "stages": stages,
         "yolo": {"optional": True, "detections_visible_in_camera_ui": True,
                  "detection_count": len(snapshot.get("detections", []))},
@@ -1259,9 +1342,9 @@ def run_demo(config, settings: DemoSettings, *, dry_run: bool, step: bool,
     }
     if dry_run:
         return result
-    if settings.roi_status != "verified" and not step:
-        raise _fail("provisional_slot_roi_requires_step", settings.roi_status, "--step",
-                    "dry-run 결과의 ID·칸을 확인한 뒤 --step으로 감독 실행해 주세요")
+    if settings.roi_status != "verified" and auto:
+        raise _fail("auto_requires_verified_slot_roi", settings.roi_status, "verified",
+                    "dry-run에서 칸 ROI를 검증한 뒤 설정 상태를 갱신해 주세요")
     poses = load_pose_file(settings.pose_path,
                            expected_serial=config.raw["robot"]["follower_serial"])
     session = session_factory(config, include_leader=False)
@@ -1269,53 +1352,86 @@ def run_demo(config, settings: DemoSettings, *, dry_run: bool, step: bool,
     active_stage = None
     completed_stages: list[str] = []
     contact_reliefs: list[dict[str, Any]] = []
+    motion_armed = False
+    prestart_temperatures = None
+    latest_temperatures = None
+
+    def progress(payload: Mapping[str, Any]) -> None:
+        if progress_callback is not None:
+            progress_callback(dict(payload))
 
     def stop(_signum, _frame):
         nonlocal stopping
         stopping = True
         raise KeyboardInterrupt
 
-    old_signals = {sig: signal.signal(sig, stop) for sig in (signal.SIGINT, signal.SIGTERM)}
+    old_signals = {}
+    if install_signal_handlers:
+        if threading.current_thread() is not threading.main_thread():
+            raise RuntimeError("signal_handlers_require_main_thread")
+        old_signals = {sig: signal.signal(sig, stop) for sig in (signal.SIGINT, signal.SIGTERM)}
     try:
         if step:
             print(json.dumps(result, ensure_ascii=False, indent=2))
             input("위 ID→칸→바구니 계획과 주변 clear를 확인했으면 Enter: ")
+        if stop_requested():
+            raise KeyboardInterrupt
         session.connect()
+        prestart_temperatures = verify_prestart_temperatures(session.follower.bus)
+        latest_temperatures = prestart_temperatures
+        progress({"status": "PRESTART_PASS", "temperatures_c": prestart_temperatures,
+                  "marker_layout": marker_layout})
+        if stop_requested():
+            raise KeyboardInterrupt
         hold = establish_hold(session.follower.bus, session.writes)
+        motion_armed = True
         current = _positions(session.follower.bus)
         for index, stage in enumerate(stages, start=1):
             active_stage = stage
-            if stopping:
+            if stopping or stop_requested():
                 raise KeyboardInterrupt
             target = target_for_stage(stage, current, poses[stage])
             if step:
                 input(f"[{index}/{len(stages)}] {stage} 실행: 주변을 확인하고 Enter ")
-            if stopping:
+            if stopping or stop_requested():
                 raise KeyboardInterrupt
-            segment = execute_segment(session, target, settings, stage=stage)
+            progress({"status": "RUNNING", "stage_index": index,
+                      "stage_count": len(stages), "stage": stage,
+                      "temperatures_c": latest_temperatures})
+            segment = execute_segment(session, target, settings, stage=stage,
+                                      stop_requested=lambda: stopping or stop_requested())
             current = dict(segment["final_target"])
+            latest_temperatures = segment["temperatures_c"]
             if segment["contact_relief"] is not None:
                 contact_reliefs.append(segment["contact_relief"])
             completed_stages.append(stage)
         result.update({"hold": hold, "serial_open": 1,
+                       "prestart_temperatures_c": prestart_temperatures,
+                       "final_temperatures_c": latest_temperatures,
                        "motor_command": session.writes.counts["Goal_Position_motion"],
                        "write_counts": dict(session.writes.counts),
                        "contact_reliefs": contact_reliefs})
+        progress({"status": "COMPLETE", "stage_index": len(stages),
+                  "stage_count": len(stages), "stage": stages[-1],
+                  "temperatures_c": latest_temperatures})
         return result
     except KeyboardInterrupt:
         connected = session.follower is not None and session.writes is not None
-        if connected:
+        if connected and motion_armed:
             held = session.ctrl_c_hold()
             code = "demo_stopped_current_position_held" if held else "demo_stopped_before_motion_arm"
             raise _fail(code, True, "supervised completion",
                         "follower Torque/Goal 상태와 주변을 확인해 주세요")
+        if connected:
+            raise _fail("demo_stopped_before_motion_arm", True, "prestart completion",
+                        "로봇 동작 명령 전 중단됐습니다. 상태를 확인해 주세요")
         raise _fail("demo_stopped_before_robot_connect", True, "plan confirmation",
                     "로봇 명령은 없었으며 필요할 때 다시 실행해 주세요")
     except Exception as error:
         connected = session.follower is not None and session.writes is not None
         hold_error = None
         held = False
-        if connected:
+        if connected and motion_armed:
             try:
                 held = session.ctrl_c_hold()
             except Exception as current_hold_error:
@@ -1326,9 +1442,13 @@ def run_demo(config, settings: DemoSettings, *, dry_run: bool, step: bool,
         fault["fault_code"] = (error.code if isinstance(error, SegmentSafetyFault)
                                else "motion_or_feedback_error")
         raise _fail(
-            "demo_fault_current_position_held" if held else "demo_fault_hold_not_completed",
+            ("demo_fault_current_position_held" if held else
+             "demo_startup_preflight_failed_no_motion" if not motion_armed else
+             "demo_fault_hold_not_completed"),
             {"fault": fault, "completed_stages": completed_stages,
              "contact_reliefs": contact_reliefs, "current_position_hold": held,
+             "prestart_temperatures_c": prestart_temperatures,
+             "latest_temperatures_c": latest_temperatures,
              "hold_error": hold_error,
              "write_counts": dict(session.writes.counts) if connected else None},
             "fault-free supervised stage completion and current-position hold on fault",

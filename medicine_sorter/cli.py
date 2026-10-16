@@ -32,12 +32,18 @@ def build_parser() -> argparse.ArgumentParser:
     preview_parser.add_argument("--output", type=Path, required=True,
                                 help="저장할 PNG 경로")
     run_parser = sub.add_parser("run", help="ArUco 고정 칸→티칭 자세 재생 데모")
-    run_parser.add_argument("--dry-run", action="store_true",
-                            help="카메라 1프레임으로 계획만 출력하고 로봇을 열지 않습니다")
-    run_parser.add_argument("--step", action="store_true",
-                            help="각 단계 Enter 확인 후 실행합니다")
+    run_mode = run_parser.add_mutually_exclusive_group()
+    run_mode.add_argument("--dry-run", action="store_true",
+                          help="카메라 1프레임으로 계획만 출력하고 로봇을 열지 않습니다")
+    run_mode.add_argument("--step", action="store_true",
+                          help="각 단계 Enter 확인 후 실행합니다")
+    run_mode.add_argument("--auto", action="store_true",
+                          help="검증된 배치에서 Enter 없이 모든 단계를 연속 실행합니다")
     run_parser.add_argument("--rule", nargs="+", metavar="TYPE=COLOR",
                             help="예: --rule C=green B=red A=blue")
+    web_parser = sub.add_parser("web", help="고정 데모 버튼 UI를 실행합니다")
+    web_parser.add_argument("--port", type=int, default=8030,
+                            help="같은 네트워크에 공개할 HTTP port (기본 8030)")
     mock = sub.add_parser("mock-run", help="저장 scene으로 전체 상태 흐름을 시험합니다")
     mock.add_argument("--scene", type=Path, required=True)
     mock.add_argument("--command", required=True)
@@ -72,7 +78,14 @@ def main(argv=None, *, status_adapter_factory=None) -> int:
             settings = load_demo_settings(config)
             rules = parse_destination_rules(args.rule, settings.destinations)
             payload = run_demo(config, settings, dry_run=args.dry_run,
-                               step=args.step, rules=rules)
+                               step=args.step, auto=args.auto, rules=rules)
+        elif args.mode == "web":
+            if not 1 <= args.port <= 65535:
+                raise SorterError("web_port_invalid", args.port, "1..65535",
+                                  "사용 가능한 port를 지정해 주세요")
+            from .web import serve_demo_web
+            serve_demo_web(config, load_demo_settings(config), port=args.port)
+            payload = {"status": "WEB_STOPPED", "host": "0.0.0.0", "port": args.port}
         elif args.mode == "mock-run":
             app = SorterApplication(config, RobotController(MockRobotAdapter()))
             payload = app.run_recorded_mock(args.command, args.scene).as_dict()

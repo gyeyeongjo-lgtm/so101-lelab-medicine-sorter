@@ -87,6 +87,8 @@ python3 -m medicine_sorter --config configs/system.example.json teach --only gri
 python3 -m medicine_sorter --config configs/system.example.json roi-preview --output /tmp/fixed-demo-roi.png
 python3 -m medicine_sorter --config configs/system.example.json run --dry-run --rule C=green B=red A=blue
 python3 -m medicine_sorter --config configs/system.example.json run --step --rule C=green B=red A=blue
+python3 -m medicine_sorter --config configs/system.example.json run --auto --rule C=green B=red A=blue
+python3 -m medicine_sorter --config configs/system.example.json web --port 8030
 ```
 
 `roi-preview`는 8020의 `/manual-frame.json`을 정확히 한 번 읽어 같은 응답의
@@ -120,6 +122,21 @@ ALL ON하면 `AUTO_ENABLED_BY_GOAL`로 인정하고 추가 Torque write를 하�
 일반 robot `connect/configure`를 우회하고 종료는
 `disconnect(disable_torque=False)`로 처리합니다. Ctrl+C는 fresh Present raw를
 Goal로 한 번 복사해 **현재 위치 유지**를 요청하며 Torque OFF가 아닙니다.
+
+실물 `run --step`의 약통 1개, 2개, 3개와 3개 동시 분류 성공을 근거로 현재 고정
+배치를 `A=slot1, B=slot2, C=slot3` 및 `slot_roi_status=verified`로 기록했습니다.
+`run --auto`는 계획·단계별 Enter 없이 선택된 약통마다 11단계를 연속 재생합니다.
+단, 매 실행마다 새 Astra 프레임에서 ID9(A)·ID8(B)·ID7(C)가 각각 기대 칸에 있는지
+먼저 검사하고, 포트를 연 뒤 어떤 Goal/Torque write보다 먼저 6개 모터 온도가 모두
+`50°C 미만`인지 확인합니다. 배치나 온도 조건이 다르면 동작을 시작하지 않습니다.
+
+`web --port 8030`은 `0.0.0.0`에 바인딩되는 같은 네트워크용 버튼 UI입니다. A/B/C별
+red/blue/green/skip, 세 프리셋, 카메라 기반 계획 확인, 자동 실행, 현재 단계·온도,
+큰 빨간 정지 버튼을 제공합니다. 정지는 보간 중에도 감지해 Ctrl+C와 같은 current
+HOLD를 요청합니다. 실행 중에는 다른 조작을 비활성화하고 동시에 두 실행을 만들지
+않습니다. 브라우저가 끊겨도 이미 시작한 한 번만 끝까지 수행하며 자동 반복은 없습니다.
+로봇 session은 실행 버튼을 눌렀을 때만 열고 끝나면 Torque를 끄지 않은 채
+`disconnect(disable_torque=False)`로 닫습니다.
 
 sudo/lsof/fuser 포트 조회는 이 경로에 없습니다. 대신 연결 전에 config의
 follower serial `5AE6058306`과 leader serial `5AE6085272`를 현재

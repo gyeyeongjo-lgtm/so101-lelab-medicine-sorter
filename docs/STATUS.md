@@ -2,6 +2,24 @@
 
 업데이트: 2026-10-17
 
+## 2026-10-17 고정 데모 자동 실행·버튼 UI — 구현·오프라인 PASS, Jetson 배포 NOT_RUN
+
+- 사용자 보고 기준 약통 1개·2개·3개 실험과 3개 동시 분류가 모두 성공했다. 현재
+  실제 배치 `A=slot1, B=slot2, C=slot3`의 dry-run 판정도 확인돼 ROI 상태를
+  `verified`로 전환했다.
+- `run --auto`는 Enter 없이 기존 11-stage-per-bottle 경로를 연속 실행한다. 매번
+  세 마커 배치를 serial open 전에 확인하고, port connect 직후 Goal/Torque write 전
+  6개 motor 온도가 모두 `<50°C`인지 검사한다.
+- `web --port 8030`은 `0.0.0.0` 버튼 UI를 제공한다. A/B/C별 3색/skip, preset,
+  계획 확인, 자동 실행, 큰 정지 버튼, 현재 stage·온도·마지막 오류와 8020 Astra
+  stream을 표시한다. 실행 중 중복 실행은 차단하고 정지는 current HOLD로 연결된다.
+- 기존 velocity/acceleration/settle/Overload/temperature fault current HOLD와
+  `disconnect(disable_torque=False)`는 유지했다. 브라우저 연결이 끊겨도 실행을
+  새로 예약하거나 반복하지 않는다.
+- fixed-demo+web `50/50 PASS`, sorter `30/30 PASS`, compile·diff check PASS.
+  이번 변경의 실제 serial open·motor command는 `0`; Jetson 배포·web live는
+  `NOT_RUN`이다. [상세](sessions/2026-10-17-auto-web-demo.md).
+
 ## 2026-10-17 약통 종류별 그리퍼·Overload 완화 — 오프라인 PASS, 재실기 NOT_RUN
 
 - 실제 `run --step`에서 큰 약통 A가 `slot1_lift`까지 성공한 뒤 `blue_above`
