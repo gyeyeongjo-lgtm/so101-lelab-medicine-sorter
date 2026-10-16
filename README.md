@@ -83,6 +83,7 @@ python3 -m medicine_sorter --config configs/system.example.json validate-config
 ```bash
 python3 -m medicine_sorter --config configs/system.example.json teach
 python3 -m medicine_sorter --config configs/system.example.json teach --resume
+python3 -m medicine_sorter --config configs/system.example.json teach --only gripper_closed_A gripper_closed_B gripper_closed_C
 python3 -m medicine_sorter --config configs/system.example.json roi-preview --output /tmp/fixed-demo-roi.png
 python3 -m medicine_sorter --config configs/system.example.json run --dry-run --rule C=green B=red A=blue
 python3 -m medicine_sorter --config configs/system.example.json run --step --rule C=green B=red A=blue
@@ -95,12 +96,24 @@ A/B/C 및 현재 칸 판정을 PNG에 그립니다. 칸 밖인 중심은 빨간�
 PNG 저장만 하며 LeRobot을 import하거나 robot serial을 열지 않습니다.
 
 `teach`는 한 follower/leader session에서 relative-start로 green above/release를
-포함한 18개 자세를 순서대로 저장합니다. Enter를 누를 때마다
+포함한 기본 18개 자세를 순서대로 저장합니다. Enter를 누를 때마다
 `configs/fixed_demo_poses.partial.json`에 바로 저장하며, 중단됐다면
-`teach --resume`으로 다음 자세부터 이어갑니다. `gripper_open`과
-`gripper_closed`에서 저장한 그리퍼 값만 재생에 사용하며, home·slot·basket
-자세에서는 팔 5축만 재생하고 직전 그리퍼 상태를 유지합니다. 따라서 나머지 자세를
-티칭할 때는 팔 위치만 맞추면 됩니다. follower는 fresh Present raw를
+`teach --resume`으로 다음 자세부터 이어갑니다. 기본 파일을 만든 뒤
+`teach --only gripper_closed_A gripper_closed_B gripper_closed_C`로 약통 크기별
+닫힘 값을 추가하거나 해당 값만 다시 저장할 수 있습니다. 이때 기존 18개 자세는
+보존되고 각 선택 자세를 저장할 때마다 최종 pose 파일이 atomic replace됩니다.
+
+실행에서 그리퍼 값은 `gripper_open`과 현재 약통 종류의
+`gripper_closed_A/B/C`에서만 바뀝니다. 기존 `gripper_closed`는 pose 파일 호환을
+위해 남아 있지만 run에서는 사용하지 않습니다. home·slot·basket 자세에서는 팔
+5축만 재생하고 직전 그리퍼 상태를 유지합니다. 닫기 후 물체 때문에 실제 위치가
+목표보다 2 percentage point 이상 앞에서 정지하면, 원래 목표를 계속 밀지 않고
+실제 위치에서 닫는 방향 1 percentage point만 더한 Goal로 재고정합니다.
+
+Overload·Overheat 같은 servo status나 55°C 초과가 관측되면 해당 motor 이름·ID,
+register, status bit 또는 실제 온도, 드라이버 원문을 출력하고 다음 단계로 진행하지
+않습니다. motion이 이미 arm된 상태라면 Ctrl+C와 같은 fresh Present raw→Goal raw
+현재 위치 HOLD를 한 번 요청합니다. follower는 fresh Present raw를
 Goal raw로 한 번 복사합니다. 이 Goal write가 Feetech Torque를 자동으로
 ALL ON하면 `AUTO_ENABLED_BY_GOAL`로 인정하고 추가 Torque write를 하지 않습니다.
 여전히 ALL OFF면 Torque ON을 한 번만 쓰며 mixed state는 중단합니다.

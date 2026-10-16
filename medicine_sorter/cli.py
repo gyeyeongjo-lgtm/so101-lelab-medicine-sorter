@@ -25,6 +25,8 @@ def build_parser() -> argparse.ArgumentParser:
                               help="기존 pose JSON을 명시적으로 교체합니다")
     teach_parser.add_argument("--resume", action="store_true",
                               help="매 자세마다 저장된 partial JSON에서 이어갑니다")
+    teach_parser.add_argument("--only", nargs="+", metavar="POSE",
+                              help="기존 pose 파일에서 지정한 자세만 추가하거나 다시 저장합니다")
     preview_parser = sub.add_parser(
         "roi-preview", help="로봇 연결 없이 Astra 한 프레임에 고정 칸 ROI를 그려 저장합니다")
     preview_parser.add_argument("--output", type=Path, required=True,
@@ -63,7 +65,7 @@ def main(argv=None, *, status_adapter_factory=None) -> int:
             payload = RobotController(factory(config)).read_status().as_dict()
         elif args.mode == "teach":
             payload = teach(config, load_demo_settings(config), overwrite=args.overwrite,
-                            resume=args.resume)
+                            resume=args.resume, only=args.only)
         elif args.mode == "roi-preview":
             payload = save_roi_preview(load_demo_settings(config), args.output)
         elif args.mode == "run":

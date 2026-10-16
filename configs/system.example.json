@@ -76,10 +76,10 @@
         "wrist_flex": 110.0, "wrist_roll": 180.0, "gripper": 100.0
       },
       "settle_tolerance": {
-        "shoulder_pan": 2.0, "shoulder_lift": 2.0, "elbow_flex": 2.0,
-        "wrist_flex": 2.0, "wrist_roll": 2.0, "gripper": 100.0
+        "shoulder_pan": 5.0, "shoulder_lift": 5.0, "elbow_flex": 5.0,
+        "wrist_flex": 5.0, "wrist_roll": 5.0, "gripper": 100.0
       },
-      "settle_timeout_s": 4.0
+      "settle_timeout_s": 8.0
     }
   },
   "calibration": {

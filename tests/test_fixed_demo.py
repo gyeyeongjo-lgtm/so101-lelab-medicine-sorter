@@ -3,16 +3,21 @@ import tempfile
 import unittest
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from medicine_sorter.config import load_config
+from medicine_sorter.errors import SorterError
 from medicine_sorter.fixed_demo import (
-    GRIPPER_POSES, JOINTS, POSE_NAMES, POST_GOAL_READ_RETRIES,
-    TEACH_GOAL_PRESENT_RAW_TOLERANCE, StrictWriteGate,
+    ALL_POSE_NAMES, GRIPPER_POSES, JOINTS, POSE_NAMES, POST_GOAL_READ_RETRIES,
+    SegmentSafetyFault, TEACH_GOAL_PRESENT_RAW_TOLERANCE, TYPE_GRIPPER_POSES,
+    StrictWriteGate,
     clamp_to_calibrated_inner_range, establish_hold, load_demo_settings,
-    load_partial_pose_file, parse_destination_rules, routes_from_snapshot,
+    execute_segment, load_partial_pose_file, load_pose_records, parse_destination_rules,
+    routes_from_snapshot,
     resolve_robot_ports, roi_preview_annotations, run_demo, save_pose_file,
-    save_roi_preview, slot_for_pixel, smooth_interpolation, stage_names_for_routes, target_for_stage,
-    validate_demo_settings,
+    save_roi_preview, slot_for_pixel, smooth_interpolation, stage_names_for_routes,
+    target_for_stage, teach, validate_demo_settings, _read_temperatures,
 )
 
 
@@ -91,6 +96,9 @@ class FixedDemoTests(unittest.TestCase):
         self.assertEqual(self.settings.marker_to_type, {7: "C", 8: "B", 9: "A"})
         self.assertEqual(self.settings.destinations, {"C": "red", "B": "blue"})
         self.assertEqual(len(POSE_NAMES), 18)
+        self.assertEqual(len(ALL_POSE_NAMES), 21)
+        self.assertEqual(set(TYPE_GRIPPER_POSES), {
+            "gripper_closed_A", "gripper_closed_B", "gripper_closed_C"})
         self.assertIn("green_above", POSE_NAMES)
         self.assertIn("green_release", POSE_NAMES)
 
@@ -196,7 +204,7 @@ class FixedDemoTests(unittest.TestCase):
         stages = stage_names_for_routes(routes)
         self.assertEqual(stages, [
             "home", "gripper_open", "slot1_pre", "slot1_grasp",
-            "gripper_closed", "slot1_lift", "red_above", "red_release",
+            "gripper_closed_C", "slot1_lift", "red_above", "red_release",
             "gripper_open", "red_above", "home",
         ])
 
@@ -216,7 +224,7 @@ class FixedDemoTests(unittest.TestCase):
             chunk = stages[index * 11:(index + 1) * 11]
             self.assertEqual(chunk, [
                 "home", "gripper_open", f"{route.slot}_pre", f"{route.slot}_grasp",
-                "gripper_closed", f"{route.slot}_lift", f"{route.destination}_above",
+                f"gripper_closed_{route.bottle_type}", f"{route.slot}_lift", f"{route.destination}_above",
                 f"{route.destination}_release", "gripper_open",
                 f"{route.destination}_above", "home",
             ])
@@ -224,11 +232,13 @@ class FixedDemoTests(unittest.TestCase):
     def test_only_explicit_gripper_stages_change_gripper(self):
         current = {joint: 10.0 + index for index, joint in enumerate(JOINTS)}
         poses = {}
-        for index, name in enumerate(POSE_NAMES):
+        for index, name in enumerate(ALL_POSE_NAMES):
             poses[name] = {joint: 100.0 + index * 10 + joint_index
                            for joint_index, joint in enumerate(JOINTS)}
         poses["gripper_open"]["gripper"] = 90.0
-        poses["gripper_closed"]["gripper"] = 10.0
+        poses["gripper_closed_A"]["gripper"] = 30.0
+        poses["gripper_closed_B"]["gripper"] = 20.0
+        poses["gripper_closed_C"]["gripper"] = 10.0
         routes, _ = routes_from_snapshot(
             snapshot(), self.settings, {"A": "green", "B": "red", "C": "blue"})
         for stage in stage_names_for_routes(routes):
@@ -236,14 +246,18 @@ class FixedDemoTests(unittest.TestCase):
             target = target_for_stage(stage, current, poses[stage])
             if stage == "gripper_open":
                 self.assertEqual(target["gripper"], 90.0)
-            elif stage == "gripper_closed":
-                self.assertEqual(target["gripper"], 10.0)
+            elif stage in TYPE_GRIPPER_POSES:
+                expected = {"gripper_closed_A": 30.0,
+                            "gripper_closed_B": 20.0,
+                            "gripper_closed_C": 10.0}[stage]
+                self.assertEqual(target["gripper"], expected)
             else:
                 self.assertEqual(target["gripper"], previous_gripper)
                 self.assertEqual({joint: target[joint] for joint in JOINTS[:-1]},
                                  {joint: poses[stage][joint] for joint in JOINTS[:-1]})
             current = target
-        self.assertEqual(GRIPPER_POSES, {"gripper_open", "gripper_closed"})
+        self.assertEqual(GRIPPER_POSES, {
+            "gripper_open", "gripper_closed", *TYPE_GRIPPER_POSES})
 
     def test_usb_serials_select_roles_independent_of_acm_number(self):
         serials = {
@@ -388,7 +402,218 @@ class FixedDemoTests(unittest.TestCase):
         self.assertEqual(set(self.settings.velocity.values()), {20.0})
         self.assertEqual(set(self.settings.acceleration.values()), {60.0})
         self.assertEqual(self.settings.settle_tolerance["gripper"], 100.0)
+        self.assertEqual({self.settings.settle_tolerance[joint] for joint in JOINTS[:-1]}, {5.0})
+        self.assertEqual(self.settings.settle_timeout_s, 8.0)
         self.assertEqual(TEACH_GOAL_PRESENT_RAW_TOLERANCE, 40)
+
+    def test_teach_only_preserves_base_poses_and_adds_requested_gripper_poses(self):
+        positions = {joint: float(index) for index, joint in enumerate(JOINTS)}
+        present_raw = {joint: 2000 + index for index, joint in enumerate(JOINTS)}
+        base = {
+            name: {"position": dict(positions), "present_raw": dict(present_raw),
+                   "captured_at_utc": f"base-{index}"}
+            for index, name in enumerate(POSE_NAMES)
+        }
+
+        class Input:
+            def isatty(self):
+                return False
+
+            def read(self, _count):
+                return "\n"
+
+        class Writes:
+            def __init__(self):
+                self.counts = {"Goal_Position_motion": 0}
+
+            def motion_goal(self, _values):
+                self.counts["Goal_Position_motion"] += 1
+
+        class Session:
+            def __init__(self, *_args, **_kwargs):
+                bus = FakeBus()
+                bus.registers["Present_Position"] = dict(present_raw)
+                bus.registers["Goal_Position"] = dict(present_raw)
+                self.follower = SimpleNamespace(bus=bus)
+                self.leader = SimpleNamespace(
+                    get_action=lambda: {f"{joint}.pos": float(index)
+                                        for index, joint in enumerate(JOINTS)})
+                self.writes = Writes()
+                self.bounds = {joint: (-5000.0, 5000.0) for joint in JOINTS}
+                self.follower_serial = "5AE6058306"
+
+            def connect(self):
+                return None
+
+            def close(self):
+                return None
+
+        with tempfile.TemporaryDirectory() as folder:
+            pose_path = Path(folder) / "poses.json"
+            save_pose_file(pose_path, follower_serial="5AE6058306", poses=base)
+            settings = replace(self.settings, pose_path=pose_path)
+            fake_input = Input()
+            with (patch("medicine_sorter.fixed_demo.establish_hold",
+                        return_value={"hold": "TEST"}),
+                  patch("medicine_sorter.fixed_demo.select.select",
+                        return_value=([fake_input], [], [])),
+                  patch("medicine_sorter.fixed_demo.sys.stdin", fake_input)):
+                result = teach(
+                    self.config, settings, only=list(TYPE_GRIPPER_POSES),
+                    session_factory=Session)
+            records = load_pose_records(
+                pose_path, expected_serial="5AE6058306", required_names=ALL_POSE_NAMES)
+            self.assertEqual(result["status"], "TEACH_ONLY_COMPLETE")
+            self.assertEqual(result["saved_pose_names"], list(TYPE_GRIPPER_POSES))
+            self.assertEqual(records["home"]["captured_at_utc"], "base-0")
+            self.assertEqual(set(records), set(ALL_POSE_NAMES))
+
+    def test_teach_only_invalid_or_conflicting_options_fail_before_session(self):
+        def forbidden_factory(*_args, **_kwargs):
+            raise AssertionError("session must not be constructed")
+
+        with self.assertRaisesRegex(SorterError, "teach_only_pose_names_invalid"):
+            teach(self.config, self.settings, only=["unknown"],
+                  session_factory=forbidden_factory)
+        with self.assertRaisesRegex(SorterError, "teach_mode_conflict"):
+            teach(self.config, self.settings, resume=True, only=["gripper_closed_A"],
+                  session_factory=forbidden_factory)
+
+    def test_blocked_type_gripper_is_reanchored_near_present(self):
+        class MotionBus(FakeBus):
+            def __init__(self):
+                super().__init__()
+                self.registers["Present_Position"] = {joint: 50.0 for joint in JOINTS}
+                self.registers["Torque_Enable"] = {joint: 1 for joint in JOINTS}
+                self.motors = {joint: SimpleNamespace(id=index + 1)
+                               for index, joint in enumerate(JOINTS)}
+
+            def read(self, register, joint, *, normalize, num_retry):
+                if register == "Present_Position":
+                    return self.registers[register][joint]
+                return super().read(register, joint, normalize=normalize, num_retry=num_retry)
+
+        class Writes:
+            def __init__(self, bus):
+                self.bus = bus
+                self.sent = []
+
+            def motion_goal(self, values):
+                self.sent.append(dict(values))
+                if values["gripper"] < 30.0:
+                    self.bus.registers["Present_Position"]["gripper"] = 30.0
+                else:
+                    self.bus.registers["Present_Position"]["gripper"] = values["gripper"]
+
+        bus = MotionBus()
+        writes = Writes(bus)
+        session = SimpleNamespace(
+            follower=SimpleNamespace(bus=bus), writes=writes,
+            bounds={joint: (-100.0, 100.0) for joint in JOINTS})
+        target = {joint: 50.0 for joint in JOINTS}
+        target["gripper"] = 10.0
+        result = execute_segment(
+            session, target, self.settings, stage="gripper_closed_A", sleep=lambda _s: None)
+        self.assertEqual(result["contact_relief"]["motor_id"], 6)
+        self.assertEqual(result["contact_relief"]["present_at_contact"], 30.0)
+        self.assertEqual(result["final_target"]["gripper"], 29.0)
+        self.assertEqual(writes.sent[-1]["gripper"], 29.0)
+
+    def test_overload_temperature_read_preserves_id_status_and_holds_current(self):
+        class FaultSession:
+            instance = None
+
+            def __init__(self, *_args, **_kwargs):
+                FaultSession.instance = self
+                bus = FakeBus()
+                bus.registers["Torque_Enable"] = {joint: 1 for joint in JOINTS}
+                bus.registers["Goal_Position"] = dict(bus.registers["Present_Position"])
+                bus.motors = {joint: SimpleNamespace(id=index + 1)
+                              for index, joint in enumerate(JOINTS)}
+                self.follower = SimpleNamespace(bus=bus)
+                self.writes = SimpleNamespace(counts={"Goal_Position_motion": 0,
+                                                      "Goal_Position_ctrl_c_hold": 0})
+                self.held = 0
+
+            def connect(self):
+                return None
+
+            def ctrl_c_hold(self):
+                self.held += 1
+                self.writes.counts["Goal_Position_ctrl_c_hold"] += 1
+                return True
+
+            def close(self):
+                return None
+
+        poses = {name: {joint: 0.0 for joint in JOINTS} for name in ALL_POSE_NAMES}
+        fault = SegmentSafetyFault("servo_status_error", {
+            "stage": "home", "register": "Present_Temperature",
+            "motor_name": "gripper", "motor_id": 6,
+            "register_value": None, "servo_status": "OVERLOAD",
+            "servo_status_bit": 32, "servo_status_value": 32,
+            "driver_error": "Failed to read 'Present_Temperature' on id_=6. "
+                            "[RxPacketError] Overload error!",
+        })
+        verified = replace(self.settings, roi_status="verified")
+        with (patch("medicine_sorter.fixed_demo.load_pose_file", return_value=poses),
+              patch("medicine_sorter.fixed_demo.establish_hold", return_value={"hold": "TEST"}),
+              patch("medicine_sorter.fixed_demo.execute_segment", side_effect=fault)):
+            with self.assertRaises(SorterError) as caught:
+                run_demo(self.config, verified, dry_run=False, step=False,
+                         rules={"C": "red"},
+                         snapshot_loader=lambda _url: snapshot(centers={"7": [300, 220]}),
+                         session_factory=FaultSession)
+        observed = caught.exception.observed
+        self.assertEqual(caught.exception.code, "demo_fault_current_position_held")
+        self.assertEqual(observed["fault"]["motor_id"], 6)
+        self.assertEqual(observed["fault"]["servo_status"], "OVERLOAD")
+        self.assertEqual(observed["fault"]["servo_status_bit"], 32)
+        self.assertEqual(observed["fault"]["servo_status_value"], 32)
+        self.assertIn("Overload error", observed["fault"]["driver_error"])
+        self.assertEqual(FaultSession.instance.held, 1)
+
+    def test_temperature_read_overload_is_not_replaced_by_generic_failure(self):
+        class OverloadBus(FakeBus):
+            def __init__(self):
+                super().__init__()
+                self.motors = {joint: SimpleNamespace(id=index + 1)
+                               for index, joint in enumerate(JOINTS)}
+
+            def read(self, register, joint, *, normalize, num_retry):
+                if register == "Present_Temperature" and joint == "gripper":
+                    raise RuntimeError(
+                        "Failed to read 'Present_Temperature' on id_=6 after 1 tries. "
+                        "[RxPacketError] Overload error!")
+                return super().read(register, joint, normalize=normalize, num_retry=num_retry)
+
+        with self.assertRaises(SegmentSafetyFault) as caught:
+            _read_temperatures(OverloadBus(), stage="blue_above")
+        self.assertEqual(caught.exception.code, "servo_status_error")
+        self.assertEqual(caught.exception.details["motor_id"], 6)
+        self.assertEqual(caught.exception.details["servo_status"], "OVERLOAD")
+        self.assertEqual(caught.exception.details["servo_status_value"], 32)
+        self.assertEqual(len(caught.exception.details["values_read_before_fault"]), 5)
+        self.assertIn("Present_Temperature", caught.exception.details["driver_error"])
+        self.assertIn("Overload error", caught.exception.details["driver_error"])
+
+    def test_temperature_limit_reports_motor_id_and_value(self):
+        class HotBus(FakeBus):
+            def __init__(self):
+                super().__init__()
+                self.motors = {joint: SimpleNamespace(id=index + 1)
+                               for index, joint in enumerate(JOINTS)}
+
+            def read(self, register, joint, *, normalize, num_retry):
+                if register == "Present_Temperature" and joint == "wrist_roll":
+                    return 61
+                return super().read(register, joint, normalize=normalize, num_retry=num_retry)
+
+        with self.assertRaises(SegmentSafetyFault) as caught:
+            _read_temperatures(HotBus(), stage="blue_above")
+        affected = caught.exception.details["affected_motors"]
+        self.assertEqual(affected, [{"motor_name": "wrist_roll", "motor_id": 5,
+                                     "temperature_c": 61, "limit_c": 55}])
 
     def test_partial_pose_file_accepts_only_ordered_prefix(self):
         with tempfile.TemporaryDirectory() as folder:

@@ -2,6 +2,21 @@
 
 업데이트: 2026-10-17
 
+## 2026-10-17 약통 종류별 그리퍼·Overload 완화 — 오프라인 PASS, 재실기 NOT_RUN
+
+- 실제 `run --step`에서 큰 약통 A가 `slot1_lift`까지 성공한 뒤 `blue_above`
+  중 gripper ID 6 Overload로 중단됐다. 이를 완료로 기록하지 않았다.
+- 기본 18 pose를 보존하면서 `gripper_closed_A/B/C` 세 값을 `teach --only`로
+  추가·재저장하도록 했다. run은 약통 종류에 맞는 값만 사용한다.
+- 닫기 후 actual이 원 목표 전에 멈추면 actual에서 닫는 방향 1 pp로 Goal을
+  재고정해 이후 팔 이동 중 계속 미는 힘을 줄인다. servo Overload/Overheat 또는
+  온도 초과는 motor ID·값/status bit·원문을 보존하고 후속 stage 없이 fresh
+  current HOLD를 한 번 요청한다.
+- 현장값인 arm settle tolerance 5.0°, gripper 100.0 pp, timeout 8.0 s를 반영했다.
+- fixed-demo `41/41 PASS`, sorter `30/30 PASS`, compile·`git diff --check` PASS.
+  이 변경의 serial open·motor command는 `0`; Jetson 재실기는 `NOT_RUN`이다.
+  [상세](sessions/2026-10-17-type-specific-gripper-overload-relief.md).
+
 ## 2026-10-17 fixed-demo ROI PNG 명령 — 오프라인 PASS
 
 - 단일 진입점에 `roi-preview --output *.png`를 추가했다. 8020

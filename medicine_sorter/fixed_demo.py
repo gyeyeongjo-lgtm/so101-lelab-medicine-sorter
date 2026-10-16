@@ -37,17 +37,39 @@ POSE_NAMES = (
     "blue_above", "blue_release",
     "green_above", "green_release",
 )
+TYPE_GRIPPER_POSES = (
+    "gripper_closed_A", "gripper_closed_B", "gripper_closed_C",
+)
+ALL_POSE_NAMES = POSE_NAMES + TYPE_GRIPPER_POSES
 MAX_TEMPERATURE_C = 55
+GRIPPER_CONTACT_RELIEF_BIAS = 1.0
 TEACH_GOAL_PRESENT_RAW_TOLERANCE = 40
 POST_GOAL_READ_DELAY_S = 0.2
 POST_GOAL_READ_RETRIES = 3
 VALID_BOTTLE_TYPES = {"A", "B", "C"}
 VALID_DESTINATIONS = {"red", "blue", "green"}
-GRIPPER_POSES = {"gripper_open", "gripper_closed"}
+GRIPPER_POSES = {"gripper_open", "gripper_closed", *TYPE_GRIPPER_POSES}
+
+SERVO_STATUS_ERRORS = (
+    ("Overload error", "OVERLOAD", 32),
+    ("Overheat error", "OVERHEAT", 4),
+    ("OverEle error", "OVER_CURRENT", 8),
+    ("Input voltage error", "VOLTAGE", 1),
+    ("Angle sen error", "ANGLE_SENSOR", 2),
+)
 
 
 def _fail(code: str, observed: Any, expected: str, remedy: str) -> SorterError:
     return SorterError(code, observed, expected, remedy)
+
+
+class SegmentSafetyFault(RuntimeError):
+    """A motion-time read or servo fault whose original device detail must survive."""
+
+    def __init__(self, code: str, details: Mapping[str, Any]):
+        super().__init__(code)
+        self.code = code
+        self.details = dict(details)
 
 
 @dataclass(frozen=True)
@@ -416,7 +438,8 @@ def stage_names_for_routes(routes: Sequence[MarkerRoute]) -> list[str]:
     stages = []
     for route in routes:
         stages.extend((
-            "home", "gripper_open", f"{route.slot}_pre", f"{route.slot}_grasp", "gripper_closed",
+            "home", "gripper_open", f"{route.slot}_pre", f"{route.slot}_grasp",
+            f"gripper_closed_{route.bottle_type}",
             f"{route.slot}_lift", f"{route.destination}_above",
             f"{route.destination}_release", "gripper_open",
             f"{route.destination}_above", "home",
@@ -469,7 +492,8 @@ def load_partial_pose_file(path: Path, *, expected_serial: str) -> dict[str, dic
     return dict(poses)
 
 
-def load_pose_file(path: Path, *, expected_serial: str) -> dict[str, dict[str, float]]:
+def load_pose_records(path: Path, *, expected_serial: str,
+                      required_names: Sequence[str]) -> dict[str, dict[str, Any]]:
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
@@ -479,21 +503,37 @@ def load_pose_file(path: Path, *, expected_serial: str) -> dict[str, dict[str, f
         raise _fail("pose_file_identity_mismatch", raw.get("follower_serial"), expected_serial,
                     "현재 follower에서 자세를 다시 티칭해 주세요")
     poses = raw.get("poses")
-    missing = [name for name in POSE_NAMES if name not in poses] if isinstance(poses, dict) else list(POSE_NAMES)
+    missing = ([name for name in required_names if name not in poses]
+               if isinstance(poses, dict) else list(required_names))
     if missing:
         raise _fail("pose_file_incomplete", missing, "all fixed demo poses",
-                    "teach 명령을 끝까지 완료해 주세요")
+                    "기본 teach를 완료하고 종류별 닫힘은 teach --only로 저장해 주세요")
     result = {}
-    for name in POSE_NAMES:
-        values = poses[name].get("position") if isinstance(poses[name], dict) else None
-        if not isinstance(values, dict) or set(values) != set(JOINTS):
-            raise _fail("pose_values_invalid", name, "six joint positions",
+    for name, record in poses.items():
+        if name not in ALL_POSE_NAMES:
+            raise _fail("pose_name_invalid", name, "known fixed demo pose",
+                        "pose JSON의 알 수 없는 자세를 제거해 주세요")
+        values = record.get("position") if isinstance(record, dict) else None
+        present_raw = record.get("present_raw") if isinstance(record, dict) else None
+        if (not isinstance(values, dict) or set(values) != set(JOINTS)
+                or not isinstance(present_raw, dict) or set(present_raw) != set(JOINTS)):
+            raise _fail("pose_values_invalid", name, "six joint positions and raw values",
                         "해당 자세를 다시 티칭해 주세요")
         converted = {joint: float(values[joint]) for joint in JOINTS}
-        if any(not math.isfinite(v) for v in converted.values()):
+        if any(not math.isfinite(value) for value in converted.values()):
             raise _fail("pose_values_nonfinite", name, "finite joint positions",
                         "pose JSON을 확인해 주세요")
-        result[name] = converted
+        result[name] = dict(record)
+        result[name]["position"] = converted
+    return result
+
+
+def load_pose_file(path: Path, *, expected_serial: str) -> dict[str, dict[str, float]]:
+    records = load_pose_records(path, expected_serial=expected_serial,
+                                required_names=ALL_POSE_NAMES)
+    result = {}
+    for name in ALL_POSE_NAMES:
+        result[name] = dict(records[name]["position"])
     return result
 
 
@@ -620,6 +660,71 @@ def _positions(bus) -> dict[str, float]:
     return result
 
 
+def _motor_id(bus, joint: str) -> int:
+    motor = getattr(bus, "motors", {}).get(joint)
+    motor_id = getattr(motor, "id", None)
+    return int(motor_id) if motor_id is not None else JOINTS.index(joint) + 1
+
+
+def _servo_status_from_exception(error: BaseException) -> tuple[str | None, int | None]:
+    message = str(error)
+    for fragment, status, bit in SERVO_STATUS_ERRORS:
+        if fragment in message:
+            return status, bit
+    return None, None
+
+
+def _read_motor_register(bus, register: str, joint: str, *, normalize: bool,
+                         num_retry: int, stage: str) -> int | float:
+    try:
+        return bus.read(register, joint, normalize=normalize, num_retry=num_retry)
+    except Exception as error:
+        status, bit = _servo_status_from_exception(error)
+        raise SegmentSafetyFault(
+            "servo_status_error" if status is not None else "motor_register_read_failed",
+            {
+                "stage": stage,
+                "register": register,
+                "motor_name": joint,
+                "motor_id": _motor_id(bus, joint),
+                "register_value": None,
+                "servo_status": status or "UNKNOWN",
+                "servo_status_bit": bit,
+                "servo_status_value": bit,
+                "driver_error": str(error),
+            },
+        ) from error
+
+
+def _read_temperatures(bus, *, stage: str) -> dict[str, int]:
+    temperatures: dict[str, int] = {}
+    for joint in JOINTS:
+        try:
+            temperatures[joint] = int(_read_motor_register(
+                bus, "Present_Temperature", joint, normalize=False,
+                num_retry=0, stage=stage))
+        except SegmentSafetyFault as error:
+            error.details["values_read_before_fault"] = dict(temperatures)
+            raise
+    affected = [
+        {
+            "motor_name": joint,
+            "motor_id": _motor_id(bus, joint),
+            "temperature_c": value,
+            "limit_c": MAX_TEMPERATURE_C,
+        }
+        for joint, value in temperatures.items()
+        if not 0 <= value <= MAX_TEMPERATURE_C
+    ]
+    if affected:
+        raise SegmentSafetyFault(
+            "temperature_limit_exceeded",
+            {"stage": stage, "register": "Present_Temperature",
+             "affected_motors": affected, "temperatures_c": temperatures},
+        )
+    return temperatures
+
+
 class StrictWriteGate:
     """Block every write except the exact HOLD, motion, or Ctrl+C operation."""
 
@@ -734,15 +839,11 @@ def establish_hold(bus, writes: StrictWriteGate, *, sleep: Callable[[float], Non
         goal_now = _raw(bus, "Goal_Position")
         present_now = _raw(bus, "Present_Position")
         moving_now = _raw(bus, "Moving")
-        temperatures = {joint: int(bus.read("Present_Temperature", joint,
-                                                    normalize=False, num_retry=0))
-                        for joint in JOINTS}
+        temperatures = _read_temperatures(bus, stage="hold_stability")
         if set(torque_now.values()) != {1} or goal_now != expected_goal or any(moving_now.values()):
             raise RuntimeError("hold_stability_state_changed")
         if any(abs(present_now[joint] - initial_present[joint]) > 2 for joint in JOINTS):
             raise RuntimeError("hold_stability_present_drift")
-        if any(not 0 <= value <= MAX_TEMPERATURE_C for value in temperatures.values()):
-            raise RuntimeError("temperature_fault")
         samples += 1
         if monotonic() - started >= 3.0:
             break
@@ -891,21 +992,48 @@ def _slew_target(requested: Mapping[str, float], previous: Mapping[str, float],
     return {joint: previous[joint] + fraction * delta[joint] for joint in JOINTS}
 
 
+def _validate_only_pose_names(only: Sequence[str] | None) -> tuple[str, ...] | None:
+    if only is None:
+        return None
+    names = tuple(only)
+    unknown = [name for name in names if name not in ALL_POSE_NAMES]
+    if not names or unknown or len(set(names)) != len(names):
+        raise _fail("teach_only_pose_names_invalid", list(names),
+                    "unique known pose names",
+                    "--only 뒤에 저장할 자세 이름을 중복 없이 지정해 주세요")
+    return names
+
+
 def teach(config, settings: DemoSettings, *, overwrite: bool = False, resume: bool = False,
-          session_factory=HardwareSession) -> dict[str, Any]:
-    if overwrite and resume:
-        raise _fail("teach_mode_conflict", ["overwrite", "resume"], "one mode",
-                    "--overwrite와 --resume 중 하나만 사용해 주세요")
+          only: Sequence[str] | None = None, session_factory=HardwareSession) -> dict[str, Any]:
+    only_names = _validate_only_pose_names(only)
+    selected_modes = [name for name, enabled in (("overwrite", overwrite), ("resume", resume),
+                                                  ("only", only_names is not None)) if enabled]
+    if len(selected_modes) > 1:
+        raise _fail("teach_mode_conflict", selected_modes, "one mode",
+                    "--overwrite, --resume, --only 중 하나만 사용해 주세요")
     partial_path = partial_pose_path(settings.pose_path)
-    if settings.pose_path.exists() and not overwrite and not resume:
+    if only_names is not None:
+        if not settings.pose_path.is_file():
+            raise _fail("pose_file_missing_for_teach_only", str(settings.pose_path),
+                        "completed base 18-pose file",
+                        "먼저 기본 teach 18개를 완료해 주세요")
+        captured = load_pose_records(
+            settings.pose_path, expected_serial=config.raw["robot"]["follower_serial"],
+            required_names=POSE_NAMES)
+        teach_names = only_names
+        pose_index = 0
+    elif settings.pose_path.exists() and not overwrite and not resume:
         raise _fail("pose_file_already_exists", str(settings.pose_path), "new path or --overwrite",
                     "기존 티칭값을 보존하려면 파일을 백업해 주세요")
-    if resume:
+    elif resume:
         if not partial_path.is_file():
             raise _fail("partial_pose_file_missing", str(partial_path), "saved partial pose file",
                         "처음부터 시작하려면 --resume을 빼 주세요")
         captured = load_partial_pose_file(partial_path,
                                           expected_serial=config.raw["robot"]["follower_serial"])
+        teach_names = POSE_NAMES
+        pose_index = len(captured)
     else:
         if partial_path.exists() and not overwrite:
             raise _fail("partial_pose_file_exists", str(partial_path), "--resume or --overwrite",
@@ -913,9 +1041,12 @@ def teach(config, settings: DemoSettings, *, overwrite: bool = False, resume: bo
         if overwrite and partial_path.exists():
             partial_path.unlink()
         captured = {}
+        teach_names = POSE_NAMES
+        pose_index = 0
     session = session_factory(config, include_leader=True)
     old_terminal = None
     stopping = False
+    saved_this_run: list[str] = []
 
     def stop(_signum, _frame):
         nonlocal stopping
@@ -930,14 +1061,13 @@ def teach(config, settings: DemoSettings, *, overwrite: bool = False, resume: bo
         follower_origin = _positions(session.follower.bus)
         previous = dict(follower_origin)
         print("티칭 시작: Enter=현재 자세 저장, q=중단, Ctrl+C=현재 위치 유지")
-        print("그리퍼 값은 gripper_open/gripper_closed 자세에서만 의미가 있으며, "
+        print("그리퍼 값은 gripper_open/gripper_closed_A/B/C 자세에서만 의미가 있으며, "
               "나머지 자세는 팔 5축만 재생합니다.")
         if sys.stdin.isatty():
             old_terminal = termios.tcgetattr(sys.stdin.fileno())
             tty.setcbreak(sys.stdin.fileno())
-        pose_index = len(captured)
-        while pose_index < len(POSE_NAMES) and not stopping:
-            pose_name = POSE_NAMES[pose_index]
+        while pose_index < len(teach_names) and not stopping:
+            pose_name = teach_names[pose_index]
             leader_now = dict(session.leader.get_action())
             requested_unclamped = _relative_target(leader_now, leader_origin, follower_origin)
             requested, clamped = clamp_to_calibrated_inner_range(
@@ -952,8 +1082,11 @@ def teach(config, settings: DemoSettings, *, overwrite: bool = False, resume: bo
                 session.writes.motion_goal(emitted)
                 previous = emitted
             clamp_note = f" CLAMP={','.join(clamped)}" if clamped else ""
-            pose_note = "그리퍼 포함" if pose_name in GRIPPER_POSES else "팔 5축만"
-            print(f"\r[{pose_index + 1}/{len(POSE_NAMES)}] {pose_name} ({pose_note}) 자세에서 Enter{clamp_note} ",
+            if pose_name == "gripper_closed":
+                pose_note = "기존 호환용(run 미사용)"
+            else:
+                pose_note = "그리퍼 포함" if pose_name in GRIPPER_POSES else "팔 5축만"
+            print(f"\r[{pose_index + 1}/{len(teach_names)}] {pose_name} ({pose_note}) 자세에서 Enter{clamp_note} ",
                   end="", flush=True)
             readable, _, _ = select.select([sys.stdin], [], [], settings.control_period_s)
             if not readable:
@@ -977,24 +1110,31 @@ def teach(config, settings: DemoSettings, *, overwrite: bool = False, resume: bo
                 "present_raw": raw_present,
                 "captured_at_utc": datetime.now(timezone.utc).isoformat(),
             }
-            save_pose_file(partial_path, follower_serial=session.follower_serial,
-                           poses=captured)
+            save_path = settings.pose_path if only_names is not None else partial_path
+            save_pose_file(save_path, follower_serial=session.follower_serial, poses=captured)
+            saved_this_run.append(pose_name)
             pose_index += 1
-            print(f"\n저장: {pose_name} (partial {pose_index}/{len(POSE_NAMES)})")
+            save_kind = "pose file" if only_names is not None else "partial"
+            print(f"\n저장: {pose_name} ({save_kind} {pose_index}/{len(teach_names)})")
         if stopping:
             raise KeyboardInterrupt
-        save_pose_file(settings.pose_path, follower_serial=session.follower_serial, poses=captured)
-        partial_path.unlink(missing_ok=True)
-        return {"status": "TEACH_COMPLETE", "pose_file": str(settings.pose_path),
-                "pose_count": len(captured), "hold": hold,
+        if only_names is None:
+            save_pose_file(settings.pose_path, follower_serial=session.follower_serial, poses=captured)
+            partial_path.unlink(missing_ok=True)
+        return {"status": "TEACH_ONLY_COMPLETE" if only_names is not None else "TEACH_COMPLETE",
+                "pose_file": str(settings.pose_path), "pose_count": len(captured),
+                "saved_pose_names": saved_this_run, "hold": hold,
                 "write_counts": dict(session.writes.counts)}
     except KeyboardInterrupt:
         held = session.ctrl_c_hold()
         code = "teach_stopped_current_position_held" if held else "teach_stopped_before_motion_arm"
-        remedy = ("주변과 follower Torque/Goal 상태를 확인한 뒤 teach --resume으로 이어가 주세요"
-                  if partial_path.exists() else
+        remedy = (("저장된 자세는 유지됩니다. 주변과 상태 확인 후 남은 자세만 teach --only로 다시 실행해 주세요"
+                   if only_names is not None else
+                   "주변과 follower Torque/Goal 상태를 확인한 뒤 teach --resume으로 이어가 주세요")
+                  if (only_names is not None or partial_path.exists()) else
                   "저장된 pose가 없습니다. 주변과 Torque/Goal 상태 확인 후 teach를 다시 실행해 주세요")
-        raise _fail(code, len(captured), str(len(POSE_NAMES)),
+        progress = len(saved_this_run) if only_names is not None else len(captured)
+        raise _fail(code, progress, str(len(teach_names)),
                     remedy)
     finally:
         if old_terminal is not None:
@@ -1022,30 +1162,76 @@ def target_for_stage(stage: str, current: Mapping[str, float],
             else _arm_only(current, taught))
 
 
+def _relieve_blocked_gripper(session: HardwareSession, *, stage: str,
+                            start: Mapping[str, float], target: Mapping[str, float],
+                            settings: DemoSettings,
+                            sleep: Callable[[float], None]) -> tuple[dict[str, float], dict[str, Any] | None]:
+    if stage not in TYPE_GRIPPER_POSES:
+        return dict(target), None
+    actual = float(_read_motor_register(
+        session.follower.bus, "Present_Position", "gripper", normalize=True,
+        num_retry=0, stage=stage))
+    if not math.isfinite(actual):
+        raise SegmentSafetyFault(
+            "nonfinite_gripper_position",
+            {"stage": stage, "motor_name": "gripper",
+             "motor_id": _motor_id(session.follower.bus, "gripper"),
+             "register": "Present_Position", "register_value": actual},
+        )
+    commanded_travel = target["gripper"] - start["gripper"]
+    remaining = target["gripper"] - actual
+    blocked_before_target = (commanded_travel * remaining > 0
+                             and abs(remaining) > settings.max_gripper_step)
+    if not blocked_before_target:
+        return dict(target), None
+
+    direction = 1.0 if commanded_travel > 0 else -1.0
+    relief_gripper = actual + direction * min(
+        GRIPPER_CONTACT_RELIEF_BIAS, abs(remaining))
+    current = _positions(session.follower.bus)
+    relieved = dict(current)
+    relieved["gripper"] = relief_gripper
+    ensure_in_bounds(relieved, session.bounds)
+    session.writes.motion_goal(relieved)
+    sleep(settings.control_period_s)
+    return relieved, {
+        "stage": stage,
+        "motor_name": "gripper",
+        "motor_id": _motor_id(session.follower.bus, "gripper"),
+        "commanded_target": target["gripper"],
+        "present_at_contact": actual,
+        "remaining_to_original_target": remaining,
+        "relieved_goal": relief_gripper,
+        "relief_bias": GRIPPER_CONTACT_RELIEF_BIAS,
+    }
+
+
 def execute_segment(session: HardwareSession, target: Mapping[str, float], settings: DemoSettings,
-                    *, sleep: Callable[[float], None] = time.sleep) -> None:
+                    *, stage: str,
+                    sleep: Callable[[float], None] = time.sleep,
+                    monotonic: Callable[[], float] = time.monotonic) -> dict[str, Any]:
     ensure_in_bounds(target, session.bounds)
     start = _positions(session.follower.bus)
     for point in smooth_interpolation(start, target, settings):
         session.writes.motion_goal(point)
         sleep(settings.control_period_s)
-    deadline = time.monotonic() + settings.settle_timeout_s
+    deadline = monotonic() + settings.settle_timeout_s
     while True:
         present = _positions(session.follower.bus)
         moving = _raw(session.follower.bus, "Moving")
         if (not any(moving.values()) and
                 all(abs(present[j] - target[j]) <= settings.settle_tolerance[j] for j in JOINTS)):
             break
-        if time.monotonic() >= deadline:
+        if monotonic() >= deadline:
             raise RuntimeError("segment_settle_timeout")
-        time.sleep(settings.control_period_s)
+        sleep(settings.control_period_s)
+    final_target, contact_relief = _relieve_blocked_gripper(
+        session, stage=stage, start=start, target=target, settings=settings, sleep=sleep)
     if set(_raw(session.follower.bus, "Torque_Enable").values()) != {1}:
         raise RuntimeError("torque_changed_during_demo")
-    temperatures = [int(session.follower.bus.read("Present_Temperature", joint,
-                                                  normalize=False, num_retry=0))
-                    for joint in JOINTS]
-    if any(not 0 <= value <= MAX_TEMPERATURE_C for value in temperatures):
-        raise RuntimeError("temperature_fault")
+    temperatures = _read_temperatures(session.follower.bus, stage=stage)
+    return {"final_target": final_target, "contact_relief": contact_relief,
+            "temperatures_c": temperatures}
 
 
 def run_demo(config, settings: DemoSettings, *, dry_run: bool, step: bool,
@@ -1080,6 +1266,9 @@ def run_demo(config, settings: DemoSettings, *, dry_run: bool, step: bool,
                            expected_serial=config.raw["robot"]["follower_serial"])
     session = session_factory(config, include_leader=False)
     stopping = False
+    active_stage = None
+    completed_stages: list[str] = []
+    contact_reliefs: list[dict[str, Any]] = []
 
     def stop(_signum, _frame):
         nonlocal stopping
@@ -1095,6 +1284,7 @@ def run_demo(config, settings: DemoSettings, *, dry_run: bool, step: bool,
         hold = establish_hold(session.follower.bus, session.writes)
         current = _positions(session.follower.bus)
         for index, stage in enumerate(stages, start=1):
+            active_stage = stage
             if stopping:
                 raise KeyboardInterrupt
             target = target_for_stage(stage, current, poses[stage])
@@ -1102,11 +1292,15 @@ def run_demo(config, settings: DemoSettings, *, dry_run: bool, step: bool,
                 input(f"[{index}/{len(stages)}] {stage} 실행: 주변을 확인하고 Enter ")
             if stopping:
                 raise KeyboardInterrupt
-            execute_segment(session, target, settings)
-            current = dict(target)
+            segment = execute_segment(session, target, settings, stage=stage)
+            current = dict(segment["final_target"])
+            if segment["contact_relief"] is not None:
+                contact_reliefs.append(segment["contact_relief"])
+            completed_stages.append(stage)
         result.update({"hold": hold, "serial_open": 1,
                        "motor_command": session.writes.counts["Goal_Position_motion"],
-                       "write_counts": dict(session.writes.counts)})
+                       "write_counts": dict(session.writes.counts),
+                       "contact_reliefs": contact_reliefs})
         return result
     except KeyboardInterrupt:
         connected = session.follower is not None and session.writes is not None
@@ -1117,6 +1311,29 @@ def run_demo(config, settings: DemoSettings, *, dry_run: bool, step: bool,
                         "follower Torque/Goal 상태와 주변을 확인해 주세요")
         raise _fail("demo_stopped_before_robot_connect", True, "plan confirmation",
                     "로봇 명령은 없었으며 필요할 때 다시 실행해 주세요")
+    except Exception as error:
+        connected = session.follower is not None and session.writes is not None
+        hold_error = None
+        held = False
+        if connected:
+            try:
+                held = session.ctrl_c_hold()
+            except Exception as current_hold_error:
+                hold_error = f"{type(current_hold_error).__name__}: {current_hold_error}"
+        fault = (dict(error.details) if isinstance(error, SegmentSafetyFault) else
+                 {"stage": active_stage, "exception_type": type(error).__name__,
+                  "driver_error": str(error)})
+        fault["fault_code"] = (error.code if isinstance(error, SegmentSafetyFault)
+                               else "motion_or_feedback_error")
+        raise _fail(
+            "demo_fault_current_position_held" if held else "demo_fault_hold_not_completed",
+            {"fault": fault, "completed_stages": completed_stages,
+             "contact_reliefs": contact_reliefs, "current_position_hold": held,
+             "hold_error": hold_error,
+             "write_counts": dict(session.writes.counts) if connected else None},
+            "fault-free supervised stage completion and current-position hold on fault",
+            "원문 servo 상태와 motor ID를 확인하고, 전원을 끄기 전에 물리 상태·온도를 점검해 주세요",
+        ) from error
     finally:
         for sig, handler in old_signals.items():
             signal.signal(sig, handler)
