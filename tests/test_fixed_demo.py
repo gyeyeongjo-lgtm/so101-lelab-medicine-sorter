@@ -6,12 +6,13 @@ from pathlib import Path
 
 from medicine_sorter.config import load_config
 from medicine_sorter.fixed_demo import (
-    JOINTS, POSE_NAMES, POST_GOAL_READ_RETRIES,
+    GRIPPER_POSES, JOINTS, POSE_NAMES, POST_GOAL_READ_RETRIES,
     TEACH_GOAL_PRESENT_RAW_TOLERANCE, StrictWriteGate,
     clamp_to_calibrated_inner_range, establish_hold, load_demo_settings,
     load_partial_pose_file, parse_destination_rules, routes_from_snapshot,
-    run_demo, save_pose_file, slot_for_pixel, smooth_interpolation,
-    stage_names_for_routes, validate_demo_settings,
+    resolve_robot_ports, run_demo, save_pose_file, slot_for_pixel,
+    smooth_interpolation, stage_names_for_routes, target_for_stage,
+    validate_demo_settings,
 )
 
 
@@ -163,6 +164,75 @@ class FixedDemoTests(unittest.TestCase):
         stages = stage_names_for_routes(routes)
         self.assertIn("green_above", stages)
         self.assertIn("green_release", stages)
+
+    def test_each_bottle_repeats_home_open_pick_place_home_sequence(self):
+        routes, _ = routes_from_snapshot(
+            snapshot(), self.settings, {"A": "green", "B": "red", "C": "blue"})
+        stages = stage_names_for_routes(routes)
+        self.assertEqual(len(stages), 33)
+        for index, route in enumerate(routes):
+            chunk = stages[index * 11:(index + 1) * 11]
+            self.assertEqual(chunk, [
+                "home", "gripper_open", f"{route.slot}_pre", f"{route.slot}_grasp",
+                "gripper_closed", f"{route.slot}_lift", f"{route.destination}_above",
+                f"{route.destination}_release", "gripper_open",
+                f"{route.destination}_above", "home",
+            ])
+
+    def test_only_explicit_gripper_stages_change_gripper(self):
+        current = {joint: 10.0 + index for index, joint in enumerate(JOINTS)}
+        poses = {}
+        for index, name in enumerate(POSE_NAMES):
+            poses[name] = {joint: 100.0 + index * 10 + joint_index
+                           for joint_index, joint in enumerate(JOINTS)}
+        poses["gripper_open"]["gripper"] = 90.0
+        poses["gripper_closed"]["gripper"] = 10.0
+        routes, _ = routes_from_snapshot(
+            snapshot(), self.settings, {"A": "green", "B": "red", "C": "blue"})
+        for stage in stage_names_for_routes(routes):
+            previous_gripper = current["gripper"]
+            target = target_for_stage(stage, current, poses[stage])
+            if stage == "gripper_open":
+                self.assertEqual(target["gripper"], 90.0)
+            elif stage == "gripper_closed":
+                self.assertEqual(target["gripper"], 10.0)
+            else:
+                self.assertEqual(target["gripper"], previous_gripper)
+                self.assertEqual({joint: target[joint] for joint in JOINTS[:-1]},
+                                 {joint: poses[stage][joint] for joint in JOINTS[:-1]})
+            current = target
+        self.assertEqual(GRIPPER_POSES, {"gripper_open", "gripper_closed"})
+
+    def test_usb_serials_select_roles_independent_of_acm_number(self):
+        serials = {
+            Path("/dev/ttyACM0"): "LEADER",
+            Path("/dev/ttyACM1"): "OTHER",
+            Path("/dev/ttyACM2"): "FOLLOWER",
+        }
+        follower, leader = resolve_robot_ports(
+            "FOLLOWER", "LEADER", candidates=tuple(reversed(serials)),
+            serial_reader=serials.__getitem__)
+        self.assertEqual(follower, Path("/dev/ttyACM2"))
+        self.assertEqual(leader, Path("/dev/ttyACM0"))
+
+    def test_usb_role_resolution_fails_before_connect_on_missing_or_collision(self):
+        serials = {Path("/dev/ttyACM0"): "FOLLOWER"}
+        with self.assertRaisesRegex(RuntimeError, "leader_usb_serial_not_found"):
+            resolve_robot_ports("FOLLOWER", "LEADER", candidates=tuple(serials),
+                                serial_reader=serials.__getitem__)
+        with self.assertRaisesRegex(RuntimeError, "serial_identity_collision"):
+            resolve_robot_ports("SAME", "SAME", candidates=tuple(serials),
+                                serial_reader=serials.__getitem__)
+
+    def test_duplicate_usb_serial_is_rejected(self):
+        serials = {
+            Path("/dev/ttyACM0"): "FOLLOWER",
+            Path("/dev/ttyACM1"): "FOLLOWER",
+            Path("/dev/ttyACM2"): "LEADER",
+        }
+        with self.assertRaisesRegex(RuntimeError, "follower_usb_serial_ambiguous"):
+            resolve_robot_ports("FOLLOWER", "LEADER", candidates=tuple(serials),
+                                serial_reader=serials.__getitem__)
 
     def test_interpolation_preserves_common_fraction_and_two_degree_limit(self):
         start = {joint: 0.0 for joint in JOINTS}

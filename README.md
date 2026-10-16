@@ -90,7 +90,10 @@ python3 -m medicine_sorter --config configs/system.example.json run --step --rul
 `teach`는 한 follower/leader session에서 relative-start로 green above/release를
 포함한 18개 자세를 순서대로 저장합니다. Enter를 누를 때마다
 `configs/fixed_demo_poses.partial.json`에 바로 저장하며, 중단됐다면
-`teach --resume`으로 다음 자세부터 이어갑니다. follower는 fresh Present raw를
+`teach --resume`으로 다음 자세부터 이어갑니다. `gripper_open`과
+`gripper_closed`에서 저장한 그리퍼 값만 재생에 사용하며, home·slot·basket
+자세에서는 팔 5축만 재생하고 직전 그리퍼 상태를 유지합니다. 따라서 나머지 자세를
+티칭할 때는 팔 위치만 맞추면 됩니다. follower는 fresh Present raw를
 Goal raw로 한 번 복사합니다. 이 Goal write가 Feetech Torque를 자동으로
 ALL ON하면 `AUTO_ENABLED_BY_GOAL`로 인정하고 추가 Torque write를 하지 않습니다.
 여전히 ALL OFF면 Torque ON을 한 번만 쓰며 mixed state는 중단합니다.
@@ -98,9 +101,12 @@ ALL ON하면 `AUTO_ENABLED_BY_GOAL`로 인정하고 추가 Torque write를 하�
 `disconnect(disable_torque=False)`로 처리합니다. Ctrl+C는 fresh Present raw를
 Goal로 한 번 복사해 **현재 위치 유지**를 요청하며 Torque OFF가 아닙니다.
 
-sudo/lsof/fuser 포트 조회는 이 경로에 없습니다. 대신 follower/leader USB serial을
-sysfs에서 대조하고, 사용자 process lock과 열린 serial FD의 `TIOCEXCL`로 중복
-실행을 차단합니다. 다른 컨트롤러는 실행 전 정상 종료해야 합니다.
+sudo/lsof/fuser 포트 조회는 이 경로에 없습니다. 대신 연결 전에 config의
+follower serial `5AE6058306`과 leader serial `5AE6085272`를 현재
+`/dev/ttyACM*`의 sysfs serial에서 찾아 역할을 자동 선택합니다. 둘 중 하나를 찾지
+못하거나 serial/port가 충돌·중복되면 어떤 serial도 열기 전에 중단합니다. 그 뒤
+사용자 process lock과 열린 serial FD의 `TIOCEXCL`로 중복 실행을 차단합니다. 다른
+컨트롤러는 실행 전 정상 종료해야 합니다.
 
 `live` 명령은 존재하지만 현재 예제 설정에서는 의도적으로 차단됩니다. 출력은 실패
 항목, 관측값, 필요한 조건과 다음 조치를 함께 제공합니다. 기존의 실험별 승인 문자열,

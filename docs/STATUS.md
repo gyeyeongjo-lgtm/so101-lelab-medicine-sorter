@@ -2,6 +2,22 @@
 
 업데이트: 2026-10-17
 
+## 2026-10-17 그리퍼 단계 분리·USB serial 포트 자동 선택 — 오프라인 PASS
+
+- `home`, slot, basket 자세는 팔 5축만 재생하고 현재 그리퍼 값을 유지한다.
+  그리퍼는 `gripper_open`과 `gripper_closed`에서만 변경한다. 따라서 release 자세에
+  닫힌 채 도착한 뒤 명시적 open을 실행하고, 열린 채 above/home으로 물러난다.
+  여러 약통도 각 약통마다 동일한 11단계 순서를 처음부터 반복한다.
+- config의 follower `5AE6058306`, leader `5AE6085272`를 기준으로 현재
+  `/dev/ttyACM*`를 sysfs에서 찾아 역할을 자동 선택한다. 누락·중복·동일 identity는
+  LeRobot 객체 생성과 serial open 전에 중단한다. config의 순간적인 ACM 번호는
+  더 이상 teach/run 연결 역할을 결정하지 않는다.
+- 티칭 화면에 `gripper_open/gripper_closed`만 그리퍼 값이 의미 있고 나머지는
+  팔 5축만 사용한다고 표시한다.
+- fixed-demo `32/32 PASS`, 기존 sorter `30/30 PASS`, compile·`git diff --check`
+  PASS. 실제 Jetson 배포·serial open·Goal/Torque/config write·motor command는
+  `0/NOT_RUN`. [상세](sessions/2026-10-17-gripper-stage-and-auto-port.md).
+
 ## 2026-10-17 실행 규칙 3×3·green 자세·resume 티칭 — 오프라인 PASS
 
 - `run --rule C=green B=red A=blue`처럼 A/B/C 각각을 red/blue/green 어느

@@ -4,6 +4,7 @@ import fcntl
 import json
 import math
 import os
+import re
 import select
 import signal
 import sys
@@ -41,6 +42,7 @@ POST_GOAL_READ_DELAY_S = 0.2
 POST_GOAL_READ_RETRIES = 3
 VALID_BOTTLE_TYPES = {"A", "B", "C"}
 VALID_DESTINATIONS = {"red", "blue", "green"}
+GRIPPER_POSES = {"gripper_open", "gripper_closed"}
 
 
 def _fail(code: str, observed: Any, expected: str, remedy: str) -> SorterError:
@@ -280,10 +282,10 @@ def routes_from_snapshot(snapshot: Mapping[str, Any], settings: DemoSettings,
 
 
 def stage_names_for_routes(routes: Sequence[MarkerRoute]) -> list[str]:
-    stages = ["home", "gripper_open"]
+    stages = []
     for route in routes:
         stages.extend((
-            f"{route.slot}_pre", f"{route.slot}_grasp", "gripper_closed",
+            "home", "gripper_open", f"{route.slot}_pre", f"{route.slot}_grasp", "gripper_closed",
             f"{route.slot}_lift", f"{route.destination}_above",
             f"{route.destination}_release", "gripper_open",
             f"{route.destination}_above", "home",
@@ -399,8 +401,12 @@ def smooth_interpolation(start: Mapping[str, float], target: Mapping[str, float]
         count += 1
 
 
+def _is_canonical_acm_port(port: Path) -> bool:
+    return port.parent == Path("/dev") and re.fullmatch(r"ttyACM\d+", port.name) is not None
+
+
 def _serial_for_port(port: Path) -> str:
-    if str(port) not in {"/dev/ttyACM0", "/dev/ttyACM1"}:
+    if not _is_canonical_acm_port(port):
         raise RuntimeError(f"noncanonical_port:{port}")
     tty_device = (Path("/sys/class/tty") / port.name / "device").resolve()
     for directory in (tty_device, *tty_device.parents):
@@ -410,6 +416,41 @@ def _serial_for_port(port: Path) -> str:
             if value:
                 return value
     raise RuntimeError(f"usb_serial_not_found:{port}")
+
+
+def resolve_robot_ports(follower_serial: str, leader_serial: str, *,
+                        candidates: Sequence[Path] | None = None,
+                        serial_reader: Callable[[Path], str] = _serial_for_port,
+                        dev_root: Path = Path("/dev")) -> tuple[Path, Path]:
+    """Resolve both SO-101 roles by USB serial before either serial port is opened."""
+    if (not follower_serial or not leader_serial
+            or follower_serial == leader_serial):
+        raise RuntimeError("leader_follower_serial_identity_collision")
+    ports = tuple(sorted(
+        (Path(port) for port in (candidates if candidates is not None
+                                 else dev_root.glob("ttyACM*"))
+         if _is_canonical_acm_port(Path(port))),
+        key=lambda port: port.name,
+    ))
+    matches: dict[str, list[Path]] = {follower_serial: [], leader_serial: []}
+    for port in ports:
+        try:
+            serial = serial_reader(port)
+        except (OSError, RuntimeError):
+            continue
+        if serial in matches:
+            matches[serial].append(port)
+    for role, serial in (("follower", follower_serial), ("leader", leader_serial)):
+        found = matches[serial]
+        if not found:
+            raise RuntimeError(f"{role}_usb_serial_not_found:{serial}")
+        if len(found) != 1:
+            raise RuntimeError(f"{role}_usb_serial_ambiguous:{serial}:{found}")
+    follower_port = matches[follower_serial][0]
+    leader_port = matches[leader_serial][0]
+    if follower_port == leader_port:
+        raise RuntimeError("leader_follower_port_identity_collision")
+    return follower_port, leader_port
 
 
 class PortLock:
@@ -636,16 +677,11 @@ class HardwareSession:
         self.bounds = None
 
     def connect(self) -> None:
+        self.follower_port, self.leader_port = resolve_robot_ports(
+            self.follower_serial, self.leader_serial)
         from lerobot.robots.so_follower import SO101Follower, SO101FollowerConfig
         from lerobot.teleoperators.so_leader import SO101Leader, SO101LeaderConfig
 
-        if self.include_leader and (self.follower_port == self.leader_port
-                                    or self.follower_serial == self.leader_serial):
-            raise RuntimeError("leader_follower_identity_collision")
-        if _serial_for_port(self.follower_port) != self.follower_serial:
-            raise RuntimeError("follower_usb_serial_mismatch")
-        if self.include_leader and _serial_for_port(self.leader_port) != self.leader_serial:
-            raise RuntimeError("leader_usb_serial_mismatch")
         self.follower_lock.acquire()
         if self.include_leader:
             self.leader_lock.acquire()
@@ -763,6 +799,8 @@ def teach(config, settings: DemoSettings, *, overwrite: bool = False, resume: bo
         follower_origin = _positions(session.follower.bus)
         previous = dict(follower_origin)
         print("티칭 시작: Enter=현재 자세 저장, q=중단, Ctrl+C=현재 위치 유지")
+        print("그리퍼 값은 gripper_open/gripper_closed 자세에서만 의미가 있으며, "
+              "나머지 자세는 팔 5축만 재생합니다.")
         if sys.stdin.isatty():
             old_terminal = termios.tcgetattr(sys.stdin.fileno())
             tty.setcbreak(sys.stdin.fileno())
@@ -783,7 +821,8 @@ def teach(config, settings: DemoSettings, *, overwrite: bool = False, resume: bo
                 session.writes.motion_goal(emitted)
                 previous = emitted
             clamp_note = f" CLAMP={','.join(clamped)}" if clamped else ""
-            print(f"\r[{pose_index + 1}/{len(POSE_NAMES)}] {pose_name} 자세에서 Enter{clamp_note} ",
+            pose_note = "그리퍼 포함" if pose_name in GRIPPER_POSES else "팔 5축만"
+            print(f"\r[{pose_index + 1}/{len(POSE_NAMES)}] {pose_name} ({pose_note}) 자세에서 Enter{clamp_note} ",
                   end="", flush=True)
             readable, _, _ = select.select([sys.stdin], [], [], settings.control_period_s)
             if not readable:
@@ -838,6 +877,18 @@ def _gripper_only(current: Mapping[str, float], taught: Mapping[str, float]) -> 
     result = dict(current)
     result["gripper"] = taught["gripper"]
     return result
+
+
+def _arm_only(current: Mapping[str, float], taught: Mapping[str, float]) -> dict[str, float]:
+    result = dict(taught)
+    result["gripper"] = current["gripper"]
+    return result
+
+
+def target_for_stage(stage: str, current: Mapping[str, float],
+                     taught: Mapping[str, float]) -> dict[str, float]:
+    return (_gripper_only(current, taught) if stage in GRIPPER_POSES
+            else _arm_only(current, taught))
 
 
 def execute_segment(session: HardwareSession, target: Mapping[str, float], settings: DemoSettings,
@@ -915,9 +966,7 @@ def run_demo(config, settings: DemoSettings, *, dry_run: bool, step: bool,
         for index, stage in enumerate(stages, start=1):
             if stopping:
                 raise KeyboardInterrupt
-            target = (_gripper_only(current, poses[stage])
-                      if stage in {"gripper_open", "gripper_closed"}
-                      else poses[stage])
+            target = target_for_stage(stage, current, poses[stage])
             if step:
                 input(f"[{index}/{len(stages)}] {stage} 실행: 주변을 확인하고 Enter ")
             if stopping:
