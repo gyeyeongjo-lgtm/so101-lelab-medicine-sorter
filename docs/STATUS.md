@@ -1,6 +1,11 @@
 # 현재 상태
 
-업데이트: 2026-10-15
+업데이트: 2026-10-16
+
+## 2026-10-16 GitHub 진행 상황 동기화
+
+- 2026-10-14~15 복구 코드·fake 테스트·요약 세션 79파일을 커밋 `27c60b2`로 만들고 원격 `fix/usb-recording`에 push했다. 관련 fake/unit `176/176 PASS`, 변경 Python compile 및 staged whitespace 검사 PASS다.
+- 원본 로그, credential, 영상, 데이터셋, 모델은 포함하지 않았다. 복구 범위와 무관한 ArUco SVG 3개·Charuco PDF 1개 로컬 삭제는 커밋하지 않고 보존했다. 실제 모터/serial/Goal/Torque/config write와 teaching은 `NOT_RUN`. [상세](sessions/2026-10-16-github-progress-sync.md).
 
 ## 2026-10-15 UNKNOWN Torque writer 진단 — firewall 배치, Jetson test 네트워크 차단
 
