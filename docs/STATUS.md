@@ -2,6 +2,11 @@
 
 업데이트: 2026-10-16
 
+## 2026-10-16 GitHub 동기화 후 고정 포트 테스트 정합
+
+- 기존 진행 코드·세션은 `27c60b2`, 동기화 기록은 `dd7b479`로 이미 원격 `fix/usb-recording`에 반영됨을 재확인했다. 이번 추가 변경은 새 포트 소유권 정책(`/dev/ttyACM0`·`/dev/ttyACM1`만 허용)에 맞춰 과거 fuser fallback 단위 테스트 두 개의 가짜 장치 경로만 바꾼 것이다. 실제 포트·모터는 열지 않았다.
+- 관련 hardware-free 테스트 `194/194 PASS`, 로컬 캡처 서버 테스트 `14/14 PASS`. 전체 615개 발견 시험의 첫 실행은 로컬 Python 의존성·sandbox loopback 제한과 이 두 구형 테스트 때문에 실패했으며, 그 실패를 숨기지 않는다. [상세](sessions/2026-10-16-github-progress-sync.md). Jetson/live 재시험 `NOT_RUN`, 이슈 갱신 `NOT_RUN`.
+
 ## 2026-10-16 GitHub 진행 상황 동기화
 
 - 2026-10-14~15 복구 코드·fake 테스트·요약 세션 79파일을 커밋 `27c60b2`로 만들고 원격 `fix/usb-recording`에 push했다. 관련 fake/unit `176/176 PASS`, 변경 Python compile 및 staged whitespace 검사 PASS다.

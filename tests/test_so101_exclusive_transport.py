@@ -397,9 +397,10 @@ class ExclusiveTransportTests(unittest.TestCase):
         self.assertEqual(len(robot.sent), 2)
 
     def test_system_probe_parses_identity_and_unowned_port(self):
-        with tempfile.TemporaryDirectory() as directory:
-            port = Path(directory) / "ttyACM0"
-            port.touch()
+        port = Path("/dev/ttyACM0")
+        with patch.object(Path, "exists", return_value=True), \
+             patch("scripts.so101_exclusive_bus.FIXED_PORT_OCCUPANCY_HELPER") as helper:
+            helper.is_file.return_value = False
             probe = SystemBusProbe()
             from subprocess import CompletedProcess
             responses = {
@@ -416,9 +417,10 @@ class ExclusiveTransportTests(unittest.TestCase):
     def test_system_probe_requires_privileged_scan_for_incomplete_fuser_result(self):
         from subprocess import CompletedProcess
 
-        with tempfile.TemporaryDirectory() as directory:
-            port = Path(directory) / "ttyACM0"
-            port.touch()
+        port = Path("/dev/ttyACM0")
+        with patch.object(Path, "exists", return_value=True), \
+             patch("scripts.so101_exclusive_bus.FIXED_PORT_OCCUPANCY_HELPER") as helper:
+            helper.is_file.return_value = False
             probe = SystemBusProbe()
             calls = []
 
