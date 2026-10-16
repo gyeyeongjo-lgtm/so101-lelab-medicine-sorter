@@ -2,6 +2,22 @@
 
 업데이트: 2026-10-16
 
+## 2026-10-16 GitHub 최신 동기화
+
+- 단일 `medicine_sorter` 진입점, task별 readiness, read-only robot status adapter,
+  Astra 작업대 좌표·frozen-frame UI, 독립 검증 원자료, ArUco PDF 및 제한 데모
+  readiness 기록을 커밋 `d0b00e0`으로 만들고 원격 `fix/usb-recording`에 push했다.
+- 대체된 실험 전용 실행기와 전용 테스트 삭제도 같은 리팩터링 커밋에 포함했다.
+  삭제 전 tracked 상태는 `refs/backup/pre-refactor-20261016` snapshot에 보존돼 있다.
+- `.local`, 로컬 calibration, 모델·데이터셋, 원본 로그, `tmp/`, credential은
+  커밋하지 않았다. 실제 robot serial/Goal/Torque/config/motor command는 이번
+  동기화에서 `0/NOT_RUN`이다.
+- `.venv` 기준 Astra/UI `17/17 PASS`, teach-capture `14개 중 10 PASS·4 SKIP`,
+  sorter `30/30 PASS`; Python compile과 staged whitespace 검사 PASS다. 전체 legacy
+  discovery의 기존 `cv2` 환경 오류와 과거 600 mm marker 기준 불일치는 별도로
+  기록한 채 전체 PASS로 표현하지 않는다.
+  [상세](sessions/2026-10-16-github-latest-sync.md).
+
 ## 2026-10-16 제한된 고정 데모 readiness — 오프라인 정리, 실기 BLOCKED
 
 - 카메라 독립 검증 결과 RMS `10.604 mm`, 최대 `19.817 mm`는
@@ -22,8 +38,8 @@
   `robot-status` read-only 시험이다. 통과 후에만 current→물리 확인된 fixed
   pre-approach 한 점의 relative-start teaching을 별도 감독 시험으로 다룬다. 실제
   serial/Goal/Torque/config/motor command는 이번 작업에서 `0/NOT_RUN`이다.
-  [상세](sessions/2026-10-16-limited-fixed-demo-readiness.md). 변경은
-  `NOT_COMMITTED/NOT_PUSHED`다.
+  [상세](sessions/2026-10-16-limited-fixed-demo-readiness.md). 구현 변경은
+  커밋 `d0b00e0`으로 push됐다.
 
 ## 2026-10-16 Astra frozen-frame UI JavaScript 수정·활성 배포 PASS
 
