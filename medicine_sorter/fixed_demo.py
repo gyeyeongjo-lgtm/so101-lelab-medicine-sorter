@@ -41,7 +41,8 @@ POSE_NAMES = (
 TYPE_GRIPPER_POSES = (
     "gripper_closed_A", "gripper_closed_B", "gripper_closed_C",
 )
-ALL_POSE_NAMES = POSE_NAMES + TYPE_GRIPPER_POSES
+FINISH_POSE_NAME = "finish"
+ALL_POSE_NAMES = POSE_NAMES + TYPE_GRIPPER_POSES + (FINISH_POSE_NAME,)
 MAX_TEMPERATURE_C = 55
 PRESTART_MAX_TEMPERATURE_C_EXCLUSIVE = 50
 GRIPPER_CONTACT_RELIEF_BIAS = 1.0
@@ -491,6 +492,8 @@ def stage_names_for_routes(routes: Sequence[MarkerRoute]) -> list[str]:
             f"{route.destination}_release", "gripper_open",
             f"{route.destination}_above", "home",
         ))
+    if stages:
+        stages.append(FINISH_POSE_NAME)
     return stages
 
 

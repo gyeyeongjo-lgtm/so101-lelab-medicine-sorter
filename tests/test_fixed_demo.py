@@ -9,7 +9,8 @@ from unittest.mock import patch
 from medicine_sorter.config import load_config
 from medicine_sorter.errors import SorterError
 from medicine_sorter.fixed_demo import (
-    ALL_POSE_NAMES, GRIPPER_POSES, JOINTS, POSE_NAMES, POST_GOAL_READ_RETRIES,
+    ALL_POSE_NAMES, FINISH_POSE_NAME, GRIPPER_POSES, JOINTS, POSE_NAMES,
+    POST_GOAL_READ_RETRIES,
     SegmentSafetyFault, TEACH_GOAL_PRESENT_RAW_TOLERANCE, TYPE_GRIPPER_POSES,
     StrictWriteGate,
     clamp_to_calibrated_inner_range, establish_hold, load_demo_settings,
@@ -97,7 +98,8 @@ class FixedDemoTests(unittest.TestCase):
         self.assertEqual(self.settings.marker_to_type, {7: "C", 8: "B", 9: "A"})
         self.assertEqual(self.settings.destinations, {"C": "red", "B": "blue"})
         self.assertEqual(len(POSE_NAMES), 18)
-        self.assertEqual(len(ALL_POSE_NAMES), 21)
+        self.assertEqual(len(ALL_POSE_NAMES), 22)
+        self.assertEqual(FINISH_POSE_NAME, "finish")
         self.assertEqual(set(TYPE_GRIPPER_POSES), {
             "gripper_closed_A", "gripper_closed_B", "gripper_closed_C"})
         self.assertIn("green_above", POSE_NAMES)
@@ -220,7 +222,7 @@ class FixedDemoTests(unittest.TestCase):
         self.assertEqual(stages, [
             "home", "gripper_open", "slot1_pre", "slot1_grasp",
             "gripper_closed_C", "slot1_lift", "red_above", "red_release",
-            "gripper_open", "red_above", "home",
+            "gripper_open", "red_above", "home", "finish",
         ])
 
     def test_green_stage_uses_taught_green_poses(self):
@@ -234,7 +236,7 @@ class FixedDemoTests(unittest.TestCase):
         routes, _ = routes_from_snapshot(
             snapshot(), self.settings, {"A": "green", "B": "red", "C": "blue"})
         stages = stage_names_for_routes(routes)
-        self.assertEqual(len(stages), 33)
+        self.assertEqual(len(stages), 34)
         for index, route in enumerate(routes):
             chunk = stages[index * 11:(index + 1) * 11]
             self.assertEqual(chunk, [
@@ -243,6 +245,8 @@ class FixedDemoTests(unittest.TestCase):
                 f"{route.destination}_release", "gripper_open",
                 f"{route.destination}_above", "home",
             ])
+        self.assertEqual(stages[-1], "finish")
+        self.assertEqual(stages.count("finish"), 1)
 
     def test_only_explicit_gripper_stages_change_gripper(self):
         current = {joint: 10.0 + index for index, joint in enumerate(JOINTS)}
@@ -477,10 +481,71 @@ class FixedDemoTests(unittest.TestCase):
                     self.config, settings, only=list(TYPE_GRIPPER_POSES),
                     session_factory=Session)
             records = load_pose_records(
-                pose_path, expected_serial="5AE6058306", required_names=ALL_POSE_NAMES)
+                pose_path, expected_serial="5AE6058306",
+                required_names=POSE_NAMES + TYPE_GRIPPER_POSES)
             self.assertEqual(result["status"], "TEACH_ONLY_COMPLETE")
             self.assertEqual(result["saved_pose_names"], list(TYPE_GRIPPER_POSES))
             self.assertEqual(records["home"]["captured_at_utc"], "base-0")
+            self.assertEqual(set(records), set(POSE_NAMES + TYPE_GRIPPER_POSES))
+
+    def test_teach_only_finish_extends_existing_pose_file(self):
+        positions = {joint: float(index) for index, joint in enumerate(JOINTS)}
+        present_raw = {joint: 2000 + index for index, joint in enumerate(JOINTS)}
+        base = {
+            name: {"position": dict(positions), "present_raw": dict(present_raw),
+                   "captured_at_utc": f"base-{index}"}
+            for index, name in enumerate(POSE_NAMES + TYPE_GRIPPER_POSES)
+        }
+
+        class Input:
+            def isatty(self):
+                return False
+
+            def read(self, _count):
+                return "\n"
+
+        class Writes:
+            def __init__(self):
+                self.counts = {"Goal_Position_motion": 0}
+
+            def motion_goal(self, _values):
+                self.counts["Goal_Position_motion"] += 1
+
+        class Session:
+            def __init__(self, *_args, **_kwargs):
+                bus = FakeBus()
+                bus.registers["Present_Position"] = dict(present_raw)
+                bus.registers["Goal_Position"] = dict(present_raw)
+                self.follower = SimpleNamespace(bus=bus)
+                self.leader = SimpleNamespace(
+                    get_action=lambda: {f"{joint}.pos": float(index)
+                                        for index, joint in enumerate(JOINTS)})
+                self.writes = Writes()
+                self.bounds = {joint: (-5000.0, 5000.0) for joint in JOINTS}
+                self.follower_serial = "5AE6058306"
+
+            def connect(self):
+                return None
+
+            def close(self):
+                return None
+
+        with tempfile.TemporaryDirectory() as folder:
+            pose_path = Path(folder) / "poses.json"
+            save_pose_file(pose_path, follower_serial="5AE6058306", poses=base)
+            settings = replace(self.settings, pose_path=pose_path)
+            fake_input = Input()
+            with (patch("medicine_sorter.fixed_demo.establish_hold",
+                        return_value={"hold": "TEST"}),
+                  patch("medicine_sorter.fixed_demo.select.select",
+                        return_value=([fake_input], [], [])),
+                  patch("medicine_sorter.fixed_demo.sys.stdin", fake_input)):
+                result = teach(self.config, settings, only=["finish"],
+                               session_factory=Session)
+            records = load_pose_records(
+                pose_path, expected_serial="5AE6058306", required_names=ALL_POSE_NAMES)
+            self.assertEqual(result["status"], "TEACH_ONLY_COMPLETE")
+            self.assertEqual(result["saved_pose_names"], ["finish"])
             self.assertEqual(set(records), set(ALL_POSE_NAMES))
 
     def test_teach_only_invalid_or_conflicting_options_fail_before_session(self):
@@ -668,7 +733,7 @@ class FixedDemoTests(unittest.TestCase):
                      rules={"A": "blue"}, snapshot_loader=lambda _url: wrong,
                      session_factory=forbidden_factory)
 
-    def test_auto_runs_eleven_stages_without_input_and_reports_progress(self):
+    def test_auto_runs_finish_once_after_home_without_input_and_reports_progress(self):
         class Session:
             def __init__(self, *_args, **_kwargs):
                 bus = FakeBus()
@@ -703,9 +768,10 @@ class FixedDemoTests(unittest.TestCase):
                 session_factory=Session, install_signal_handlers=False,
                 progress_callback=progress.append)
         running = [item for item in progress if item["status"] == "RUNNING"]
-        self.assertEqual(len(running), 11)
+        self.assertEqual(len(running), 12)
         self.assertEqual(running[0]["stage"], "home")
-        self.assertEqual(running[-1]["stage"], "home")
+        self.assertEqual(running[-2]["stage"], "home")
+        self.assertEqual(running[-1]["stage"], "finish")
         self.assertEqual(result["status"], "FIXED_DEMO_COMPLETE")
         self.assertEqual(result["prestart_temperatures_c"],
                          {joint: 30 for joint in JOINTS})

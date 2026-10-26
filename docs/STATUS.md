@@ -1,6 +1,21 @@
 # 현재 상태
 
-업데이트: 2026-10-17
+업데이트: 2026-10-26
+
+## 2026-10-26 전체 분류 종료 `finish` 자세 — 구현·오프라인 PASS, Jetson 배포 NOT_RUN
+
+- 기존 약통별 `home → open → pick → place → home` 11단계는 변경하지 않고, 선택된
+  모든 약통 처리가 끝난 뒤 팔 5축 `finish` 자세를 정확히 한 번 추가했다. 여러
+  약통 실행에서도 약통 사이에는 기존 `home`만 사용하고 `finish`는 전체 마지막에만
+  실행한다.
+- 기존 기본 18개와 종류별 gripper 3개 자세 파일을 그대로 읽어
+  `teach --only finish`로 한 자세만 atomic 추가할 수 있다. `finish`에서는 그리퍼
+  값을 재생하지 않고 직전 열린 값을 유지한다. `finish`가 없는 파일은 실제 run의
+  robot session 생성 전에 fail-closed하며, dry-run 계획에는 마지막 stage로 표시된다.
+- fixed-demo+web `51/51 PASS`, sorter `30/30 PASS`, Python compile 및
+  `git diff --check` PASS. 이번 변경의 serial open·Goal/Torque/config write·motor
+  command는 모두 `0`; Jetson pull·finish 티칭·실기 실행은 `NOT_RUN`이다.
+  [상세](sessions/2026-10-26-finish-pose.md).
 
 ## 2026-10-17 고정 데모 자동 실행·버튼 UI — 구현·오프라인 PASS, Jetson 배포 NOT_RUN
 

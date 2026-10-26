@@ -84,6 +84,7 @@ python3 -m medicine_sorter --config configs/system.example.json validate-config
 python3 -m medicine_sorter --config configs/system.example.json teach
 python3 -m medicine_sorter --config configs/system.example.json teach --resume
 python3 -m medicine_sorter --config configs/system.example.json teach --only gripper_closed_A gripper_closed_B gripper_closed_C
+python3 -m medicine_sorter --config configs/system.example.json teach --only finish
 python3 -m medicine_sorter --config configs/system.example.json roi-preview --output /tmp/fixed-demo-roi.png
 python3 -m medicine_sorter --config configs/system.example.json run --dry-run --rule C=green B=red A=blue
 python3 -m medicine_sorter --config configs/system.example.json run --step --rule C=green B=red A=blue
@@ -125,7 +126,12 @@ Goal로 한 번 복사해 **현재 위치 유지**를 요청하며 Torque OFF가
 
 실물 `run --step`의 약통 1개, 2개, 3개와 3개 동시 분류 성공을 근거로 현재 고정
 배치를 `A=slot1, B=slot2, C=slot3` 및 `slot_roi_status=verified`로 기록했습니다.
-`run --auto`는 계획·단계별 Enter 없이 선택된 약통마다 11단계를 연속 재생합니다.
+`finish`는 전체 분류가 끝난 뒤 마지막 `home` 다음에 한 번만 실행되는 팔 5축
+마무리 자세입니다. 기존 자세 파일은 유지한 채 `teach --only finish`로 추가합니다.
+그리퍼는 직전 열린 값을 유지합니다.
+
+`run --auto`는 계획·단계별 Enter 없이 선택된 약통마다 기존 11단계를 연속 재생하고,
+모든 약통 처리가 끝나면 `finish`를 한 번 더 실행합니다.
 단, 매 실행마다 새 Astra 프레임에서 ID9(A)·ID8(B)·ID7(C)가 각각 기대 칸에 있는지
 먼저 검사하고, 포트를 연 뒤 어떤 Goal/Torque write보다 먼저 6개 모터 온도가 모두
 `50°C 미만`인지 확인합니다. 배치나 온도 조건이 다르면 동작을 시작하지 않습니다.
