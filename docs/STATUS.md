@@ -2,7 +2,7 @@
 
 업데이트: 2026-10-26
 
-## 2026-10-26 전체 분류 종료 `finish` 자세 — 구현·오프라인 PASS, Jetson 배포 NOT_RUN
+## 2026-10-26 전체 분류 종료 `finish` 자세 — 구현·오프라인·Jetson 배포 PASS
 
 - 기존 약통별 `home → open → pick → place → home` 11단계는 변경하지 않고, 선택된
   모든 약통 처리가 끝난 뒤 팔 5축 `finish` 자세를 정확히 한 번 추가했다. 여러
@@ -13,8 +13,12 @@
   값을 재생하지 않고 직전 열린 값을 유지한다. `finish`가 없는 파일은 실제 run의
   robot session 생성 전에 fail-closed하며, dry-run 계획에는 마지막 stage로 표시된다.
 - fixed-demo+web `51/51 PASS`, sorter `30/30 PASS`, Python compile 및
-  `git diff --check` PASS. 이번 변경의 serial open·Goal/Torque/config write·motor
-  command는 모두 `0`; Jetson pull·finish 티칭·실기 실행은 `NOT_RUN`이다.
+  `git diff --check` PASS. 구현 검증 중 serial open·Goal/Torque/config write·motor
+  command는 모두 `0`이었다. 이후 Jetson이 exact code commit `5a3edd6`, clean임을
+  확인했고 finish 자세가 저장됐다. 사용자는 새 자세로 빨강·파랑·초록 각각의
+  `run --step`이 모두 성공했다고 보고했다(`USER_REPORTED_PASS`; 원시 motor command
+  수와 단계 출력은 별도 수집하지 않음). 8030 web을 새 코드로 재시작해 HTTP 200을
+  확인했으며, 재시작 자체의 robot serial open·motor command는 `0`이다.
   [상세](sessions/2026-10-26-finish-pose.md).
 
 ## 2026-10-17 고정 데모 자동 실행·버튼 UI — 구현·오프라인 PASS, Jetson 배포 NOT_RUN

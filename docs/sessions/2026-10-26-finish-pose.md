@@ -33,17 +33,26 @@ git diff --check = PASS
 serial open = 0
 Goal/Torque/config write = 0
 motor command = 0
-Jetson deploy = NOT_RUN
-finish teaching = NOT_RUN
-live run = NOT_RUN
+Jetson deploy = PASS (exact code commit 5a3edd6, clean)
+finish teaching = PASS (saved 2026-10-26T11:19:03.352472+00:00)
+red/blue/green step runs = USER_REPORTED_PASS
+live raw motor-command count = NOT_COLLECTED
+web restart = PASS (HTTP 200)
 ```
 
 검증에는 한 약통의 `home → finish` 종료, 세 약통에서 `finish` 정확히 1회,
 finish에서 gripper 값 유지, 기존 자세 파일에 `teach --only finish` 추가, auto에서
 Enter 없이 마지막 progress stage가 finish인 조건이 포함된다.
 
-## 다음 단계
+## Jetson 배포와 실기 보고
 
-Jetson에서 새 commit을 pull한 뒤 현장 안전 조건과 leader/follower 단독 소유권을
-확인하고 `teach --only finish`로 자세를 저장한다. 첫 실기는 한 약통 `run --step`으로
-마지막 `home → finish` 경로를 확인하며, 성공 전에는 web 자동 실행을 사용하지 않는다.
+Jetson checkout이 `5a3edd6`, clean이고 자세 JSON에 finish가 저장된 것을 확인했다.
+사용자는 새 집기·release·basket above·home·finish 자세를 사용한 빨강·파랑·초록
+각각의 단계 실행이 모두 성공했다고 보고했다. 이는 현장 사용자 보고이며 이 세션에서
+원시 단계 출력이나 motor command 수를 별도로 수집하지 않았으므로 해당 수치를
+추정하지 않는다.
+
+기존 8030 process를 종료한 뒤 동일 checkout의 새 web process로 교체했다. 8030
+LISTEN과 localhost HTTP 200을 확인했다. web 재시작 중 robot serial을 열거나 motor
+명령을 보내지 않았다. 이후 web 자동 실행은 매 run의 fresh marker layout과 50°C
+미만 prestart temperature gate, motion fault HOLD 및 수동 정지 경로를 그대로 사용한다.
