@@ -88,6 +88,7 @@ python3 -m medicine_sorter --config configs/system.example.json teach --only fin
 python3 -m medicine_sorter --config configs/system.example.json roi-preview --output /tmp/fixed-demo-roi.png
 python3 -m medicine_sorter --config configs/system.example.json run --dry-run --rule C=green B=red A=blue
 python3 -m medicine_sorter --config configs/system.example.json run --step --rule C=green B=red A=blue
+python3 -m medicine_sorter --config configs/system.example.json run --step --warm-start-once --rule A=green
 python3 -m medicine_sorter --config configs/system.example.json run --auto --rule C=green B=red A=blue
 python3 -m medicine_sorter --config configs/system.example.json web --port 8030
 ```
@@ -135,6 +136,10 @@ Goal로 한 번 복사해 **현재 위치 유지**를 요청하며 Torque OFF가
 단, 매 실행마다 새 Astra 프레임에서 ID9(A)·ID8(B)·ID7(C)가 각각 기대 칸에 있는지
 먼저 검사하고, 포트를 연 뒤 어떤 Goal/Torque write보다 먼저 6개 모터 온도가 모두
 `50°C 미만`인지 확인합니다. 배치나 온도 조건이 다르면 동작을 시작하지 않습니다.
+보간 명령 주기는 0.05초(20Hz)이며 기존 속도·가속도·관절당 2° 최대 스텝은
+유지합니다. `--warm-start-once`는 감독 `--step` 한 번에서만 50–51°C 시작을
+허용하며, 52°C 이상 시작 차단과 실행 중 55°C hard stop은 유지합니다. 웹 자동
+실행에서는 이 완화를 사용할 수 없습니다.
 
 `web --port 8030`은 `0.0.0.0`에 바인딩되는 같은 네트워크용 버튼 UI입니다. A/B/C별
 red/blue/green/skip, 세 프리셋, 카메라 기반 계획 확인, 자동 실행, 현재 단계·온도,

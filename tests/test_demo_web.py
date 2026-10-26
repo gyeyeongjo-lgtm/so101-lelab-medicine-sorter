@@ -19,8 +19,12 @@ class DemoWebTests(unittest.TestCase):
 
     def test_cli_has_auto_and_web_8030(self):
         auto = build_parser().parse_args(["run", "--auto", "--rule", "A=blue"])
+        warm = build_parser().parse_args(
+            ["run", "--step", "--warm-start-once", "--rule", "A=green"])
         web = build_parser().parse_args(["web", "--port", "8030"])
         self.assertTrue(auto.auto)
+        self.assertTrue(warm.step)
+        self.assertTrue(warm.warm_start_once)
         self.assertEqual(web.mode, "web")
         self.assertEqual(web.port, 8030)
 

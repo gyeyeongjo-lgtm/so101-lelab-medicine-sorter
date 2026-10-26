@@ -61,7 +61,7 @@
       "slot3": [415, 150, 490, 290]
     },
     "motion": {
-      "control_period_s": 0.1,
+      "control_period_s": 0.05,
       "max_emitted_step_deg": 2.0,
       "max_gripper_step_percent": 2.0,
       "max_velocity": {

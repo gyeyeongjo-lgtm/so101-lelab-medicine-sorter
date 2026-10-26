@@ -41,6 +41,10 @@ def build_parser() -> argparse.ArgumentParser:
                           help="검증된 배치에서 Enter 없이 모든 단계를 연속 실행합니다")
     run_parser.add_argument("--rule", nargs="+", metavar="TYPE=COLOR",
                             help="예: --rule C=green B=red A=blue")
+    run_parser.add_argument(
+        "--warm-start-once", action="store_true",
+        help="감독 --step 1회에서만 시작 온도 50–51°C를 허용합니다(실행 중 55°C 제한 유지)",
+    )
     web_parser = sub.add_parser("web", help="고정 데모 버튼 UI를 실행합니다")
     web_parser.add_argument("--port", type=int, default=8030,
                             help="같은 네트워크에 공개할 HTTP port (기본 8030)")
@@ -78,7 +82,8 @@ def main(argv=None, *, status_adapter_factory=None) -> int:
             settings = load_demo_settings(config)
             rules = parse_destination_rules(args.rule, settings.destinations)
             payload = run_demo(config, settings, dry_run=args.dry_run,
-                               step=args.step, auto=args.auto, rules=rules)
+                               step=args.step, auto=args.auto,
+                               warm_start_once=args.warm_start_once, rules=rules)
         elif args.mode == "web":
             if not 1 <= args.port <= 65535:
                 raise SorterError("web_port_invalid", args.port, "1..65535",

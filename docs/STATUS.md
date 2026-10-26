@@ -2,6 +2,24 @@
 
 업데이트: 2026-10-26
 
+## 2026-10-26 감독 1회 warm start·20Hz 보간 — 구현·오프라인 PASS, Jetson 실기 NOT_RUN
+
+- 기본 및 웹 자동 실행의 시작 온도 조건은 기존대로 모든 모터 `<50°C`를 유지한다.
+  감독형 `run --step`에만 `--warm-start-once`를 추가해 50–51°C에서 한 번 시작할 수
+  있게 했다. 52°C 이상은 시작 전에 차단하고, 실행 중 55°C hard stop과 오류 시
+  fresh current HOLD는 그대로 유지한다. `--auto`와 web에서는 이 옵션을 사용할 수
+  없다.
+- 보간 명령 주기를 `0.1 s`(10Hz)에서 `0.05 s`(20Hz)로 높였다. 기존 max velocity
+  `20`, max acceleration `60`, arm/gripper 최대 emitted step `2°/2 pp`, 도착 판정,
+  Overload 검사는 변경하지 않았다.
+- fixed-demo+web `53/53 PASS`, sorter `30/30 PASS`, Python compile 및
+  `git diff --check` PASS. 오프라인 검증 중 serial open·motor command는 `0`이다.
+  전체 legacy discovery는 로컬 `cv2` 누락 8 error와 기존 600 mm marker 기준
+  불일치 1 failure가 있어 전체 PASS가 아니다.
+  Jetson 배포와 실제 20Hz 한 약통 시험은 `NOT_RUN`; 최초 실기는 A를 slot1에 놓고
+  현장 안전을 확인한 뒤 `--step --warm-start-once --rule A=green` 한 건만 수행한다.
+  [상세](sessions/2026-10-26-warm-start-20hz.md).
+
 ## 2026-10-26 전체 분류 종료 `finish` 자세 — 구현·오프라인·Jetson 배포 PASS
 
 - 기존 약통별 `home → open → pick → place → home` 11단계는 변경하지 않고, 선택된

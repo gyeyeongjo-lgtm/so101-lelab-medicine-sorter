@@ -45,6 +45,7 @@ FINISH_POSE_NAME = "finish"
 ALL_POSE_NAMES = POSE_NAMES + TYPE_GRIPPER_POSES + (FINISH_POSE_NAME,)
 MAX_TEMPERATURE_C = 55
 PRESTART_MAX_TEMPERATURE_C_EXCLUSIVE = 50
+WARM_START_MAX_TEMPERATURE_C_EXCLUSIVE = 52
 GRIPPER_CONTACT_RELIEF_BIAS = 1.0
 TEACH_GOAL_PRESENT_RAW_TOLERANCE = 40
 POST_GOAL_READ_DELAY_S = 0.2
@@ -775,21 +776,26 @@ def _read_temperatures(bus, *, stage: str) -> dict[str, int]:
     return temperatures
 
 
-def verify_prestart_temperatures(bus) -> dict[str, int]:
+def verify_prestart_temperatures(
+        bus, *, limit_c_exclusive: int = PRESTART_MAX_TEMPERATURE_C_EXCLUSIVE,
+) -> dict[str, int]:
+    if not PRESTART_MAX_TEMPERATURE_C_EXCLUSIVE <= limit_c_exclusive <= MAX_TEMPERATURE_C:
+        raise ValueError("invalid_prestart_temperature_limit")
     temperatures = _read_temperatures(bus, stage="prestart_temperature_check")
     affected = [
         {"motor_name": joint, "motor_id": _motor_id(bus, joint),
          "temperature_c": value,
-         "required": f"<{PRESTART_MAX_TEMPERATURE_C_EXCLUSIVE}C"}
+         "required": f"<{limit_c_exclusive}C"}
         for joint, value in temperatures.items()
-        if value >= PRESTART_MAX_TEMPERATURE_C_EXCLUSIVE
+        if value >= limit_c_exclusive
     ]
     if affected:
         raise SegmentSafetyFault(
-            "prestart_temperature_not_below_50c",
+            "prestart_temperature_limit_exceeded",
             {"stage": "prestart_temperature_check",
              "register": "Present_Temperature", "affected_motors": affected,
-             "temperatures_c": temperatures},
+             "temperatures_c": temperatures,
+             "limit_c_exclusive": limit_c_exclusive},
         )
     return temperatures
 
@@ -1310,6 +1316,7 @@ def execute_segment(session: HardwareSession, target: Mapping[str, float], setti
 
 def run_demo(config, settings: DemoSettings, *, dry_run: bool, step: bool,
              auto: bool = False,
+             warm_start_once: bool = False,
              rules: Mapping[str, str] | None = None,
              snapshot_loader: Callable[[str], dict[str, Any]] = fetch_snapshot,
              session_factory=HardwareSession,
@@ -1322,6 +1329,13 @@ def run_demo(config, settings: DemoSettings, *, dry_run: bool, step: bool,
     if not dry_run and not (step or auto):
         raise _fail("run_execution_mode_required", None, "--step or --auto",
                     "감독 실행은 --step, 연속 실행은 --auto를 사용해 주세요")
+    if warm_start_once and not step:
+        raise _fail("warm_start_requires_supervised_step", True, "--step",
+                    "50–51°C 1회 시작은 터미널 --step에서만 사용해 주세요")
+    prestart_temperature_limit = (
+        WARM_START_MAX_TEMPERATURE_C_EXCLUSIVE
+        if warm_start_once else PRESTART_MAX_TEMPERATURE_C_EXCLUSIVE
+    )
     active_rules = (parse_destination_rules(None, settings.destinations) if rules is None else
                     parse_destination_rules([f"{label}={color}" for label, color in rules.items()], {}))
     snapshot = snapshot_loader(settings.snapshot_url)
@@ -1342,6 +1356,8 @@ def run_demo(config, settings: DemoSettings, *, dry_run: bool, step: bool,
                  "detection_count": len(snapshot.get("detections", []))},
         "serial_open": 0,
         "motor_command": 0,
+        "prestart_temperature_limit_c_exclusive": prestart_temperature_limit,
+        "warm_start_once": warm_start_once,
     }
     if dry_run:
         return result
@@ -1380,7 +1396,10 @@ def run_demo(config, settings: DemoSettings, *, dry_run: bool, step: bool,
         if stop_requested():
             raise KeyboardInterrupt
         session.connect()
-        prestart_temperatures = verify_prestart_temperatures(session.follower.bus)
+        prestart_temperatures = verify_prestart_temperatures(
+            session.follower.bus,
+            limit_c_exclusive=prestart_temperature_limit,
+        )
         latest_temperatures = prestart_temperatures
         progress({"status": "PRESTART_PASS", "temperatures_c": prestart_temperatures,
                   "marker_layout": marker_layout})

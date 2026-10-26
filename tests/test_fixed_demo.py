@@ -11,7 +11,9 @@ from medicine_sorter.errors import SorterError
 from medicine_sorter.fixed_demo import (
     ALL_POSE_NAMES, FINISH_POSE_NAME, GRIPPER_POSES, JOINTS, POSE_NAMES,
     POST_GOAL_READ_RETRIES,
-    SegmentSafetyFault, TEACH_GOAL_PRESENT_RAW_TOLERANCE, TYPE_GRIPPER_POSES,
+    PRESTART_MAX_TEMPERATURE_C_EXCLUSIVE, SegmentSafetyFault,
+    TEACH_GOAL_PRESENT_RAW_TOLERANCE, TYPE_GRIPPER_POSES,
+    WARM_START_MAX_TEMPERATURE_C_EXCLUSIVE,
     StrictWriteGate,
     clamp_to_calibrated_inner_range, establish_hold, load_demo_settings,
     execute_segment, load_partial_pose_file, load_pose_records, parse_destination_rules,
@@ -19,7 +21,7 @@ from medicine_sorter.fixed_demo import (
     resolve_robot_ports, roi_preview_annotations, run_demo, save_pose_file,
     save_roi_preview, slot_for_pixel, smooth_interpolation, stage_names_for_routes,
     target_for_stage, teach, validate_demo_settings, _read_temperatures,
-    verify_expected_marker_layout,
+    verify_expected_marker_layout, verify_prestart_temperatures,
 )
 
 
@@ -418,12 +420,46 @@ class FixedDemoTests(unittest.TestCase):
         self.assertEqual(clamped["wrist_flex"], (107.0, 9.0))
 
     def test_jetson_motion_and_teach_limits_are_reflected(self):
+        self.assertEqual(self.settings.control_period_s, 0.05)
         self.assertEqual(set(self.settings.velocity.values()), {20.0})
         self.assertEqual(set(self.settings.acceleration.values()), {60.0})
         self.assertEqual(self.settings.settle_tolerance["gripper"], 100.0)
         self.assertEqual({self.settings.settle_tolerance[joint] for joint in JOINTS[:-1]}, {5.0})
         self.assertEqual(self.settings.settle_timeout_s, 8.0)
         self.assertEqual(TEACH_GOAL_PRESENT_RAW_TOLERANCE, 40)
+
+    def test_warm_start_allows_only_50_to_51_and_keeps_hard_limit(self):
+        class WarmBus(FakeBus):
+            def __init__(self, temperature):
+                super().__init__()
+                self.temperature = temperature
+                self.motors = {joint: SimpleNamespace(id=index + 1)
+                               for index, joint in enumerate(JOINTS)}
+
+            def read(self, register, joint, *, normalize, num_retry):
+                if register == "Present_Temperature":
+                    return self.temperature if joint == "gripper" else 30
+                return super().read(register, joint, normalize=normalize, num_retry=num_retry)
+
+        with self.assertRaises(SegmentSafetyFault):
+            verify_prestart_temperatures(WarmBus(50))
+        allowed = verify_prestart_temperatures(
+            WarmBus(51), limit_c_exclusive=WARM_START_MAX_TEMPERATURE_C_EXCLUSIVE)
+        self.assertEqual(allowed["gripper"], 51)
+        with self.assertRaises(SegmentSafetyFault):
+            verify_prestart_temperatures(
+                WarmBus(52), limit_c_exclusive=WARM_START_MAX_TEMPERATURE_C_EXCLUSIVE)
+        self.assertEqual(PRESTART_MAX_TEMPERATURE_C_EXCLUSIVE, 50)
+
+    def test_warm_start_is_rejected_for_auto_before_camera_or_session(self):
+        def forbidden_loader(_url):
+            raise AssertionError("camera must not be read")
+
+        with self.assertRaises(SorterError) as caught:
+            run_demo(self.config, self.settings, dry_run=False, step=False, auto=True,
+                     warm_start_once=True, rules={"A": "green"},
+                     snapshot_loader=forbidden_loader)
+        self.assertEqual(caught.exception.code, "warm_start_requires_supervised_step")
 
     def test_teach_only_preserves_base_poses_and_adds_requested_gripper_poses(self):
         positions = {joint: float(index) for index, joint in enumerate(JOINTS)}
