@@ -33,6 +33,11 @@
   Present raw는 `[2096,1394,2248,2695,1614,1090]`; elbow Goal−Present `−43 raw`
   (약 −3.78°)가 감독 hold 상한 40 raw를 3 count 초과한다. 따라서 안전 상한이나
   1° start gate를 완화하지 않고 ORIGINAL/SMOOTH는 `NOT_RUN`이다.
+- 동일 상태를 건드리지 않고 수행한 두 번째 write 0 `robot-status`에서도 raw Goal과
+  Present는 완전히 같아 elbow residual이 계속 `−43 raw`로 고정됐고 Moving은 전 축
+  0이었다. elbow 온도만 `43→45°C`로 상승했다. 자연 수렴이 아니라 정적 하중/
+  deadband 가능성을 보이는 preflight blocker이며 아직 jitter 원인으로 확정하지 않는다.
+  50°C prestart limit에 접근하므로 live A/B는 `BLOCKED_COOL_DOWN_REQUIRED`다.
 
 ## 2026-10-27 jitter-only 큰 동작 준비 — 오프라인·Jetson 배포 PASS, 실기 NOT_RUN
 

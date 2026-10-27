@@ -122,3 +122,10 @@ elbow residual 43 raw는 약 3.78°이며 감독 `--stable-hold-gap-raw` 상한 
 초과한다. 따라서 현재 ORIGINAL을 호출해도 실제 구간 전에 fail-closed할 상태다.
 상한 40과 저장 pose start 1° gate를 완화하거나 Goal/Torque를 변경하지 않는다.
 ORIGINAL/SMOOTH actual motion은 계속 `NOT_RUN`이다.
+
+두 번째 write 0 `robot-status`도 Goal/Present/Torque/Moving이 첫 확인과 완전히
+같았다. 따라서 elbow `−43 raw` residual은 자연 수렴하지 않았고, elbow 온도는
+`43→45°C`로 상승했다. 이는 움직임 중 scheduler jitter와 별개로 현재 home HOLD에서
+정적 하중 또는 servo deadband가 존재할 가능성을 높이지만, gain/기계 원인으로
+확정하지 않는다. 50°C prestart limit에 접근하므로 추가 live motion은
+`BLOCKED_COOL_DOWN_REQUIRED`; 안전 gate 완화, Goal/Torque write, 자동 재시도는 0이다.
