@@ -770,6 +770,8 @@ def analyze_motion_rows(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             "present_velocity_approx_std": velocity_std,
             "present_velocity_approx_max_abs": max(
                 (abs(value) for value in present_velocity), default=0.0),
+            "present_velocity_direction_reversals": _direction_reversals(
+                present_velocity),
             "goal_present_error_mean": error_mean,
             "goal_present_error_std": error_std,
             "goal_present_error_peak_to_peak": max(error, default=0.0) - min(error, default=0.0),

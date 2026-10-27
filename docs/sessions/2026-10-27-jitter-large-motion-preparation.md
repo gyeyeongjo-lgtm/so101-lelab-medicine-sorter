@@ -69,6 +69,17 @@ schema v3는 cycle마다 다음을 함께 기록하도록 구현했다.
 - Jetson `motion-compare home → red_above`: `PASS`, 실제 저장 pose 사용
 - actual ORIGINAL/CUBIC/QUINTIC: `NOT_RUN`
 
+## 다음 ORIGINAL 실측 계약
+
+`home → red_above`를 기존 cubic relative 10 Hz로 정확히 한 번 실행한다. telemetry
+v3 분석에는 전체 command interval mean/std/max와 관절별 command max step,
+Goal−Present mean/std/max, Present velocity mean/std/max 및 Present velocity 부호
+반전 횟수가 포함된다. 외부 링크가 영상에서 실제로 움직였다는 확인도 별도로 받는다.
+
+absolute 30–50 Hz, live quintic, loop read decimation, free-space 전용 velocity 상향과
+`run --profile smooth`/web 연결은 baseline 로그를 분석하기 전에는 적용하지 않는다.
+따라서 현재 기본 fixed-demo 실행 경로와 gain/Torque/IK/calibration/TCP에는 변화가 없다.
+
 Jetson 첫 테스트 호출은 `tests.test_fixed_demo` 모듈 경로 방식이 Python 3.14에서
 `ModuleNotFoundError`로 실패했다. 장비 접근 없는 실행 형식 오류였고, 동일 파일을
 `unittest discover`로 실행해 `54+6=60/60 PASS`를 확인했다. 실제 A/B는 현장 안전

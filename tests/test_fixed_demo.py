@@ -499,6 +499,7 @@ class FixedDemoTests(unittest.TestCase):
         self.assertEqual(pan["emitted_delta_per_cycle"], [1.0, -1.0])
         self.assertEqual(pan["max_delta"], 1.0)
         self.assertEqual(pan["direction_reversals"], 1)
+        self.assertEqual(pan["present_velocity_direction_reversals"], 1)
         self.assertEqual(pan["moving_true_cycles"], 1)
         self.assertGreater(pan["goal_present_error_peak_to_peak"], 0.0)
         self.assertEqual(pan["goal_present_error_max_abs"], 0.5)

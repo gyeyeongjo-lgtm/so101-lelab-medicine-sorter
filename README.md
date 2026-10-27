@@ -179,7 +179,8 @@ Present를 시작점으로 고정하며, original baseline은 0.1초 relative ca
 유지합니다. JSONL에는 absolute planned timestamp, actual write timestamp와 interval,
 normalized/raw Goal·Present, Torque, error, Moving이 함께 저장됩니다. 완료 출력은
 encoder raw 변화만 확인하고 외부 링크 운동은 사용자 영상 확인 전 PASS로 처리하지
-않습니다.
+않습니다. 실제 로그 분석에는 관절별 Present 속도 근사치의 평균·표준편차·최대값과
+속도 부호 반전 횟수도 포함합니다.
 
 ```bash
 python3 -m medicine_sorter --config configs/system.example.json motion-test --from-current --to-pose finish --profile original --log .local/fixed-demo-motion/original-current-finish-001.jsonl --step

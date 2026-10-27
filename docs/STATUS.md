@@ -25,6 +25,12 @@
   command는 `0`; 실제 ORIGINAL/CUBIC/QUINTIC motion은 모두 `NOT_RUN`이다.
   [상세](sessions/2026-10-27-jitter-large-motion-preparation.md).
 
+- 다음 실측은 `home → red_above` ORIGINAL 정확히 1회다. telemetry v3 분석에
+  관절별 Present 속도 부호 반전 횟수를 추가했으며, 외부 링크가 실제로 움직였다는
+  사용자 영상 확인 전에는 motion PASS로 판정하지 않는다. absolute 30–50Hz,
+  live quintic, serial read decimation, free-space 속도 상향과 run/web 연결은 이
+  ORIGINAL 실측 결과가 나온 뒤 한 변수씩 적용하며 현재는 `NOT_APPLIED`다.
+
 ## 2026-10-27 jitter live A/B — ORIGINAL false positive, SMOOTH NOT_RUN
 
 - 사용자가 현재 canonical follower `/dev/ttyACM0`, USB serial `5AE6058306`의
