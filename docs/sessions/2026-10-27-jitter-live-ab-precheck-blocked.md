@@ -106,3 +106,43 @@ STATE_CHANGE_WRITE = 0
 `finish` 하나지만, 기존 `motion-test`가 요구하는 named start pose 각 1° 이내 조건은
 충족하지 않는다. 임의로 gate를 완화하거나 reposition하지 않았으며
 `READY_FOR_ORIGINAL_TEST=NO`다. original/smooth motion은 모두 `NOT_RUN`이다.
+
+## ORIGINAL 실행 판정 정정
+
+승인된 current→finish ORIGINAL 한 구간은 command 6회를 전송하고 프로그램상
+COMPLETE를 반환했으나, 사용자가 촬영·현장 관찰로 외부 로봇 링크가 물리적으로 전혀
+움직이지 않았다고 확인했다. 따라서 `ORIGINAL_TEST=PASS`를 취소하고
+`FAIL_NO_PHYSICAL_MOTION`으로 정정한다. SMOOTH는 실행하지 않았다.
+
+원본 JSONL의 첫/마지막 cycle을 분리 분석한 결과는 다음과 같다(관절 순서는
+shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll, gripper).
+
+```text
+Present start = [-10.681319,-99.648352,96.219780,48.131868,-22.285714,41.432069]
+Present final = [-10.945055,-99.560440,96.219780,46.197802,-22.109890,41.432069]
+Present delta = [-0.263736,+0.087912,0,-1.934066,+0.175824,0]
+
+Goal start(log cycle 1) = [-10.769231,-99.736264,96.219780,47.868132,-22.285714,41.432069]
+Goal final             = [-11.208791,-100.175824,96.483516,44.879121,-22.109890,41.432069]
+Goal delta             = [-0.439560,-0.439560,+0.263736,-2.989011,+0.175824,0]
+
+max command step = [0.126984,0.126984,0.063492,0.783069,0.042328,0]
+max Present step = [0.263736,0.087912,0,0.703297,0.175824,0]
+```
+
+Wrist Flex의 fresh start→finish 요청은 `-3.252747°`(37 raw count), 첫 logged Goal→final
+Goal은 `-2.989011°`(34 count), logged Present start→final은 `-1.934066°`(22 count)다.
+기존 arm encoder 한 count는 약 `0.087912°`이므로 encoder 변화 자체는 측정 가능 범위를
+넘는다. 그러나 이는 servo 내부 encoder의 변화이며 사용자 관찰상 외부 링크 운동은
+없었다. mechanical transmission/backlash/coupling 또는 육안에 작은 운동 등 원인은
+현재 로그만으로 확정하지 않는다.
+
+JSONL schema v2에는 cycle별 Torque가 없다. hold 안정성 30 sample과 segment 종료
+검사에서는 ALL ON이었지만 6개 command cycle 각각의 Torque를 소급 생성하지 않는다.
+Moving은 cycle별로 일부 arm joint에서 모두 1이었고 gripper는 모두 0이었다.
+
+false positive 원인은 완료 판정이 Goal write 성공 후 `Moving=0` 및 arm별 5° settle
+tolerance만 확인했기 때문이다. 외부 링크 운동 증거를 포함하지 않았고, 마지막 logged
+Wrist Flex Goal-Present도 `-1.318681°`였지만 5° 안이라 허용됐다. 앞으로 encoder raw
+변화와 외부 영상/관찰을 분리하고, cycle별 raw Goal/Present/Torque를 기록한 뒤에만
+motion 성공을 판정한다. 추가 motor write와 SMOOTH는 수행하지 않는다.

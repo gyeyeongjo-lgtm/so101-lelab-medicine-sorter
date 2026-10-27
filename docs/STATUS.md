@@ -2,7 +2,7 @@
 
 업데이트: 2026-10-27
 
-## 2026-10-27 jitter live A/B — robot-status PASS, motion NOT_RUN
+## 2026-10-27 jitter live A/B — ORIGINAL false positive, SMOOTH NOT_RUN
 
 - 사용자가 현재 canonical follower `/dev/ttyACM0`, USB serial `5AE6058306`의
   write 차단 `robot-status` 1회를 승인했다. 저장 config의 순간 포트는 반대로
@@ -24,6 +24,13 @@
   `finish`에 가장 가깝지만 wrist_flex가 약 3.25° 차이나 기존 motion-test의 1°
   start gate를 만족하지 않는다. endpoint 후보는 `finish` 하나로 제한했으나
   `READY_FOR_ORIGINAL_TEST=NO`; original/smooth motion은 `NOT_RUN`이다.
+- 이후 current→finish ORIGINAL 한 구간은 프로그램상 COMPLETE였지만 사용자가 외부
+  로봇 링크가 물리적으로 전혀 움직이지 않았다고 확인했다. 기존 PASS를 취소하고
+  `FAIL_NO_PHYSICAL_MOTION`으로 정정했다. JSONL에서는 Wrist Flex Goal이 첫→마지막
+  cycle `-2.989°`, Present encoder가 `-1.934°`(22 raw count) 변하고 Moving도 1을
+  보고했다. 따라서 servo 내부 encoder 변화와 외부 링크 운동을 동일시할 수 없다.
+  cycle별 Torque는 기록되지 않아 소급 확인할 수 없으며 hold 전후 ALL ON만 확인됐다.
+  SMOOTH는 `NOT_RUN`; jitter 최적화를 중단하고 motion evidence부터 보완한다.
   [상세](sessions/2026-10-27-jitter-live-ab-precheck-blocked.md).
 
 ## 2026-10-27 fixed-demo motion smoothing A/B — 구현·오프라인 PASS, 실제 telemetry BLOCKED
