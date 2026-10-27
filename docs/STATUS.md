@@ -2,7 +2,7 @@
 
 업데이트: 2026-10-27
 
-## 2026-10-27 jitter-only 큰 동작 준비 — 오프라인 PASS, 배포·실기 BLOCKED
+## 2026-10-27 jitter-only 큰 동작 준비 — 오프라인·Jetson 배포 PASS, 실기 NOT_RUN
 
 - HOME/teaching/calibration/vision/basket/grasp, Torque/gain/IK/TCP를 변경하지 않고
   jitter 진단만 보강했다. cycle telemetry schema v3는 normalized/raw Goal·Present,
@@ -19,9 +19,10 @@
 - original cubic 10 Hz / cubic absolute 20 Hz / quintic absolute 20 Hz 오프라인 최대
   step은 각각 `1.952° / 0.990° / 0.998°`; shoulder_lift의 시작 step은
   `0.101° / 0.026° / 0.0006°`다.
-  fixed-demo/web `60/60`, sorter `30/30`, compile·diff check PASS; serial open과 motor
-  command는 0이다. 자동 승인 검토 사용량 제한 때문에 commit/push/Jetson deploy가
-  실행되지 않아 변경은 `NOT_COMMITTED/NOT_PUSHED`, 실기는 `NOT_RUN`이다.
+  Mac과 Jetson에서 fixed-demo/web `60/60`, sorter `30/30` PASS이며 compile·diff
+  check도 PASS다. commit `b01cd84`를 push하고 Jetson clean checkout에 배치했으며,
+  Jetson 실제 pose로 동일 오프라인 수치를 재확인했다. 이 과정의 serial open과 motor
+  command는 `0`; 실제 ORIGINAL/CUBIC/QUINTIC motion은 모두 `NOT_RUN`이다.
   [상세](sessions/2026-10-27-jitter-large-motion-preparation.md).
 
 ## 2026-10-27 jitter live A/B — ORIGINAL false positive, SMOOTH NOT_RUN

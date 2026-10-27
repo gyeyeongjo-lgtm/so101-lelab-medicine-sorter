@@ -34,9 +34,9 @@ TCP_DISPLACEMENT = NOT_COMPUTED_IK_AND_TCP_UNCHANGED
 
 | profile | period | samples | duration | first/last step | max step | max velocity | max acceleration | max discrete jerk |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| ORIGINAL cubic relative | 0.10 s | 38 | 3.80 s | 0.1010° | 1.9519° | 19.519°/s | 57.243°/s² | 101.024°/s³ |
-| cubic absolute | 0.05 s | 75 | 3.75 s | 0.0262° | 0.9898° | 19.797°/s | 58.833°/s² | 209.299°/s³ |
-| quintic absolute candidate | 0.05 s | 93 | 4.65 s | 0.0006° | 0.9978° | 19.956°/s | 57.707°/s² | 26.729°/s³ |
+| ORIGINAL cubic relative | 0.10 s | 38 | 3.80 s | 0.1010° | 1.9519° | 19.519°/s | 19.483°/s² | 101.024°/s³ |
+| cubic absolute | 0.05 s | 75 | 3.75 s | 0.0262° | 0.9898° | 19.797°/s | 20.555°/s² | 209.299°/s³ |
+| quintic absolute candidate | 0.05 s | 93 | 4.65 s | 0.0006° | 0.9978° | 19.956°/s | 13.208°/s² | 26.729°/s³ |
 
 quintic은 시작·종료 첫 step과 discrete jerk 후보값이 cubic 20 Hz보다 작다. 이는
 command profile 결과일 뿐 실제 떨림 개선을 의미하지 않는다. quintic live 실행은
@@ -57,13 +57,19 @@ schema v3는 cycle마다 다음을 함께 기록하도록 구현했다.
 
 ## 검증과 blocker
 
-- fixed-demo/web: `60/60 PASS`
-- sorter: `30/30 PASS`
+- Mac fixed-demo/web: `60/60 PASS`
+- Mac sorter: `30/30 PASS`
+- Jetson fixed-demo/web: `60/60 PASS`
+- Jetson sorter: `30/30 PASS`
 - compile: `PASS`
 - `git diff --check`: `PASS`
 - serial open / motor command: `0 / 0`
-- commit/push/Jetson deploy: `BLOCKED` — 자동 승인 검토 사용량 제한
+- commit/push: `b01cd84e1f559cb47001cc9922b9504d2446065d / PASS`
+- Jetson deploy: `PASS`, clean checkout에서 같은 commit 확인
+- Jetson `motion-compare home → red_above`: `PASS`, 실제 저장 pose 사용
 - actual ORIGINAL/CUBIC/QUINTIC: `NOT_RUN`
 
-로컬 변경은 보존돼 있으나 `NOT_COMMITTED/NOT_PUSHED`다. 배포가 가능해질 때까지
-실제 A/B 명령을 실행하지 않는다.
+Jetson 첫 테스트 호출은 `tests.test_fixed_demo` 모듈 경로 방식이 Python 3.14에서
+`ModuleNotFoundError`로 실패했다. 장비 접근 없는 실행 형식 오류였고, 동일 파일을
+`unittest discover`로 실행해 `54+6=60/60 PASS`를 확인했다. 실제 A/B는 현장 안전
+확인과 별도 실행 승인 전까지 실행하지 않는다.
