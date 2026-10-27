@@ -2,6 +2,24 @@
 
 업데이트: 2026-10-27
 
+## 2026-10-27 적재 중 elbow transit settle — 구현·오프라인 PASS, 재실기 NOT_RUN
+
+- 사용자가 smooth 기본 web 실행에서 A를 든 `slot1_lift` 다음 바구니 접근 중
+  `segment_settle_timeout`을 보고했다. 전 축 Moving은 0, 최고 온도 33°C, 다른 arm
+  오차는 1° 미만이었으나 elbow target−present `−5.01°`가 기존 5°를 0.01° 넘어
+  8초 timeout이 발생했다. 성공으로 기록하지 않는다.
+- `home`, `slot1/2/3_lift`, `red/blue/green_above`에만 elbow settle tolerance 8°와
+  전 축 `Moving=0`·tolerance 충족의 연속 0.5초 dwell을 적용한다. 중간에 Moving 또는
+  tolerance 이탈이 있으면 dwell은 0부터 다시 센다. 나머지 arm은 5°, gripper는 기존
+  100 pp를 유지한다.
+- grasp/release 및 그 밖의 stage는 기존 정밀 기준(elbow 포함 arm 5°, 별도 dwell 없음)을
+  유지한다. global config, pose, trajectory, gain/Torque/IK/TCP는 변경하지 않았다.
+  2° cap, 55°C stop, Overload HOLD, CLI Ctrl+C/web 정지 버튼 HOLD도 그대로다.
+- 장비 없는 검증 fixed-demo/web `71/71`, sorter `31/31`, compile·diff check PASS.
+  5.01° 적재 오차 조기 완료, Moving 재발 시 dwell reset, grasp/release 5° 유지가
+  테스트에 포함됐다. serial open·motor command는 0; 수정 후 web 실기는 `NOT_RUN`이다.
+  [상세](sessions/2026-10-27-transit-settle-loaded-elbow.md).
+
 ## 2026-10-27 fixed-demo smooth 기본 전환 — 구현·오프라인 PASS, 통합 live NOT_RUN
 
 - 사용자가 `motion-test`의 `home → red_above` SMOOTH

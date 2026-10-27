@@ -14,6 +14,8 @@ from medicine_sorter.fixed_demo import (
     PRESTART_MAX_TEMPERATURE_C_EXCLUSIVE, SegmentSafetyFault,
     TEACH_GOAL_PRESENT_RAW_TOLERANCE, TYPE_GRIPPER_POSES,
     WARM_START_MAX_TEMPERATURE_C_EXCLUSIVE,
+    TRANSIT_ELBOW_SETTLE_TOLERANCE_DEG, TRANSIT_SETTLE_DWELL_S,
+    TRANSIT_SETTLE_STAGE_NAMES,
     SMOOTH_FEEDBACK_PERIOD_S, SMOOTH_SAFETY_PERIOD_S,
     StrictWriteGate,
     analyze_motion_rows, clamp_to_calibrated_inner_range,
@@ -1086,6 +1088,93 @@ class FixedDemoTests(unittest.TestCase):
         self.assertEqual(result["contact_relief"]["present_at_contact"], 30.0)
         self.assertEqual(result["final_target"]["gripper"], 29.0)
         self.assertEqual(writes.sent[-1]["gripper"], 29.0)
+
+    def test_transit_stage_accepts_loaded_elbow_error_after_half_second_stopped(self):
+        clock = Clock()
+
+        class LoadedBus(FakeBus):
+            def __init__(self):
+                super().__init__()
+                self.registers["Present_Position"] = {
+                    joint: (5.01 if joint == "elbow_flex" else 0.0)
+                    for joint in JOINTS}
+                self.registers["Goal_Position"] = {joint: 0.0 for joint in JOINTS}
+                self.registers["Torque_Enable"] = {joint: 1 for joint in JOINTS}
+                self.motors = {joint: SimpleNamespace(id=index + 1)
+                               for index, joint in enumerate(JOINTS)}
+                self.moving_reads = 0
+
+            def sync_read(self, register, *, normalize, num_retry):
+                if register == "Moving":
+                    self.moving_reads += 1
+                    if self.moving_reads == 6:
+                        return {joint: int(joint == "elbow_flex") for joint in JOINTS}
+                return super().sync_read(register, normalize=normalize, num_retry=num_retry)
+
+        class Writes:
+            def __init__(self, bus):
+                self.bus = bus
+                self.last_write_at = None
+
+            def motion_goal(self, values):
+                self.last_write_at = clock.value
+                self.bus.registers["Goal_Position"] = dict(values)
+
+        bus = LoadedBus()
+        writes = Writes(bus)
+        session = SimpleNamespace(
+            follower=SimpleNamespace(bus=bus), writes=writes,
+            bounds={joint: (-100.0, 100.0) for joint in JOINTS})
+        target = {joint: 0.0 for joint in JOINTS}
+        result = execute_segment(
+            session, target, self.settings, stage="red_above",
+            sleep=clock.sleep, monotonic=clock.monotonic)
+        self.assertEqual(result["settle_policy"], "transit_relaxed")
+        self.assertEqual(result["settle_tolerance"]["elbow_flex"], 8.0)
+        self.assertTrue(all(result["settle_tolerance"][joint] == 5.0
+                            for joint in JOINTS[:-1] if joint != "elbow_flex"))
+        self.assertEqual(result["settle_dwell_s"], 0.5)
+        self.assertGreaterEqual(result["settle_duration_s"], 0.75)
+        self.assertLess(result["settle_duration_s"], self.settings.settle_timeout_s)
+        self.assertEqual(TRANSIT_ELBOW_SETTLE_TOLERANCE_DEG, 8.0)
+        self.assertEqual(TRANSIT_SETTLE_DWELL_S, 0.5)
+        self.assertEqual(TRANSIT_SETTLE_STAGE_NAMES, {
+            "home", "slot1_lift", "slot2_lift", "slot3_lift",
+            "red_above", "blue_above", "green_above"})
+
+    def test_grasp_and_release_keep_precise_five_degree_settle_contract(self):
+        for stage in ("slot1_grasp", "red_release"):
+            clock = Clock()
+
+            class LoadedBus(FakeBus):
+                def __init__(self):
+                    super().__init__()
+                    self.registers["Present_Position"] = {
+                        joint: (5.01 if joint == "elbow_flex" else 0.0)
+                        for joint in JOINTS}
+                    self.registers["Goal_Position"] = {joint: 0.0 for joint in JOINTS}
+                    self.registers["Torque_Enable"] = {joint: 1 for joint in JOINTS}
+
+            class Writes:
+                def __init__(self, bus):
+                    self.bus = bus
+
+                def motion_goal(self, values):
+                    self.bus.registers["Goal_Position"] = dict(values)
+
+            bus = LoadedBus()
+            session = SimpleNamespace(
+                follower=SimpleNamespace(bus=bus), writes=Writes(bus),
+                bounds={joint: (-100.0, 100.0) for joint in JOINTS})
+            settings = replace(self.settings, settle_timeout_s=0.2)
+            with self.subTest(stage=stage), self.assertRaises(SegmentSafetyFault) as caught:
+                execute_segment(
+                    session, {joint: 0.0 for joint in JOINTS}, settings, stage=stage,
+                    sleep=clock.sleep, monotonic=clock.monotonic)
+            self.assertEqual(caught.exception.code, "segment_settle_timeout")
+            self.assertEqual(caught.exception.details["settle_policy"], "precise")
+            self.assertEqual(caught.exception.details["settle_tolerance"]["elbow_flex"], 5.0)
+            self.assertEqual(caught.exception.details["settle_dwell_s"], 0.0)
 
     def test_overload_temperature_read_preserves_id_status_and_holds_current(self):
         class FaultSession:

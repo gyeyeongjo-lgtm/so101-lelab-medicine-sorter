@@ -53,6 +53,13 @@ FREE_SPACE_VELOCITY_CHOICES = (20, 30, 40)
 DEFAULT_FREE_SPACE_VELOCITY = 20
 MOTION_PROFILES = ("original", "smooth")
 DEFAULT_DEMO_MOTION_PROFILE = "smooth"
+TRANSIT_SETTLE_STAGE_NAMES = frozenset({
+    "home",
+    "slot1_lift", "slot2_lift", "slot3_lift",
+    "red_above", "blue_above", "green_above",
+})
+TRANSIT_ELBOW_SETTLE_TOLERANCE_DEG = 8.0
+TRANSIT_SETTLE_DWELL_S = 0.5
 SMOOTH_FEEDBACK_PERIOD_S = 0.1
 SMOOTH_SAFETY_PERIOD_S = 1.0
 MOTION_LOG_SCHEMA_VERSION = 4
@@ -2008,20 +2015,41 @@ def execute_segment(session: HardwareSession, target: Mapping[str, float], setti
         _execute_time_based_commands(
             session, start, target, settings, stage=stage, recorder=recorder,
             sleep=sleep, monotonic=monotonic, stop_requested=stop_requested)
-    deadline = monotonic() + settings.settle_timeout_s
+    transit_settle = stage in TRANSIT_SETTLE_STAGE_NAMES
+    settle_tolerance = dict(settings.settle_tolerance)
+    settle_dwell_s = 0.0
+    if transit_settle:
+        settle_tolerance["elbow_flex"] = TRANSIT_ELBOW_SETTLE_TOLERANCE_DEG
+        settle_dwell_s = TRANSIT_SETTLE_DWELL_S
+    settle_started = monotonic()
+    deadline = settle_started + settings.settle_timeout_s
+    stable_since: float | None = None
     while True:
         if stop_requested():
             raise KeyboardInterrupt
         present = _positions(session.follower.bus)
         moving = _raw(session.follower.bus, "Moving")
-        if (not any(moving.values()) and
-                all(abs(present[j] - target[j]) <= settings.settle_tolerance[j] for j in JOINTS)):
-            break
-        if monotonic() >= deadline:
+        sampled_at = monotonic()
+        within_tolerance = all(
+            abs(present[joint] - target[joint]) <= settle_tolerance[joint]
+            for joint in JOINTS)
+        if not any(moving.values()) and within_tolerance:
+            if stable_since is None:
+                stable_since = sampled_at
+            if sampled_at - stable_since >= settle_dwell_s:
+                break
+        else:
+            stable_since = None
+        if sampled_at >= deadline:
             goal = _normalized_positions(session.follower.bus, "Goal_Position")
             raise SegmentSafetyFault(
                 "segment_settle_timeout",
                 {"stage": stage, "motion_profile": motion_profile,
+                 "settle_policy": "transit_relaxed" if transit_settle else "precise",
+                 "settle_tolerance": settle_tolerance,
+                 "settle_dwell_s": settle_dwell_s,
+                 "stable_duration_s": (0.0 if stable_since is None else
+                                       sampled_at - stable_since),
                  "target": dict(target), "present": present, "goal": goal,
                  "goal_present_error": {
                      joint: goal[joint] - present[joint] for joint in JOINTS},
@@ -2036,7 +2064,11 @@ def execute_segment(session: HardwareSession, target: Mapping[str, float], setti
         raise RuntimeError("torque_changed_during_demo")
     temperatures = _read_temperatures(session.follower.bus, stage=stage)
     return {"final_target": final_target, "contact_relief": contact_relief,
-            "temperatures_c": temperatures}
+            "temperatures_c": temperatures,
+            "settle_policy": "transit_relaxed" if transit_settle else "precise",
+            "settle_tolerance": settle_tolerance,
+            "settle_dwell_s": settle_dwell_s,
+            "settle_duration_s": monotonic() - settle_started}
 
 
 def run_free_space_motion_test(
