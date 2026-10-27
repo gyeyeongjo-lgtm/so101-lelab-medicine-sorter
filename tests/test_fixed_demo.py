@@ -15,7 +15,8 @@ from medicine_sorter.fixed_demo import (
     TEACH_GOAL_PRESENT_RAW_TOLERANCE, TYPE_GRIPPER_POSES,
     WARM_START_MAX_TEMPERATURE_C_EXCLUSIVE,
     StrictWriteGate,
-    clamp_to_calibrated_inner_range, establish_hold, load_demo_settings,
+    analyze_motion_rows, clamp_to_calibrated_inner_range, compare_pose_motion,
+    establish_hold, load_demo_settings,
     execute_segment, load_partial_pose_file, load_pose_records, parse_destination_rules,
     routes_from_snapshot,
     resolve_robot_ports, roi_preview_annotations, run_demo, save_pose_file,
@@ -427,6 +428,117 @@ class FixedDemoTests(unittest.TestCase):
         self.assertEqual({self.settings.settle_tolerance[joint] for joint in JOINTS[:-1]}, {5.0})
         self.assertEqual(self.settings.settle_timeout_s, 8.0)
         self.assertEqual(TEACH_GOAL_PRESENT_RAW_TOLERANCE, 40)
+
+    def test_offline_motion_comparison_preserves_endpoints_and_two_degree_cap(self):
+        start = {joint: 0.0 for joint in JOINTS}
+        target = {
+            "shoulder_pan": 40.0, "shoulder_lift": 20.0,
+            "elbow_flex": -15.0, "wrist_flex": 10.0,
+            "wrist_roll": -5.0, "gripper": 80.0,
+        }
+        present_raw = {joint: 2000 for joint in JOINTS}
+        poses = {
+            name: {"position": dict(start), "present_raw": dict(present_raw)}
+            for name in ALL_POSE_NAMES
+        }
+        poses["slot1_pre"] = {"position": target, "present_raw": dict(present_raw)}
+        with tempfile.TemporaryDirectory() as folder:
+            pose_path = Path(folder) / "poses.json"
+            save_pose_file(pose_path, follower_serial="5AE6058306", poses=poses)
+            result = compare_pose_motion(
+                self.config, replace(self.settings, pose_path=pose_path),
+                from_pose="home", to_pose="slot1_pre")
+        self.assertEqual(result["status"], "MOTION_A_B_OFFLINE")
+        self.assertTrue(result["same_start_end_pose"])
+        self.assertEqual(result["actual_log_analysis"], "NOT_AVAILABLE")
+        self.assertEqual(result["serial_open"], 0)
+        self.assertEqual(result["motor_command"], 0)
+        self.assertFalse(result["two_degree_cap_removed"])
+        self.assertEqual(result["TORQUE_GAIN_CHANGED"], "NO")
+        self.assertEqual(result["IK_CHANGED"], "NO")
+        self.assertEqual(result["READY_FOR_SMOOTH_MOTION_TEST"],
+                         "NO_NEEDS_FREE_SPACE_START_END_CONFIRMATION")
+        self.assertGreater(result["smooth"]["command_count"],
+                           result["original"]["command_count"])
+        for profile in ("original", "smooth"):
+            for joint in JOINTS:
+                self.assertLessEqual(
+                    result[profile]["joints"][joint]["max_delta"], 2.0 + 1e-9)
+                self.assertEqual(
+                    result[profile]["joints"][joint]["direction_reversals"], 0)
+
+    def test_actual_motion_log_analysis_reports_cadence_steps_and_oscillation(self):
+        rows = []
+        commands = [0.0, 1.0, 0.0]
+        presents = [0.0, 0.5, 0.25]
+        goals = [0.0, 1.0, 0.0]
+        for index in range(3):
+            command = {joint: commands[index] for joint in JOINTS}
+            present = {joint: presents[index] for joint in JOINTS}
+            goal = {joint: goals[index] for joint in JOINTS}
+            rows.append({
+                "command_monotonic_ns": index * 50_000_000,
+                "command_position": command,
+                "present_position": present,
+                "goal_present_error": {
+                    joint: goal[joint] - present[joint] for joint in JOINTS},
+                "moving": {joint: int(index == 1) for joint in JOINTS},
+            })
+        result = analyze_motion_rows(rows)
+        self.assertAlmostEqual(result["command_interval_mean_s"], 0.05)
+        self.assertAlmostEqual(result["command_interval_std_s"], 0.0)
+        pan = result["joints"]["shoulder_pan"]
+        self.assertEqual(pan["emitted_delta_per_cycle"], [1.0, -1.0])
+        self.assertEqual(pan["max_delta"], 1.0)
+        self.assertEqual(pan["direction_reversals"], 1)
+        self.assertEqual(pan["moving_true_cycles"], 1)
+        self.assertGreater(pan["goal_present_error_peak_to_peak"], 0.0)
+
+    def test_smooth_profile_keeps_absolute_cadence_despite_write_latency(self):
+        clock = Clock()
+
+        class MotionBus(FakeBus):
+            def __init__(self):
+                super().__init__()
+                self.registers["Present_Position"] = {joint: 0.0 for joint in JOINTS}
+                self.registers["Goal_Position"] = {joint: 0.0 for joint in JOINTS}
+                self.registers["Torque_Enable"] = {joint: 1 for joint in JOINTS}
+
+        class Writes:
+            def __init__(self, bus):
+                self.bus = bus
+                self.times = []
+                self.sent = []
+
+            def motion_goal(self, values):
+                self.times.append(clock.value)
+                self.sent.append(dict(values))
+                self.bus.registers["Goal_Position"] = dict(values)
+                self.bus.registers["Present_Position"] = dict(values)
+                clock.value += 0.02
+
+        bus = MotionBus()
+        writes = Writes(bus)
+        session = SimpleNamespace(
+            follower=SimpleNamespace(bus=bus), writes=writes,
+            bounds={joint: (-200.0, 200.0) for joint in JOINTS})
+        target = {joint: 0.0 for joint in JOINTS}
+        target["shoulder_pan"] = 20.0
+        execute_segment(
+            session, target, self.settings, stage="free_space",
+            motion_profile="smooth", sleep=clock.sleep, monotonic=clock.monotonic)
+        intervals = [current - previous
+                     for previous, current in zip(writes.times, writes.times[1:])]
+        self.assertTrue(intervals)
+        self.assertTrue(all(abs(interval - self.settings.control_period_s) < 1e-9
+                            for interval in intervals))
+        previous = {joint: 0.0 for joint in JOINTS}
+        for point in writes.sent:
+            self.assertLessEqual(
+                max(abs(point[joint] - previous[joint]) for joint in JOINTS),
+                self.settings.max_step_deg + 1e-9)
+            previous = point
+        self.assertAlmostEqual(writes.sent[-1]["shoulder_pan"], 20.0)
 
     def test_warm_start_allows_only_50_to_51_and_keeps_hard_limit(self):
         class WarmBus(FakeBus):

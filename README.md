@@ -91,6 +91,7 @@ python3 -m medicine_sorter --config configs/system.example.json run --step --rul
 python3 -m medicine_sorter --config configs/system.example.json run --step --warm-start-once --rule A=green
 python3 -m medicine_sorter --config configs/system.example.json run --auto --rule C=green B=red A=blue
 python3 -m medicine_sorter --config configs/system.example.json web --port 8030
+python3 -m medicine_sorter --config configs/system.example.json motion-compare --from-pose home --to-pose finish
 ```
 
 `roi-preview`는 8020의 `/manual-frame.json`을 정확히 한 번 읽어 같은 응답의
@@ -140,6 +141,35 @@ Goal로 한 번 복사해 **현재 위치 유지**를 요청하며 Torque OFF가
 유지합니다. `--warm-start-once`는 감독 `--step` 한 번에서만 50–51°C 시작을
 허용하며, 52°C 이상 시작 차단과 실행 중 55°C hard stop은 유지합니다. 웹 자동
 실행에서는 이 완화를 사용할 수 없습니다.
+
+### Motion smoothing A/B
+
+기존 pick-and-place의 티칭 pose, IK, calibration, TCP와 `run`/web motion은
+`original`로 보존됩니다. 현재 공간 보간도 이미 모든 관절에 같은
+`s(t)=3t²-2t³`를 쓰지만, original executor는 각 serial write 뒤 상대적으로
+sleep해 write/read 지연이 다음 command interval에 누적될 수 있습니다. 새
+`smooth` 후보는 같은 시작·종료 pose와 같은 cubic profile을 절대시간 deadline으로
+샘플링하고, 지난 tick은 몰아서 보내지 않고 건너뜁니다. 관절당 2°/gripper 2 pp는
+제거하지 않고 모든 관절 비율을 함께 줄이는 hard cap으로 유지합니다. 최소 각도
+step, servo gain, Torque, calibration, IK는 변경하지 않습니다.
+
+`motion-compare`는 Jetson의 기존 ignored pose JSON을 읽어 10Hz 성공 baseline과
+20Hz 후보의 command count, delta, 최대 step, 방향 반전을 비교하지만 robot serial은
+열지 않습니다. 기존 성공 실행에는 cycle별 command/Present/Goal/Moving 원본 로그가
+없으므로 계획값을 실측값으로 표현하지 않습니다.
+
+실제 검증은 전체 pick-and-place가 아니라, 별도로 확인한 짧은 free-space 두 pose
+사이 한 구간만 `motion-test`로 수행합니다. 현재 자세가 `--from-pose`의 팔 5축과
+각 1° 이내가 아니면 motion 전에 중단합니다. 로그는 Git에서 제외된
+`.local/fixed-demo-motion/` 아래의 새 JSONL에만 저장하며 기존 파일을 덮어쓰지
+않습니다. 각 cycle에 command timestamp/position, Present, Goal, Goal−Present,
+Moving을 기록합니다. 이 명령은 현장 start/end pose가 확정되기 전에는 실행하지
+마세요.
+
+```bash
+python3 -m medicine_sorter --config configs/system.example.json motion-test --from-pose FROM --to-pose TO --profile smooth --log .local/fixed-demo-motion/smooth-001.jsonl --step
+python3 -m medicine_sorter --config configs/system.example.json motion-compare --from-pose FROM --to-pose TO --actual-log .local/fixed-demo-motion/smooth-001.jsonl
+```
 
 `web --port 8030`은 `0.0.0.0`에 바인딩되는 같은 네트워크용 버튼 UI입니다. A/B/C별
 red/blue/green/skip, 세 프리셋, 카메라 기반 계획 확인, 자동 실행, 현재 단계·온도,

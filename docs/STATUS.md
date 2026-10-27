@@ -1,6 +1,32 @@
 # 현재 상태
 
-업데이트: 2026-10-26
+업데이트: 2026-10-27
+
+## 2026-10-27 fixed-demo motion smoothing A/B — 구현·오프라인 PASS, 실제 telemetry BLOCKED
+
+- 기존 성공 pose/IK/calibration/TCP와 `run`/web의 original executor는 변경하지
+  않았다. 코드 감사 결과 기존 공간 경로 자체는 이미 arm 전 축에 동일한 cubic
+  `s(t)=3t²-2t³`를 사용한다. 그러나 command 후 상대 sleep 구조라 serial I/O 시간이
+  cadence에 누적될 수 있다. 새 후보는 같은 시작/종료 pose를 절대시간 deadline으로
+  샘플링하며 만료 tick을 burst 전송하지 않는다.
+- 2° arm/2 pp gripper limiter는 제거하지 않고 synchronized hard cap으로 유지했다.
+  minimum step, servo gain, Torque, calibration, IK는 변경하지 않았다. 기존 경로를
+  덮어쓰지 않는 hardware-free `motion-compare`와, 팔 5축 start pose 각 1° gate를
+  가진 단일 arm-only `motion-test`를 같은 CLI에 추가했다. 전체 pick-and-place에는
+  smooth 후보를 아직 연결하지 않았다.
+- motion-test JSONL은 ignored `.local/fixed-demo-motion/` 안의 새 파일만 허용하며
+  command timestamp/position, Present, Goal, Goal−Present, Moving을 cycle별 기록한다.
+  분석기는 command interval mean/std, emitted delta/max/reversal, Present 유한차분,
+  Goal−Present 변동과 Moving count를 관절별 계산한다. timeout도 해당 관절별 최종
+  target/Goal/Present/error/Moving을 보존한다.
+- 기존 성공 fixed-demo에는 cycle telemetry가 저장되지 않았고 web 상태에는 write
+  count만 남아 있어 실제 jitter 원인은 `UNCONFIRMED`다. Jetson의 파일을 장치 접근
+  없이 확인하려 한 SSH도 timeout되어 actual A/B 수치는 `NOT_AVAILABLE`이며 이를
+  계획값으로 대체하지 않았다.
+- fixed-demo+web `57/57 PASS`, sorter `30/30 PASS`, compile/help/diff check PASS.
+  serial open·motor command는 `0`; Jetson 배포, actual log 수집, free-space motion은
+  `NOT_RUN`. 시작·종료 free-space pose와 현재 물리 상태 확인 전
+  `READY_FOR_SMOOTH_MOTION_TEST=NO`. [상세](sessions/2026-10-27-motion-smoothing-ab.md).
 
 ## 2026-10-26 감독 1회 warm start·20Hz 보간 — 구현·오프라인 PASS, Jetson 실기 NOT_RUN
 

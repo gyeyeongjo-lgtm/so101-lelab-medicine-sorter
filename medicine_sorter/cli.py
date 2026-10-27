@@ -6,8 +6,9 @@ from pathlib import Path
 
 from .config import load_config
 from .errors import SorterError
-from .fixed_demo import (load_demo_settings, parse_destination_rules, run_demo,
-                         save_roi_preview, teach)
+from .fixed_demo import (compare_pose_motion, load_demo_settings,
+                         parse_destination_rules, run_demo,
+                         run_free_space_motion_test, save_roi_preview, teach)
 from .robot import (LiveRobotAdapter, MockRobotAdapter, RobotController,
                     SO101ReadOnlyStatusAdapter)
 from .workflow import SorterApplication
@@ -45,6 +46,21 @@ def build_parser() -> argparse.ArgumentParser:
         "--warm-start-once", action="store_true",
         help="감독 --step 1회에서만 시작 온도 50–51°C를 허용합니다(실행 중 55°C 제한 유지)",
     )
+    compare_parser = sub.add_parser(
+        "motion-compare", help="장치를 열지 않고 동일 pose 구간의 original/smooth 명령을 비교합니다")
+    compare_parser.add_argument("--from-pose", required=True)
+    compare_parser.add_argument("--to-pose", required=True)
+    compare_parser.add_argument("--actual-log", type=Path,
+                                help="motion-test JSONL이 있으면 실제 cadence/feedback도 분석합니다")
+    motion_test_parser = sub.add_parser(
+        "motion-test", help="동일한 두 티칭 자세 사이 한 free-space 구간만 감독 실행합니다")
+    motion_test_parser.add_argument("--from-pose", required=True)
+    motion_test_parser.add_argument("--to-pose", required=True)
+    motion_test_parser.add_argument("--profile", choices=("original", "smooth"), required=True)
+    motion_test_parser.add_argument("--log", type=Path, required=True,
+                                    help="덮어쓰지 않을 새 .jsonl 경로")
+    motion_test_parser.add_argument("--step", action="store_true",
+                                    help="현장 확인 Enter 후 한 구간만 실행합니다")
     web_parser = sub.add_parser("web", help="고정 데모 버튼 UI를 실행합니다")
     web_parser.add_argument("--port", type=int, default=8030,
                             help="같은 네트워크에 공개할 HTTP port (기본 8030)")
@@ -84,6 +100,16 @@ def main(argv=None, *, status_adapter_factory=None) -> int:
             payload = run_demo(config, settings, dry_run=args.dry_run,
                                step=args.step, auto=args.auto,
                                warm_start_once=args.warm_start_once, rules=rules)
+        elif args.mode == "motion-compare":
+            payload = compare_pose_motion(
+                config, load_demo_settings(config),
+                from_pose=args.from_pose, to_pose=args.to_pose,
+                actual_log=args.actual_log)
+        elif args.mode == "motion-test":
+            payload = run_free_space_motion_test(
+                config, load_demo_settings(config),
+                from_pose=args.from_pose, to_pose=args.to_pose,
+                motion_profile=args.profile, log_path=args.log, step=args.step)
         elif args.mode == "web":
             if not 1 <= args.port <= 65535:
                 raise SorterError("web_port_invalid", args.port, "1..65535",

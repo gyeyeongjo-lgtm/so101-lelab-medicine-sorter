@@ -28,6 +28,19 @@ class DemoWebTests(unittest.TestCase):
         self.assertEqual(web.mode, "web")
         self.assertEqual(web.port, 8030)
 
+    def test_cli_has_offline_compare_and_single_segment_motion_test(self):
+        compare = build_parser().parse_args([
+            "motion-compare", "--from-pose", "home", "--to-pose", "finish"])
+        motion = build_parser().parse_args([
+            "motion-test", "--from-pose", "home", "--to-pose", "finish",
+            "--profile", "smooth", "--log", ".local/test.jsonl", "--step"])
+        self.assertEqual(compare.mode, "motion-compare")
+        self.assertEqual(compare.from_pose, "home")
+        self.assertIsNone(compare.actual_log)
+        self.assertEqual(motion.mode, "motion-test")
+        self.assertEqual(motion.profile, "smooth")
+        self.assertTrue(motion.step)
+
     def test_rule_parser_allows_three_colors_and_skip(self):
         self.assertEqual(parse_web_rules(
             {"A": "blue", "B": "red", "C": "skip"}),

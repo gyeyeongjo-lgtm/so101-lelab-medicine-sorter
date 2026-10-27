@@ -14,7 +14,7 @@ import termios
 import threading
 import time
 import tty
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
@@ -46,6 +46,8 @@ ALL_POSE_NAMES = POSE_NAMES + TYPE_GRIPPER_POSES + (FINISH_POSE_NAME,)
 MAX_TEMPERATURE_C = 55
 PRESTART_MAX_TEMPERATURE_C_EXCLUSIVE = 50
 WARM_START_MAX_TEMPERATURE_C_EXCLUSIVE = 52
+ORIGINAL_CONTROL_PERIOD_S = 0.1
+MOTION_LOG_SCHEMA_VERSION = 1
 GRIPPER_CONTACT_RELIEF_BIAS = 1.0
 TEACH_GOAL_PRESENT_RAW_TOLERANCE = 40
 POST_GOAL_READ_DELAY_S = 0.2
@@ -597,19 +599,11 @@ def smooth_interpolation(start: Mapping[str, float], target: Mapping[str, float]
                   if abs(value) > settings.max_segment_travel[joint]}
     if violations:
         raise ValueError(f"segment_travel_limit_exceeded:{violations}")
-    duration = settings.control_period_s
-    for joint, distance in delta.items():
-        duration = max(duration,
-                       1.5 * abs(distance) / settings.velocity[joint],
-                       math.sqrt(6.0 * abs(distance) / settings.acceleration[joint]))
+    duration = trajectory_duration(delta, settings)
     count = max(1, math.ceil(duration / settings.control_period_s))
     while True:
-        points = []
-        for index in range(1, count + 1):
-            u = index / count
-            fraction = u * u * (3.0 - 2.0 * u)
-            points.append({joint: float(start[joint]) + fraction * delta[joint]
-                           for joint in JOINTS})
+        points = [trajectory_position(start, delta, index / count)
+                  for index in range(1, count + 1)]
         previous = {joint: float(start[joint]) for joint in JOINTS}
         okay = True
         for point in points:
@@ -621,6 +615,255 @@ def smooth_interpolation(start: Mapping[str, float], target: Mapping[str, float]
         if okay:
             return points
         count += 1
+
+
+def trajectory_duration(delta: Mapping[str, float], settings: DemoSettings) -> float:
+    """Minimum cubic smoothstep duration under configured velocity/acceleration limits."""
+    duration = settings.control_period_s
+    for joint, distance in delta.items():
+        duration = max(duration,
+                       1.5 * abs(distance) / settings.velocity[joint],
+                       math.sqrt(6.0 * abs(distance) / settings.acceleration[joint]))
+    return duration
+
+
+def trajectory_position(start: Mapping[str, float], delta: Mapping[str, float], u: float
+                        ) -> dict[str, float]:
+    u = min(1.0, max(0.0, float(u)))
+    fraction = u * u * (3.0 - 2.0 * u)
+    return {joint: float(start[joint]) + fraction * float(delta[joint]) for joint in JOINTS}
+
+
+def _hard_cap_synchronized(previous: Mapping[str, float], requested: Mapping[str, float],
+                           settings: DemoSettings) -> dict[str, float]:
+    """Keep joint ratios synchronized while treating 2 degrees as a hard cap only."""
+    delta = {joint: float(requested[joint]) - float(previous[joint]) for joint in JOINTS}
+    fraction = 1.0
+    for joint, value in delta.items():
+        limit = settings.max_gripper_step if joint == "gripper" else settings.max_step_deg
+        if abs(value) > limit:
+            fraction = min(fraction, limit / abs(value))
+    return {joint: float(previous[joint]) + fraction * delta[joint] for joint in JOINTS}
+
+
+def _direction_reversals(values: Sequence[float], *, epsilon: float = 1e-9) -> int:
+    signs = [1 if value > epsilon else -1 for value in values if abs(value) > epsilon]
+    return sum(current != previous for previous, current in zip(signs, signs[1:]))
+
+
+def _mean_std(values: Sequence[float]) -> tuple[float | None, float | None]:
+    if not values:
+        return None, None
+    mean = sum(values) / len(values)
+    variance = sum((value - mean) ** 2 for value in values) / len(values)
+    return mean, math.sqrt(variance)
+
+
+def planned_trajectory_metrics(start: Mapping[str, float], points: Sequence[Mapping[str, float]],
+                               period_s: float, settings: DemoSettings) -> dict[str, Any]:
+    previous = {joint: float(start[joint]) for joint in JOINTS}
+    deltas = {joint: [] for joint in JOINTS}
+    for point in points:
+        for joint in JOINTS:
+            deltas[joint].append(float(point[joint]) - previous[joint])
+        previous = {joint: float(point[joint]) for joint in JOINTS}
+    per_joint = {}
+    for joint in JOINTS:
+        absolute = [abs(value) for value in deltas[joint]]
+        limit = settings.max_gripper_step if joint == "gripper" else settings.max_step_deg
+        per_joint[joint] = {
+            "emitted_delta_mean": sum(absolute) / len(absolute) if absolute else 0.0,
+            "max_delta": max(absolute, default=0.0),
+            "direction_reversals": _direction_reversals(deltas[joint]),
+            "hard_cap": limit,
+            "hard_cap_binding_cycles": sum(abs(value - limit) <= 1e-6 for value in absolute),
+            "near_95pct_hard_cap_cycles": sum(value >= 0.95 * limit for value in absolute),
+        }
+    return {
+        "command_count": len(points),
+        "command_interval_mean_s": period_s if points else None,
+        "command_interval_std_s": 0.0 if points else None,
+        "duration_s": len(points) * period_s,
+        "joints": per_joint,
+    }
+
+
+def analyze_motion_rows(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    if not rows:
+        raise ValueError("motion_log_empty")
+    timestamps = [int(row["command_monotonic_ns"]) for row in rows]
+    if any(current <= previous for previous, current in zip(timestamps, timestamps[1:])):
+        raise ValueError("motion_log_timestamps_not_strictly_increasing")
+    intervals = [(current - previous) / 1_000_000_000
+                 for previous, current in zip(timestamps, timestamps[1:])]
+    interval_mean, interval_std = _mean_std(intervals)
+    per_joint = {}
+    for joint in JOINTS:
+        command = [float(row["command_position"][joint]) for row in rows]
+        present = [float(row["present_position"][joint]) for row in rows]
+        error = [float(row["goal_present_error"][joint]) for row in rows]
+        moving = [int(row["moving"][joint]) for row in rows]
+        command_delta = [current - previous for previous, current in zip(command, command[1:])]
+        command_delta_abs = [abs(value) for value in command_delta]
+        present_velocity = [(present[index] - present[index - 1]) / intervals[index - 1]
+                            for index in range(1, len(present))]
+        error_delta = [current - previous for previous, current in zip(error, error[1:])]
+        velocity_mean, velocity_std = _mean_std(present_velocity)
+        command_delta_mean, command_delta_std = _mean_std(command_delta_abs)
+        error_mean, error_std = _mean_std(error)
+        per_joint[joint] = {
+            "emitted_delta_per_cycle": command_delta,
+            "emitted_delta_abs_mean": command_delta_mean,
+            "emitted_delta_abs_std": command_delta_std,
+            "max_delta": max((abs(value) for value in command_delta), default=0.0),
+            "direction_reversals": _direction_reversals(command_delta),
+            "present_velocity_approx_mean": velocity_mean,
+            "present_velocity_approx_std": velocity_std,
+            "present_velocity_approx_max_abs": max(
+                (abs(value) for value in present_velocity), default=0.0),
+            "goal_present_error_mean": error_mean,
+            "goal_present_error_std": error_std,
+            "goal_present_error_peak_to_peak": max(error, default=0.0) - min(error, default=0.0),
+            "goal_present_error_direction_reversals": _direction_reversals(error_delta),
+            "moving_true_cycles": sum(value != 0 for value in moving),
+        }
+    return {
+        "sample_count": len(rows),
+        "command_interval_mean_s": interval_mean,
+        "command_interval_std_s": interval_std,
+        "joints": per_joint,
+    }
+
+
+def load_and_analyze_motion_log(path: Path) -> dict[str, Any]:
+    try:
+        rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()
+                if line.strip()]
+    except (OSError, json.JSONDecodeError) as error:
+        raise _fail("motion_log_load_failed", str(error), str(path),
+                    "motion-test가 저장한 JSONL을 지정해 주세요") from error
+    try:
+        return analyze_motion_rows(rows)
+    except (KeyError, TypeError, ValueError) as error:
+        raise _fail("motion_log_invalid", str(error), "complete motion telemetry rows",
+                    "원본 로그를 수정하지 말고 다시 확인해 주세요") from error
+
+
+def compare_pose_motion(config, settings: DemoSettings, *, from_pose: str, to_pose: str,
+                        actual_log: Path | None = None) -> dict[str, Any]:
+    if (from_pose not in ALL_POSE_NAMES or to_pose not in ALL_POSE_NAMES
+            or from_pose in GRIPPER_POSES or to_pose in GRIPPER_POSES
+            or from_pose == to_pose):
+        raise _fail("motion_compare_pose_invalid", [from_pose, to_pose],
+                    "two different arm pose names",
+                    "home/slot/basket/finish 중 서로 다른 두 자세를 지정해 주세요")
+    poses = load_pose_file(settings.pose_path,
+                           expected_serial=config.raw["robot"]["follower_serial"])
+    start = dict(poses[from_pose])
+    target = _arm_only(start, poses[to_pose])
+    original_settings = replace(settings, control_period_s=ORIGINAL_CONTROL_PERIOD_S)
+    original_points = smooth_interpolation(start, target, original_settings)
+    smooth_points = smooth_interpolation(start, target, settings)
+    original_metrics = planned_trajectory_metrics(
+        start, original_points, original_settings.control_period_s, original_settings)
+    smooth_metrics = planned_trajectory_metrics(
+        start, smooth_points, settings.control_period_s, settings)
+    original_max_step = max(
+        original_metrics["joints"][joint]["max_delta"] for joint in ARM_JOINTS)
+    smooth_max_step = max(
+        smooth_metrics["joints"][joint]["max_delta"] for joint in ARM_JOINTS)
+    actual_analysis = (load_and_analyze_motion_log(actual_log)
+                       if actual_log is not None else "NOT_AVAILABLE")
+    result = {
+        "status": "MOTION_A_B_OFFLINE",
+        "from_pose": from_pose,
+        "to_pose": to_pose,
+        "same_start_end_pose": True,
+        "original": original_metrics,
+        "smooth": smooth_metrics,
+        "smoothing_method": "shared cubic smoothstep with absolute-deadline live scheduler",
+        "two_degree_cap_removed": False,
+        "torque_gain_changed": False,
+        "ik_changed": False,
+        "calibration_changed": False,
+        "actual_log_analysis": actual_analysis,
+        "JITTER_ROOT_CAUSE": (
+            "UNCONFIRMED_CURRENT_FIXED_DEMO_CYCLE_LOG_NOT_AVAILABLE"
+            if actual_log is None else
+            "MEASURED_CADENCE_AND_TRACKING_REPORTED_CAUSALITY_NOT_ASSUMED"),
+        "ORIGINAL_COMMAND_INTERVAL": {
+            "mean_s": original_settings.control_period_s, "std_s": 0.0,
+            "source": "planned_not_measured"},
+        "ORIGINAL_MAX_STEP": original_max_step,
+        "ORIGINAL_DIRECTION_REVERSALS": {
+            joint: original_metrics["joints"][joint]["direction_reversals"]
+            for joint in ARM_JOINTS},
+        "SMOOTHING_METHOD": "s(t)=3t^2-2t^3 shared by all arm joints; absolute deadlines",
+        "CONTROL_PERIOD": settings.control_period_s,
+        "SMOOTH_MAX_STEP": smooth_max_step,
+        "EXPECTED_IMPROVEMENT": (
+            "relative-sleep drift is not accumulated; expired ticks are skipped; "
+            "2deg remains a synchronized hard cap"),
+        "TORQUE_GAIN_CHANGED": "NO",
+        "IK_CHANGED": "NO",
+        "READY_FOR_SMOOTH_MOTION_TEST": "NO_NEEDS_FREE_SPACE_START_END_CONFIRMATION",
+        "serial_open": 0,
+        "motor_command": 0,
+    }
+    return result
+
+
+class MotionTraceRecorder:
+    """Append diagnostic telemetry outside Git; never authorizes a motor write."""
+
+    def __init__(self, path: Path):
+        if path.suffix.lower() != ".jsonl":
+            raise _fail("motion_log_path_invalid", str(path), "*.jsonl",
+                        ".local 아래의 새 JSONL 경로를 지정해 주세요")
+        allowed_root = (Path.cwd() / ".local" / "fixed-demo-motion").resolve()
+        resolved = path.resolve()
+        if not resolved.is_relative_to(allowed_root):
+            raise _fail("motion_log_outside_ignored_root", str(resolved),
+                        str(allowed_root / "<new>.jsonl"),
+                        "원본 telemetry가 Git에 들어가지 않도록 .local/fixed-demo-motion을 사용해 주세요")
+        path = resolved
+        path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            self.file = path.open("x", encoding="utf-8")
+        except FileExistsError as error:
+            raise _fail("motion_log_already_exists", str(path), "new path",
+                        "기존 원본 로그를 보존하고 새 파일명을 사용해 주세요") from error
+        self.path = path
+        self.count = 0
+
+    def record(self, *, stage: str, profile: str, sequence: int,
+               scheduled_offset_s: float, command_monotonic_ns: int,
+               command_position: Mapping[str, float], present_position: Mapping[str, float],
+               goal_position: Mapping[str, float], moving: Mapping[str, int]) -> None:
+        row = {
+            "schema_version": MOTION_LOG_SCHEMA_VERSION,
+            "observed_at_utc": datetime.now(timezone.utc).isoformat(),
+            "stage": stage,
+            "profile": profile,
+            "sequence": sequence,
+            "scheduled_offset_s": scheduled_offset_s,
+            "command_monotonic_ns": command_monotonic_ns,
+            "command_position": {joint: float(command_position[joint]) for joint in JOINTS},
+            "present_position": {joint: float(present_position[joint]) for joint in JOINTS},
+            "goal_position": {joint: float(goal_position[joint]) for joint in JOINTS},
+            "goal_present_error": {
+                joint: float(goal_position[joint]) - float(present_position[joint])
+                for joint in JOINTS
+            },
+            "moving": {joint: int(moving[joint]) for joint in JOINTS},
+        }
+        self.file.write(json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n")
+        self.file.flush()
+        self.count += 1
+
+    def close(self) -> None:
+        if not self.file.closed:
+            self.file.close()
 
 
 def _is_canonical_acm_port(port: Path) -> bool:
@@ -702,12 +945,16 @@ def _raw(bus, register: str, *, num_retry: int = 0) -> dict[str, int]:
 
 
 def _positions(bus) -> dict[str, float]:
-    values = bus.sync_read("Present_Position", normalize=True, num_retry=0)
+    return _normalized_positions(bus, "Present_Position")
+
+
+def _normalized_positions(bus, register: str) -> dict[str, float]:
+    values = bus.sync_read(register, normalize=True, num_retry=0)
     if set(values) != set(JOINTS):
-        raise RuntimeError("invalid_normalized_present")
+        raise RuntimeError(f"invalid_normalized_register:{register}")
     result = {joint: float(values[joint]) for joint in JOINTS}
     if any(not math.isfinite(value) for value in result.values()):
-        raise RuntimeError("nonfinite_normalized_present")
+        raise RuntimeError(f"nonfinite_normalized_register:{register}")
     return result
 
 
@@ -860,11 +1107,13 @@ class StrictWriteGate:
             raise RuntimeError("motion_handoff_invalid")
         self.mode = "motion"
 
-    def motion_goal(self, values: Mapping[str, float]) -> None:
+    def motion_goal(self, values: Mapping[str, float]) -> int:
         if self.mode != "motion":
             raise RuntimeError("motion_goal_not_armed")
         self.counts["Goal_Position_motion"] += 1
+        command_monotonic_ns = time.monotonic_ns()
         self._send("Goal_Position", values, True)
+        return command_monotonic_ns
 
     def ctrl_c_hold(self, values: Mapping[str, int]) -> None:
         if self.mode != "motion" or self.counts["Goal_Position_ctrl_c_hold"]:
@@ -1281,18 +1530,106 @@ def _relieve_blocked_gripper(session: HardwareSession, *, stage: str,
     }
 
 
+def _record_motion_cycle(session: HardwareSession, recorder: MotionTraceRecorder | None, *,
+                         stage: str, profile: str, sequence: int,
+                         scheduled_offset_s: float, command_monotonic_ns: int,
+                         command_position: Mapping[str, float]) -> None:
+    if recorder is None:
+        return
+    recorder.record(
+        stage=stage, profile=profile, sequence=sequence,
+        scheduled_offset_s=scheduled_offset_s,
+        command_monotonic_ns=command_monotonic_ns,
+        command_position=command_position,
+        present_position=_positions(session.follower.bus),
+        goal_position=_normalized_positions(session.follower.bus, "Goal_Position"),
+        moving=_raw(session.follower.bus, "Moving"),
+    )
+
+
+def _execute_original_commands(session: HardwareSession, start: Mapping[str, float],
+                               target: Mapping[str, float], settings: DemoSettings, *,
+                               stage: str, recorder: MotionTraceRecorder | None,
+                               sleep: Callable[[float], None],
+                               monotonic: Callable[[], float],
+                               stop_requested: Callable[[], bool]) -> None:
+    for sequence, point in enumerate(smooth_interpolation(start, target, settings), start=1):
+        if stop_requested():
+            raise KeyboardInterrupt
+        fallback_ns = int(monotonic() * 1_000_000_000)
+        command_ns = session.writes.motion_goal(point)
+        _record_motion_cycle(
+            session, recorder, stage=stage, profile="original", sequence=sequence,
+            scheduled_offset_s=(sequence - 1) * settings.control_period_s,
+            command_monotonic_ns=(command_ns if isinstance(command_ns, int) else fallback_ns),
+            command_position=point,
+        )
+        sleep(settings.control_period_s)
+
+
+def _execute_time_based_commands(session: HardwareSession, start: Mapping[str, float],
+                                 target: Mapping[str, float], settings: DemoSettings, *,
+                                 stage: str, recorder: MotionTraceRecorder | None,
+                                 sleep: Callable[[float], None],
+                                 monotonic: Callable[[], float],
+                                 stop_requested: Callable[[], bool]) -> None:
+    # Validate the same travel and 2-degree contract as the original generator first.
+    smooth_interpolation(start, target, settings)
+    delta = {joint: float(target[joint]) - float(start[joint]) for joint in JOINTS}
+    duration = trajectory_duration(delta, settings)
+    started = monotonic()
+    deadline = started + settings.control_period_s
+    previous = {joint: float(start[joint]) for joint in JOINTS}
+    sequence = 0
+    while True:
+        if stop_requested():
+            raise KeyboardInterrupt
+        remaining = deadline - monotonic()
+        if remaining > 0:
+            sleep(remaining)
+        now = monotonic()
+        elapsed = max(0.0, now - started)
+        requested = trajectory_position(start, delta, elapsed / duration)
+        point = _hard_cap_synchronized(previous, requested, settings)
+        sequence += 1
+        fallback_ns = int(now * 1_000_000_000)
+        command_ns = session.writes.motion_goal(point)
+        _record_motion_cycle(
+            session, recorder, stage=stage, profile="smooth", sequence=sequence,
+            scheduled_offset_s=deadline - started,
+            command_monotonic_ns=(command_ns if isinstance(command_ns, int) else fallback_ns),
+            command_position=point,
+        )
+        previous = point
+        if (elapsed >= duration
+                and all(abs(previous[joint] - float(target[joint])) <= 1e-9 for joint in JOINTS)):
+            break
+        deadline += settings.control_period_s
+        after_cycle = monotonic()
+        if deadline <= after_cycle:
+            # Skip expired schedule slots instead of bursting stale waypoints back-to-back.
+            next_tick = math.floor((after_cycle - started) / settings.control_period_s) + 1
+            deadline = started + next_tick * settings.control_period_s
+
+
 def execute_segment(session: HardwareSession, target: Mapping[str, float], settings: DemoSettings,
-                    *, stage: str,
+                    *, stage: str, motion_profile: str = "original",
+                    recorder: MotionTraceRecorder | None = None,
                     sleep: Callable[[float], None] = time.sleep,
                     monotonic: Callable[[], float] = time.monotonic,
                     stop_requested: Callable[[], bool] = lambda: False) -> dict[str, Any]:
+    if motion_profile not in {"original", "smooth"}:
+        raise ValueError(f"motion_profile_invalid:{motion_profile}")
     ensure_in_bounds(target, session.bounds)
     start = _positions(session.follower.bus)
-    for point in smooth_interpolation(start, target, settings):
-        if stop_requested():
-            raise KeyboardInterrupt
-        session.writes.motion_goal(point)
-        sleep(settings.control_period_s)
+    if motion_profile == "original":
+        _execute_original_commands(
+            session, start, target, settings, stage=stage, recorder=recorder,
+            sleep=sleep, monotonic=monotonic, stop_requested=stop_requested)
+    else:
+        _execute_time_based_commands(
+            session, start, target, settings, stage=stage, recorder=recorder,
+            sleep=sleep, monotonic=monotonic, stop_requested=stop_requested)
     deadline = monotonic() + settings.settle_timeout_s
     while True:
         if stop_requested():
@@ -1303,7 +1640,17 @@ def execute_segment(session: HardwareSession, target: Mapping[str, float], setti
                 all(abs(present[j] - target[j]) <= settings.settle_tolerance[j] for j in JOINTS)):
             break
         if monotonic() >= deadline:
-            raise RuntimeError("segment_settle_timeout")
+            goal = _normalized_positions(session.follower.bus, "Goal_Position")
+            raise SegmentSafetyFault(
+                "segment_settle_timeout",
+                {"stage": stage, "motion_profile": motion_profile,
+                 "target": dict(target), "present": present, "goal": goal,
+                 "goal_present_error": {
+                     joint: goal[joint] - present[joint] for joint in JOINTS},
+                 "target_present_error": {
+                     joint: float(target[joint]) - present[joint] for joint in JOINTS},
+                 "moving": moving, "settle_timeout_s": settings.settle_timeout_s},
+            )
         sleep(settings.control_period_s)
     final_target, contact_relief = _relieve_blocked_gripper(
         session, stage=stage, start=start, target=target, settings=settings, sleep=sleep)
@@ -1312,6 +1659,125 @@ def execute_segment(session: HardwareSession, target: Mapping[str, float], setti
     temperatures = _read_temperatures(session.follower.bus, stage=stage)
     return {"final_target": final_target, "contact_relief": contact_relief,
             "temperatures_c": temperatures}
+
+
+def run_free_space_motion_test(
+        config, settings: DemoSettings, *, from_pose: str, to_pose: str,
+        motion_profile: str, log_path: Path, step: bool,
+        session_factory=HardwareSession,
+        install_signal_handlers: bool = True,
+) -> dict[str, Any]:
+    if not step:
+        raise _fail("motion_test_requires_step", False, "--step",
+                    "짧은 free-space 시험은 현장 확인 후 단계 실행만 허용합니다")
+    if motion_profile not in {"original", "smooth"}:
+        raise _fail("motion_profile_invalid", motion_profile, "original or smooth",
+                    "A/B 비교할 profile을 지정해 주세요")
+    if (from_pose not in ALL_POSE_NAMES or to_pose not in ALL_POSE_NAMES
+            or from_pose in GRIPPER_POSES or to_pose in GRIPPER_POSES
+            or from_pose == to_pose):
+        raise _fail("motion_test_pose_invalid", [from_pose, to_pose],
+                    "two different arm pose names",
+                    "충돌 없는 짧은 arm-only 시작/종료 자세를 지정해 주세요")
+    poses = load_pose_file(settings.pose_path,
+                           expected_serial=config.raw["robot"]["follower_serial"])
+    recorder = MotionTraceRecorder(log_path)
+    session = session_factory(config, include_leader=False)
+    motion_armed = False
+    old_signals = {}
+    stopping = False
+
+    def stop(_signum, _frame):
+        nonlocal stopping
+        stopping = True
+        raise KeyboardInterrupt
+
+    if install_signal_handlers:
+        if threading.current_thread() is not threading.main_thread():
+            recorder.close()
+            raise RuntimeError("signal_handlers_require_main_thread")
+        old_signals = {sig: signal.signal(sig, stop) for sig in (signal.SIGINT, signal.SIGTERM)}
+    try:
+        print(json.dumps({
+            "status": "FREE_SPACE_MOTION_TEST_PLAN",
+            "from_pose": from_pose, "to_pose": to_pose,
+            "motion_profile": motion_profile, "log_path": str(log_path),
+            "arm_only": True, "gripper_goal_change": False,
+            "two_degree_hard_cap": settings.max_step_deg,
+            "control_period_s": settings.control_period_s,
+        }, ensure_ascii=False, indent=2))
+        input("팔 지지·free-space·즉시 정지 준비와 시작 자세를 확인했으면 Enter: ")
+        session.connect()
+        prestart_temperatures = verify_prestart_temperatures(session.follower.bus)
+        hold = establish_hold(session.follower.bus, session.writes)
+        motion_armed = True
+        current = _positions(session.follower.bus)
+        moving = _raw(session.follower.bus, "Moving")
+        start_error = {
+            joint: current[joint] - float(poses[from_pose][joint]) for joint in ARM_JOINTS
+        }
+        if any(moving.values()):
+            raise SegmentSafetyFault(
+                "motion_test_start_moving",
+                {"stage": from_pose, "moving": moving, "start_error": start_error})
+        if any(abs(value) > 1.0 for value in start_error.values()):
+            raise SegmentSafetyFault(
+                "motion_test_start_pose_mismatch",
+                {"stage": from_pose, "start_error": start_error,
+                 "required_abs_max_deg": 1.0})
+        target = _arm_only(current, poses[to_pose])
+        input(f"{from_pose} → {to_pose} 한 구간만 실행합니다. 주변 clear면 Enter: ")
+        segment = execute_segment(
+            session, target, settings, stage=f"motion_test:{from_pose}->{to_pose}",
+            motion_profile=motion_profile, recorder=recorder,
+            stop_requested=lambda: stopping,
+        )
+        return {
+            "status": "FREE_SPACE_MOTION_TEST_COMPLETE",
+            "from_pose": from_pose, "to_pose": to_pose,
+            "motion_profile": motion_profile,
+            "log_path": str(log_path.resolve()), "log_samples": recorder.count,
+            "prestart_temperatures_c": prestart_temperatures,
+            "final_temperatures_c": segment["temperatures_c"],
+            "hold": hold, "write_counts": dict(session.writes.counts),
+            "torque_gain_changed": False, "ik_changed": False,
+            "calibration_changed": False,
+        }
+    except KeyboardInterrupt:
+        held = session.ctrl_c_hold() if motion_armed else False
+        raise _fail(
+            "motion_test_stopped_current_position_held" if held else
+            "motion_test_stopped_before_motion_arm",
+            {"current_position_hold": held, "log_path": str(log_path),
+             "log_samples": recorder.count},
+            "one supervised free-space segment",
+            "현재 물리 상태를 확인하고 자동 재실행하지 마세요",
+        )
+    except SorterError:
+        raise
+    except Exception as error:
+        held = False
+        hold_error = None
+        if motion_armed:
+            try:
+                held = session.ctrl_c_hold()
+            except Exception as current_hold_error:
+                hold_error = f"{type(current_hold_error).__name__}: {current_hold_error}"
+        details = (dict(error.details) if isinstance(error, SegmentSafetyFault) else
+                   {"exception_type": type(error).__name__, "driver_error": str(error)})
+        details.update({"current_position_hold": held, "hold_error": hold_error,
+                        "log_path": str(log_path), "log_samples": recorder.count})
+        raise _fail(
+            "motion_test_fault_current_position_held" if held else
+            "motion_test_fault_hold_not_completed",
+            details, "one fault-free free-space segment",
+            "현재 물리 상태와 로그를 확인하고 자동 재실행하지 마세요",
+        ) from error
+    finally:
+        recorder.close()
+        for sig, handler in old_signals.items():
+            signal.signal(sig, handler)
+        session.close()
 
 
 def run_demo(config, settings: DemoSettings, *, dry_run: bool, step: bool,
