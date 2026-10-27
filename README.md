@@ -154,8 +154,10 @@ sleep해 write/read 지연이 다음 command interval에 누적될 수 있습니
 step, servo gain, Torque, calibration, IK는 변경하지 않습니다.
 
 `motion-compare`는 Jetson의 기존 ignored pose JSON을 읽어 10Hz 성공 baseline과
-20Hz 후보의 command count, delta, 최대 step, 방향 반전을 비교하지만 robot serial은
-열지 않습니다. 기존 성공 실행에는 cycle별 command/Present/Goal/Moving 원본 로그가
+20Hz cubic 후보 및 20Hz quintic `10t³-15t⁴+6t⁵` 후보의 command count, delta,
+최대 step, 방향 반전을 비교하지만 robot serial은 열지 않습니다. quintic은 오프라인
+후보일 뿐 live motion에는 아직 연결하지 않습니다. 기존 성공 실행에는 cycle별
+command/Present/Goal/Moving 원본 로그가
 없으므로 계획값을 실측값으로 표현하지 않습니다.
 
 실제 검증은 전체 pick-and-place가 아니라, 별도로 확인한 짧은 free-space 두 pose
@@ -175,7 +177,9 @@ fresh read-only 상태로 확인한 현재 자세에서 재배치 없이 짧은 
 첫 ORIGINAL 시험은 `--from-current`를 사용합니다. 이 모드는 HOLD 직후의 actual
 Present를 시작점으로 고정하며, original baseline은 0.1초 relative cadence를
 유지합니다. JSONL에는 absolute planned timestamp, actual write timestamp와 interval,
-Goal/Present/error/Moving이 함께 저장됩니다.
+normalized/raw Goal·Present, Torque, error, Moving이 함께 저장됩니다. 완료 출력은
+encoder raw 변화만 확인하고 외부 링크 운동은 사용자 영상 확인 전 PASS로 처리하지
+않습니다.
 
 ```bash
 python3 -m medicine_sorter --config configs/system.example.json motion-test --from-current --to-pose finish --profile original --log .local/fixed-demo-motion/original-current-finish-001.jsonl --step

@@ -47,7 +47,7 @@ MAX_TEMPERATURE_C = 55
 PRESTART_MAX_TEMPERATURE_C_EXCLUSIVE = 50
 WARM_START_MAX_TEMPERATURE_C_EXCLUSIVE = 52
 ORIGINAL_CONTROL_PERIOD_S = 0.1
-MOTION_LOG_SCHEMA_VERSION = 2
+MOTION_LOG_SCHEMA_VERSION = 3
 DEADLINE_MISS_TOLERANCE_S = 0.005
 GRIPPER_CONTACT_RELIEF_BIAS = 1.0
 TEACH_GOAL_PRESENT_RAW_TOLERANCE = 40
@@ -592,7 +592,8 @@ def load_pose_file(path: Path, *, expected_serial: str) -> dict[str, dict[str, f
 
 
 def smooth_interpolation(start: Mapping[str, float], target: Mapping[str, float],
-                         settings: DemoSettings) -> list[dict[str, float]]:
+                         settings: DemoSettings, *, profile: str = "cubic"
+                         ) -> list[dict[str, float]]:
     if set(start) != set(JOINTS) or set(target) != set(JOINTS):
         raise ValueError("interpolation_joint_keys_invalid")
     delta = {joint: float(target[joint]) - float(start[joint]) for joint in JOINTS}
@@ -600,10 +601,10 @@ def smooth_interpolation(start: Mapping[str, float], target: Mapping[str, float]
                   if abs(value) > settings.max_segment_travel[joint]}
     if violations:
         raise ValueError(f"segment_travel_limit_exceeded:{violations}")
-    duration = trajectory_duration(delta, settings)
+    duration = trajectory_duration(delta, settings, profile=profile)
     count = max(1, math.ceil(duration / settings.control_period_s))
     while True:
-        points = [trajectory_position(start, delta, index / count)
+        points = [trajectory_position(start, delta, index / count, profile=profile)
                   for index in range(1, count + 1)]
         previous = {joint: float(start[joint]) for joint in JOINTS}
         okay = True
@@ -618,20 +619,36 @@ def smooth_interpolation(start: Mapping[str, float], target: Mapping[str, float]
         count += 1
 
 
-def trajectory_duration(delta: Mapping[str, float], settings: DemoSettings) -> float:
-    """Minimum cubic smoothstep duration under configured velocity/acceleration limits."""
+def trajectory_duration(delta: Mapping[str, float], settings: DemoSettings, *,
+                        profile: str = "cubic") -> float:
+    """Minimum smoothstep duration under configured velocity/acceleration limits."""
+    if profile == "cubic":
+        velocity_factor = 1.5
+        acceleration_factor = 6.0
+    elif profile == "quintic":
+        velocity_factor = 1.875
+        acceleration_factor = 10.0 / math.sqrt(3.0)
+    else:
+        raise ValueError(f"trajectory_profile_invalid:{profile}")
     duration = settings.control_period_s
     for joint, distance in delta.items():
         duration = max(duration,
-                       1.5 * abs(distance) / settings.velocity[joint],
-                       math.sqrt(6.0 * abs(distance) / settings.acceleration[joint]))
+                       velocity_factor * abs(distance) / settings.velocity[joint],
+                       math.sqrt(acceleration_factor * abs(distance)
+                                 / settings.acceleration[joint]))
     return duration
 
 
-def trajectory_position(start: Mapping[str, float], delta: Mapping[str, float], u: float
+def trajectory_position(start: Mapping[str, float], delta: Mapping[str, float], u: float,
+                        *, profile: str = "cubic"
                         ) -> dict[str, float]:
     u = min(1.0, max(0.0, float(u)))
-    fraction = u * u * (3.0 - 2.0 * u)
+    if profile == "cubic":
+        fraction = u * u * (3.0 - 2.0 * u)
+    elif profile == "quintic":
+        fraction = u ** 3 * (10.0 - 15.0 * u + 6.0 * u * u)
+    else:
+        raise ValueError(f"trajectory_profile_invalid:{profile}")
     return {joint: float(start[joint]) + fraction * float(delta[joint]) for joint in JOINTS}
 
 
@@ -671,10 +688,28 @@ def planned_trajectory_metrics(start: Mapping[str, float], points: Sequence[Mapp
     per_joint = {}
     for joint in JOINTS:
         absolute = [abs(value) for value in deltas[joint]]
+        velocity = [value / period_s for value in deltas[joint]]
+        velocity_with_stops = [0.0, *velocity, 0.0]
+        acceleration = [
+            (current - previous) / period_s
+            for previous, current in zip(velocity_with_stops, velocity_with_stops[1:])
+        ]
+        acceleration_with_stops = [0.0, *acceleration, 0.0]
+        jerk = [
+            (current - previous) / period_s
+            for previous, current in zip(acceleration_with_stops,
+                                         acceleration_with_stops[1:])
+        ]
         limit = settings.max_gripper_step if joint == "gripper" else settings.max_step_deg
         per_joint[joint] = {
+            "net_delta": sum(deltas[joint]),
             "emitted_delta_mean": sum(absolute) / len(absolute) if absolute else 0.0,
             "max_delta": max(absolute, default=0.0),
+            "first_delta": deltas[joint][0] if deltas[joint] else 0.0,
+            "last_delta": deltas[joint][-1] if deltas[joint] else 0.0,
+            "max_velocity": max((abs(value) for value in velocity), default=0.0),
+            "max_acceleration": max((abs(value) for value in acceleration), default=0.0),
+            "max_discrete_jerk": max((abs(value) for value in jerk), default=0.0),
             "direction_reversals": _direction_reversals(deltas[joint]),
             "hard_cap": limit,
             "hard_cap_binding_cycles": sum(abs(value - limit) <= 1e-6 for value in absolute),
@@ -703,7 +738,15 @@ def analyze_motion_rows(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         (timestamps[index] - int(planned[index])) / 1_000_000_000
         for index in range(len(rows)) if planned[index] is not None
     ]
+    write_durations = [float(row["write_duration_s"]) for row in rows
+                       if row.get("write_duration_s") is not None]
+    write_duration_mean, write_duration_std = _mean_std(write_durations)
     per_joint = {}
+    raw_feedback_available = all(
+        isinstance(row.get("present_raw"), Mapping)
+        and isinstance(row.get("goal_raw"), Mapping)
+        and isinstance(row.get("torque_enable"), Mapping)
+        for row in rows)
     for joint in JOINTS:
         command = [float(row["command_position"][joint]) for row in rows]
         present = [float(row["present_position"][joint]) for row in rows]
@@ -734,6 +777,21 @@ def analyze_motion_rows(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             "goal_present_error_direction_reversals": _direction_reversals(error_delta),
             "moving_true_cycles": sum(value != 0 for value in moving),
         }
+        if raw_feedback_available:
+            present_raw = [int(row["present_raw"][joint]) for row in rows]
+            goal_raw = [int(row["goal_raw"][joint]) for row in rows]
+            per_joint[joint].update({
+                "present_raw_start": present_raw[0],
+                "present_raw_final": present_raw[-1],
+                "present_raw_net_delta": present_raw[-1] - present_raw[0],
+                "present_raw_max_cycle_delta": max(
+                    (abs(current - previous)
+                     for previous, current in zip(present_raw, present_raw[1:])),
+                    default=0),
+                "goal_raw_start": goal_raw[0],
+                "goal_raw_final": goal_raw[-1],
+                "goal_raw_net_delta": goal_raw[-1] - goal_raw[0],
+            })
     return {
         "sample_count": len(rows),
         "command_interval_mean_s": interval_mean,
@@ -743,6 +801,15 @@ def analyze_motion_rows(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "deadline_miss_count": sum(
             value > DEADLINE_MISS_TOLERANCE_S for value in lateness),
         "deadline_lateness_max_s": max(lateness, default=None),
+        "write_duration_mean_s": write_duration_mean,
+        "write_duration_std_s": write_duration_std,
+        "write_duration_max_s": max(write_durations, default=None),
+        "raw_feedback_available": raw_feedback_available,
+        "torque_enable_cycles": (
+            [{joint: int(row["torque_enable"][joint]) for joint in JOINTS}
+             for row in rows] if raw_feedback_available else "NOT_RECORDED"),
+        "moving_cycles": [
+            {joint: int(row["moving"][joint]) for joint in JOINTS} for row in rows],
         "joints": per_joint,
     }
 
@@ -776,14 +843,19 @@ def compare_pose_motion(config, settings: DemoSettings, *, from_pose: str, to_po
     original_settings = replace(settings, control_period_s=ORIGINAL_CONTROL_PERIOD_S)
     original_points = smooth_interpolation(start, target, original_settings)
     smooth_points = smooth_interpolation(start, target, settings)
+    quintic_points = smooth_interpolation(start, target, settings, profile="quintic")
     original_metrics = planned_trajectory_metrics(
         start, original_points, original_settings.control_period_s, original_settings)
     smooth_metrics = planned_trajectory_metrics(
         start, smooth_points, settings.control_period_s, settings)
+    quintic_metrics = planned_trajectory_metrics(
+        start, quintic_points, settings.control_period_s, settings)
     original_max_step = max(
         original_metrics["joints"][joint]["max_delta"] for joint in ARM_JOINTS)
     smooth_max_step = max(
         smooth_metrics["joints"][joint]["max_delta"] for joint in ARM_JOINTS)
+    quintic_max_step = max(
+        quintic_metrics["joints"][joint]["max_delta"] for joint in ARM_JOINTS)
     actual_analysis = (load_and_analyze_motion_log(actual_log)
                        if actual_log is not None else "NOT_AVAILABLE")
     result = {
@@ -793,6 +865,7 @@ def compare_pose_motion(config, settings: DemoSettings, *, from_pose: str, to_po
         "same_start_end_pose": True,
         "original": original_metrics,
         "smooth": smooth_metrics,
+        "quintic": quintic_metrics,
         "smoothing_method": "shared cubic smoothstep with absolute-deadline live scheduler",
         "two_degree_cap_removed": False,
         "torque_gain_changed": False,
@@ -813,6 +886,9 @@ def compare_pose_motion(config, settings: DemoSettings, *, from_pose: str, to_po
         "SMOOTHING_METHOD": "s(t)=3t^2-2t^3 shared by all arm joints; absolute deadlines",
         "CONTROL_PERIOD": settings.control_period_s,
         "SMOOTH_MAX_STEP": smooth_max_step,
+        "QUINTIC_METHOD": "s(t)=10t^3-15t^4+6t^5; offline candidate only",
+        "QUINTIC_CONTROL_PERIOD": settings.control_period_s,
+        "QUINTIC_MAX_STEP": quintic_max_step,
         "EXPECTED_IMPROVEMENT": (
             "relative-sleep drift is not accumulated; expired ticks are skipped; "
             "2deg remains a synchronized hard cap"),
@@ -851,9 +927,11 @@ class MotionTraceRecorder:
 
     def record(self, *, stage: str, profile: str, sequence: int,
                scheduled_offset_s: float, planned_monotonic_ns: int,
-               command_monotonic_ns: int,
+               command_monotonic_ns: int, write_completed_monotonic_ns: int,
                command_position: Mapping[str, float], present_position: Mapping[str, float],
-               goal_position: Mapping[str, float], moving: Mapping[str, int]) -> None:
+               goal_position: Mapping[str, float], present_raw: Mapping[str, int],
+               goal_raw: Mapping[str, int], torque_enable: Mapping[str, int],
+               moving: Mapping[str, int]) -> None:
         row = {
             "schema_version": MOTION_LOG_SCHEMA_VERSION,
             "observed_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -863,6 +941,9 @@ class MotionTraceRecorder:
             "scheduled_offset_s": scheduled_offset_s,
             "planned_monotonic_ns": planned_monotonic_ns,
             "actual_write_monotonic_ns": command_monotonic_ns,
+            "write_completed_monotonic_ns": write_completed_monotonic_ns,
+            "write_duration_s": (
+                write_completed_monotonic_ns - command_monotonic_ns) / 1_000_000_000,
             "actual_interval_s": (
                 None if self.previous_write_monotonic_ns is None else
                 (command_monotonic_ns - self.previous_write_monotonic_ns) / 1_000_000_000
@@ -871,6 +952,9 @@ class MotionTraceRecorder:
             "command_position": {joint: float(command_position[joint]) for joint in JOINTS},
             "present_position": {joint: float(present_position[joint]) for joint in JOINTS},
             "goal_position": {joint: float(goal_position[joint]) for joint in JOINTS},
+            "present_raw": {joint: int(present_raw[joint]) for joint in JOINTS},
+            "goal_raw": {joint: int(goal_raw[joint]) for joint in JOINTS},
+            "torque_enable": {joint: int(torque_enable[joint]) for joint in JOINTS},
             "goal_present_error": {
                 joint: float(goal_position[joint]) - float(present_position[joint])
                 for joint in JOINTS
@@ -979,6 +1063,17 @@ def _normalized_positions(bus, register: str) -> dict[str, float]:
     return result
 
 
+def _normalize_raw_positions(bus, values: Mapping[str, int]) -> dict[str, float]:
+    if set(values) != set(JOINTS) or not callable(getattr(bus, "_normalize", None)):
+        raise RuntimeError("raw_position_normalization_unavailable")
+    by_id = {bus.motors[joint].id: int(values[joint]) for joint in JOINTS}
+    normalized = bus._normalize(by_id)
+    result = {joint: float(normalized[bus.motors[joint].id]) for joint in JOINTS}
+    if any(not math.isfinite(value) for value in result.values()):
+        raise RuntimeError("nonfinite_normalized_raw_position")
+    return result
+
+
 def _motor_id(bus, joint: str) -> int:
     motor = getattr(bus, "motors", {}).get(joint)
     motor_id = getattr(motor, "id", None)
@@ -1076,6 +1171,7 @@ class StrictWriteGate:
         self.original_sync_write = bus.sync_write
         self.mode = "closed"
         self.pending: tuple[str, dict[str, int | float], bool] | None = None
+        self.last_motion_write_completed_ns: int | None = None
         self.counts = {"Goal_Position_raw_hold": 0, "Torque_Enable": 0,
                        "Goal_Position_motion": 0, "Goal_Position_ctrl_c_hold": 0,
                        "forbidden": 0}
@@ -1134,6 +1230,7 @@ class StrictWriteGate:
         self.counts["Goal_Position_motion"] += 1
         command_monotonic_ns = time.monotonic_ns()
         self._send("Goal_Position", values, True)
+        self.last_motion_write_completed_ns = time.monotonic_ns()
         return command_monotonic_ns
 
     def ctrl_c_hold(self, values: Mapping[str, int]) -> None:
@@ -1554,19 +1651,25 @@ def _relieve_blocked_gripper(session: HardwareSession, *, stage: str,
 def _record_motion_cycle(session: HardwareSession, recorder: MotionTraceRecorder | None, *,
                          stage: str, profile: str, sequence: int,
                          scheduled_offset_s: float, planned_monotonic_ns: int,
-                         command_monotonic_ns: int,
+                         command_monotonic_ns: int, write_completed_monotonic_ns: int,
                          command_position: Mapping[str, float]) -> None:
     if recorder is None:
         return
+    present_raw = _raw(session.follower.bus, "Present_Position")
+    goal_raw = _raw(session.follower.bus, "Goal_Position")
+    torque = _raw(session.follower.bus, "Torque_Enable")
+    moving = _raw(session.follower.bus, "Moving")
     recorder.record(
         stage=stage, profile=profile, sequence=sequence,
         scheduled_offset_s=scheduled_offset_s,
         planned_monotonic_ns=planned_monotonic_ns,
         command_monotonic_ns=command_monotonic_ns,
+        write_completed_monotonic_ns=write_completed_monotonic_ns,
         command_position=command_position,
-        present_position=_positions(session.follower.bus),
-        goal_position=_normalized_positions(session.follower.bus, "Goal_Position"),
-        moving=_raw(session.follower.bus, "Moving"),
+        present_position=_normalize_raw_positions(session.follower.bus, present_raw),
+        goal_position=_normalize_raw_positions(session.follower.bus, goal_raw),
+        present_raw=present_raw, goal_raw=goal_raw, torque_enable=torque,
+        moving=moving,
     )
 
 
@@ -1583,6 +1686,9 @@ def _execute_original_commands(session: HardwareSession, start: Mapping[str, flo
         fallback_ns = int(monotonic() * 1_000_000_000)
         command_ns = session.writes.motion_goal(point)
         actual_ns = command_ns if isinstance(command_ns, int) else fallback_ns
+        completed_ns = getattr(session.writes, "last_motion_write_completed_ns", None)
+        if not isinstance(completed_ns, int):
+            completed_ns = actual_ns
         if planned_started_ns is None:
             planned_started_ns = actual_ns
         scheduled_offset_s = (sequence - 1) * settings.control_period_s
@@ -1592,6 +1698,7 @@ def _execute_original_commands(session: HardwareSession, start: Mapping[str, flo
             planned_monotonic_ns=(planned_started_ns
                                   + round(scheduled_offset_s * 1_000_000_000)),
             command_monotonic_ns=actual_ns,
+            write_completed_monotonic_ns=completed_ns,
             command_position=point,
         )
         sleep(settings.control_period_s)
@@ -1624,11 +1731,16 @@ def _execute_time_based_commands(session: HardwareSession, start: Mapping[str, f
         sequence += 1
         fallback_ns = int(now * 1_000_000_000)
         command_ns = session.writes.motion_goal(point)
+        actual_ns = command_ns if isinstance(command_ns, int) else fallback_ns
+        completed_ns = getattr(session.writes, "last_motion_write_completed_ns", None)
+        if not isinstance(completed_ns, int):
+            completed_ns = actual_ns
         _record_motion_cycle(
             session, recorder, stage=stage, profile="smooth", sequence=sequence,
             scheduled_offset_s=deadline - started,
             planned_monotonic_ns=round(deadline * 1_000_000_000),
-            command_monotonic_ns=(command_ns if isinstance(command_ns, int) else fallback_ns),
+            command_monotonic_ns=actual_ns,
+            write_completed_monotonic_ns=completed_ns,
             command_position=point,
         )
         previous = point
@@ -1774,8 +1886,14 @@ def run_free_space_motion_test(
             motion_profile=motion_profile, recorder=recorder,
             stop_requested=lambda: stopping,
         )
+        actual_analysis = load_and_analyze_motion_log(log_path)
+        encoder_motion_confirmed = (
+            actual_analysis.get("raw_feedback_available") is True
+            and any(abs(actual_analysis["joints"][joint]["present_raw_net_delta"]) >= 1
+                    for joint in ARM_JOINTS)
+        )
         return {
-            "status": "FREE_SPACE_MOTION_TEST_COMPLETE",
+            "status": "FREE_SPACE_MOTION_TEST_EXTERNAL_CONFIRMATION_REQUIRED",
             "from_pose": start_label, "to_pose": to_pose,
             "fresh_current_start": current if from_current else None,
             "motion_profile": motion_profile,
@@ -1783,7 +1901,10 @@ def run_free_space_motion_test(
             "prestart_temperatures_c": prestart_temperatures,
             "final_temperatures_c": segment["temperatures_c"],
             "hold": hold, "write_counts": dict(session.writes.counts),
-            "actual_log_analysis": load_and_analyze_motion_log(log_path),
+            "actual_log_analysis": actual_analysis,
+            "encoder_motion_confirmed": encoder_motion_confirmed,
+            "encoder_motion_minimum_raw_counts": 1,
+            "external_link_motion_confirmation": "REQUIRED_FROM_USER_VIDEO",
             "torque_gain_changed": False, "ik_changed": False,
             "calibration_changed": False,
         }

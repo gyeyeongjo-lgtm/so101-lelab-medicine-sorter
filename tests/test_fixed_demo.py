@@ -461,12 +461,14 @@ class FixedDemoTests(unittest.TestCase):
                          "NO_NEEDS_FREE_SPACE_START_END_CONFIRMATION")
         self.assertGreater(result["smooth"]["command_count"],
                            result["original"]["command_count"])
-        for profile in ("original", "smooth"):
+        for profile in ("original", "smooth", "quintic"):
             for joint in JOINTS:
                 self.assertLessEqual(
                     result[profile]["joints"][joint]["max_delta"], 2.0 + 1e-9)
                 self.assertEqual(
                     result[profile]["joints"][joint]["direction_reversals"], 0)
+        self.assertGreater(result["quintic"]["command_count"], 0)
+        self.assertLessEqual(result["QUINTIC_MAX_STEP"], 2.0 + 1e-9)
 
     def test_actual_motion_log_analysis_reports_cadence_steps_and_oscillation(self):
         rows = []
@@ -491,6 +493,8 @@ class FixedDemoTests(unittest.TestCase):
         self.assertAlmostEqual(result["command_interval_std_s"], 0.0)
         self.assertAlmostEqual(result["command_interval_max_s"], 0.05)
         self.assertEqual(result["deadline_miss_count"], 0)
+        self.assertFalse(result["raw_feedback_available"])
+        self.assertEqual(result["torque_enable_cycles"], "NOT_RECORDED")
         pan = result["joints"]["shoulder_pan"]
         self.assertEqual(pan["emitted_delta_per_cycle"], [1.0, -1.0])
         self.assertEqual(pan["max_delta"], 1.0)
@@ -560,11 +564,49 @@ class FixedDemoTests(unittest.TestCase):
                     log_path=Path(folder) / "ignored.jsonl", step=True,
                     session_factory=Session, install_signal_handlers=False)
         self.assertEqual(result["from_pose"], "CURRENT")
+        self.assertEqual(result["status"],
+                         "FREE_SPACE_MOTION_TEST_EXTERNAL_CONFIRMATION_REQUIRED")
+        self.assertFalse(result["encoder_motion_confirmed"])
         self.assertEqual(result["fresh_current_start"], current)
         self.assertEqual(captured["period"], 0.1)
         self.assertEqual(captured["profile"], "original")
         self.assertEqual(captured["target"]["wrist_flex"], finish["wrist_flex"])
         self.assertEqual(captured["target"]["gripper"], current["gripper"])
+
+    def test_actual_motion_analysis_reports_raw_feedback_and_cycle_torque(self):
+        rows = []
+        for index in range(2):
+            raw = {joint: 2000 + index for joint in JOINTS}
+            values = {joint: float(index) for joint in JOINTS}
+            rows.append({
+                "planned_monotonic_ns": index * 50_000_000,
+                "command_monotonic_ns": index * 50_000_000,
+                "command_position": values,
+                "present_position": values,
+                "goal_present_error": {joint: 0.0 for joint in JOINTS},
+                "present_raw": raw,
+                "goal_raw": raw,
+                "torque_enable": {joint: 1 for joint in JOINTS},
+                "moving": {joint: index for joint in JOINTS},
+            })
+        result = analyze_motion_rows(rows)
+        self.assertTrue(result["raw_feedback_available"])
+        self.assertEqual(result["joints"]["wrist_flex"]["present_raw_net_delta"], 1)
+        self.assertEqual(result["torque_enable_cycles"][0]["wrist_flex"], 1)
+        self.assertEqual(result["moving_cycles"][1]["wrist_flex"], 1)
+
+    def test_quintic_profile_has_zero_endpoint_slope_and_preserves_endpoint(self):
+        start = {joint: 0.0 for joint in JOINTS}
+        delta = {joint: 20.0 for joint in JOINTS}
+        from medicine_sorter.fixed_demo import trajectory_position
+        p0 = trajectory_position(start, delta, 0.0, profile="quintic")
+        p1 = trajectory_position(start, delta, 1.0, profile="quintic")
+        near_start = trajectory_position(start, delta, 0.001, profile="quintic")
+        near_end = trajectory_position(start, delta, 0.999, profile="quintic")
+        self.assertEqual(p0, start)
+        self.assertEqual(p1, {joint: 20.0 for joint in JOINTS})
+        self.assertLess(near_start["shoulder_pan"], 0.000001)
+        self.assertGreater(near_end["shoulder_pan"], 19.999999)
 
     def test_smooth_profile_keeps_absolute_cadence_despite_write_latency(self):
         clock = Clock()

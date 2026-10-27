@@ -2,6 +2,28 @@
 
 업데이트: 2026-10-27
 
+## 2026-10-27 jitter-only 큰 동작 준비 — 오프라인 PASS, 배포·실기 BLOCKED
+
+- HOME/teaching/calibration/vision/basket/grasp, Torque/gain/IK/TCP를 변경하지 않고
+  jitter 진단만 보강했다. cycle telemetry schema v3는 normalized/raw Goal·Present,
+  Torque, Moving, write 시작/완료 시각과 write duration을 같은 cycle에 기록한다.
+- cubic absolute-deadline 외에 quintic `10t³−15t⁴+6t⁵`를 오프라인 비교 후보로
+  추가했다. quintic은 live profile에는 아직 연결하지 않았다. motion 완료 출력도
+  encoder raw가 1 count 이상 변했는지와 외부 링크 영상 확인을 분리하며, 사용자
+  영상 확인 전 PASS를 반환하지 않는다.
+- 비교 후보는 기존 성공 free-space 경로의 역방향인 `home → red_above`다. net delta는
+  shoulder_pan `−28.132°`, shoulder_lift `+49.495°`, elbow_flex `−45.538°`,
+  wrist_flex `−7.297°`, wrist_roll `−0.264°`; 2° cap과 기존 segment limit을 모두
+  만족한다. 현재 `finish`에서는 `finish → home` 재배치가 한 번 필요하고, 동일 방향
+  A/B 사이에는 `red_above → home` reset이 필요해 각 구간을 자동 연속 실행하지 않는다.
+- original cubic 10 Hz / cubic absolute 20 Hz / quintic absolute 20 Hz 오프라인 최대
+  step은 각각 `1.952° / 0.990° / 0.998°`; shoulder_lift의 시작 step은
+  `0.101° / 0.026° / 0.0006°`다.
+  fixed-demo/web `60/60`, sorter `30/30`, compile·diff check PASS; serial open과 motor
+  command는 0이다. 자동 승인 검토 사용량 제한 때문에 commit/push/Jetson deploy가
+  실행되지 않아 변경은 `NOT_COMMITTED/NOT_PUSHED`, 실기는 `NOT_RUN`이다.
+  [상세](sessions/2026-10-27-jitter-large-motion-preparation.md).
+
 ## 2026-10-27 jitter live A/B — ORIGINAL false positive, SMOOTH NOT_RUN
 
 - 사용자가 현재 canonical follower `/dev/ttyACM0`, USB serial `5AE6058306`의
