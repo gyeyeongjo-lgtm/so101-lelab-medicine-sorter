@@ -170,7 +170,8 @@ class SO101ReadOnlyStatusAdapter:
     }
 
     def __init__(self, *, port: str, expected_serial: str, probe=None,
-                 bus_factory=None, exclusive_seal=None, lock_path: Path | None = None):
+                 bus_factory=None, exclusive_seal=None, lock_path: Path | None = None,
+                 auto_resolve_port: bool = False):
         self.port = Path(port)
         self.expected_serial = expected_serial
         self.probe = probe
@@ -184,11 +185,39 @@ class SO101ReadOnlyStatusAdapter:
         self._read_requests = 0
         self._write_attempts = 0
         self._disconnect_disable_torque = None
+        self.auto_resolve_port = auto_resolve_port
 
     @classmethod
     def from_config(cls, config):
         robot = config.raw["robot"]
-        return cls(port=robot["follower_port"], expected_serial=robot["follower_serial"])
+        return cls(port=robot["follower_port"], expected_serial=robot["follower_serial"],
+                   auto_resolve_port=True)
+
+    def _resolve_expected_port(self, probe) -> Path:
+        allowed = (Path("/dev/ttyACM0"), Path("/dev/ttyACM1"))
+        if not self.auto_resolve_port:
+            observed = probe.serial_short(self.port)
+            if observed != self.expected_serial:
+                raise SorterError("wrong_follower_usb_identity", observed,
+                                  self.expected_serial,
+                                  "follower 장비 식별자를 확인해 주세요")
+            return self.port
+        observed_by_port: dict[str, str] = {}
+        matches: list[Path] = []
+        for candidate in allowed:
+            try:
+                observed = probe.serial_short(candidate)
+            except Exception as error:
+                observed_by_port[str(candidate)] = f"UNAVAILABLE:{type(error).__name__}"
+                continue
+            observed_by_port[str(candidate)] = observed
+            if observed == self.expected_serial:
+                matches.append(candidate)
+        if len(matches) != 1:
+            raise SorterError("follower_serial_port_resolution_failed", observed_by_port,
+                              {"serial": self.expected_serial, "unique_match_count": 1},
+                              "두 USB serial과 현재 ACM 장치를 확인해 주세요")
+        return matches[0]
 
     @staticmethod
     def _build_bus(port: str):
@@ -271,10 +300,7 @@ class SO101ReadOnlyStatusAdapter:
         probe = self._resolve_probe()
         try:
             self._acquire_process_lock()
-            observed_serial = probe.serial_short(self.port)
-            if observed_serial != self.expected_serial:
-                raise SorterError("wrong_follower_usb_identity", observed_serial,
-                                  self.expected_serial, "follower 장비 식별자를 확인해 주세요")
+            self.port = self._resolve_expected_port(probe)
             owners = probe.owner_pids(self.port)
             if owners:
                 raise SorterError("follower_port_busy", sorted(owners), "owner PID 없음",

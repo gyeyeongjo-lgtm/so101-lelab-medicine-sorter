@@ -35,6 +35,11 @@
   이상의 raw `|Goal−Present| > 10`이므로 기존 안전 게이트가 Goal 덮어쓰기와 Torque
   toggle을 모두 거부했다. `log_samples=0`, current HOLD write도 0이며 실제 motion은
   `NOT_RUN`; 자동 재시도하지 않고 fresh read-only 상태로 문제 축을 먼저 식별한다.
+- 직후 `robot-status`는 config의 이전 follower port에서 leader serial
+  `5AE6085272`를 관측하고 bus open 전에 중단됐다. fixed-demo와 동일하게 follower
+  serial `5AE6058306`의 유일한 ACM match를 먼저 선택하도록 read-only adapter를
+  수정했다. 이 변경은 port 선택만 바꾸며 motor/Goal/Torque/config write는 추가하지
+  않는다.
 
 ## 2026-10-27 jitter live A/B — ORIGINAL false positive, SMOOTH NOT_RUN
 

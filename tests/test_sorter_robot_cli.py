@@ -205,6 +205,27 @@ class ReadOnlyStatusAdapterTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, "wrong_follower_usb_identity")
         self.assertEqual(created, [])
 
+    def test_config_style_auto_resolution_selects_follower_by_serial(self):
+        class SwappedProbe(self.FakeProbe):
+            def serial_short(self, port):
+                return {Path("/dev/ttyACM0"): "5AE6058306",
+                        Path("/dev/ttyACM1"): "5AE6085272"}[Path(port)]
+
+        probe = SwappedProbe()
+        bus = self.FakeBus(probe)
+        opened = []
+        with tempfile.TemporaryDirectory() as directory:
+            adapter = SO101ReadOnlyStatusAdapter(
+                port="/dev/ttyACM1", expected_serial="5AE6058306", probe=probe,
+                bus_factory=lambda port: (opened.append(port) or bus),
+                exclusive_seal=lambda _bus: None,
+                lock_path=Path(directory) / "status.lock", auto_resolve_port=True,
+            )
+            snapshot = RobotController(adapter).read_status()
+        self.assertEqual(opened, ["/dev/ttyACM0"])
+        self.assertEqual(snapshot.port, "/dev/ttyACM0")
+        self.assertEqual(snapshot.serial, "5AE6058306")
+
     def test_status_reads_raw_registers_without_state_change(self):
         probe = self.FakeProbe()
         bus = self.FakeBus(probe)

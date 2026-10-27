@@ -201,6 +201,11 @@ follower serial `5AE6058306`과 leader serial `5AE6085272`를 현재
 사용자 process lock과 열린 serial FD의 `TIOCEXCL`로 중복 실행을 차단합니다. 다른
 컨트롤러는 실행 전 정상 종료해야 합니다.
 
+`robot-status`도 config의 순간적인 ACM 번호가 아니라 follower USB serial의 유일한
+일치를 `/dev/ttyACM0`과 `/dev/ttyACM1`에서 먼저 찾습니다. leader가 config의 이전
+follower port로 이동했더라도 leader bus를 열지 않고 실제 follower만 read-only로
+연결합니다.
+
 `live` 명령은 존재하지만 현재 예제 설정에서는 의도적으로 차단됩니다. 출력은 실패
 항목, 관측값, 필요한 조건과 다음 조치를 함께 제공합니다. 기존의 실험별 승인 문자열,
 one-shot ticket, recovery entrypoint는 새 애플리케이션에서 사용하지 않습니다.

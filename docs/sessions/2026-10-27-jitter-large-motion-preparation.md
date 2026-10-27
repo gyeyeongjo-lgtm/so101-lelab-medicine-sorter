@@ -100,6 +100,13 @@ session은 열렸지만 `establish_hold()`의 already-ON 분기에서
 자동 재실행이나 임의 Goal sync를 하지 않고, 다음은 write 차단 fresh read-only status로
 Present/Goal/Torque/Moving/Temperature를 확인하는 단계다.
 
+첫 `robot-status` 시도는 config가 가리킨 ACM에서 leader serial `5AE6085272`를
+관측해 `wrong_follower_usb_identity`로 bus open 전에 중단됐다. expected follower는
+`5AE6058306`이며 USB 재연결로 ACM 번호가 교체된 상태다. fixed-demo의 serial 기반
+선택과 일치하도록 `robot-status`도 `/dev/ttyACM0`과 `/dev/ttyACM1`의 sysfs serial을
+먼저 읽고 follower serial의 유일한 match만 연다. 0개 또는 중복 match는 serial open
+전에 fail-closed한다.
+
 Jetson 첫 테스트 호출은 `tests.test_fixed_demo` 모듈 경로 방식이 Python 3.14에서
 `ModuleNotFoundError`로 실패했다. 장비 접근 없는 실행 형식 오류였고, 동일 파일을
 `unittest discover`로 실행해 `54+6=60/60 PASS`를 확인했다. 실제 A/B는 현장 안전
