@@ -26,6 +26,13 @@
   연결, 속도 30/40 실기는 모두 `NOT_RUN/NOT_APPLIED`다. 구현 commit
   `28acf6e9f2f68bc1b666ae40b691bba7d6b07df4`는 `fix/usb-recording`에 push됐다.
   [상세](sessions/2026-10-27-jitter-smooth-live-candidate.md).
+- Jetson은 최신 `532323fdbc1fbd4b1d5803fbd523283a7047872e`로 fast-forward
+  배치됐다. 이어진 write 0 `robot-status`는 canonical follower `/dev/ttyACM0`,
+  serial `5AE6058306`에서 PASS했다. Torque는 전 축 ON, Moving은 전 축 0, 온도는
+  31–43°C다. 저장 home과 같은 Goal raw `[2100,1394,2205,2696,1615,1090]`에 대해
+  Present raw는 `[2096,1394,2248,2695,1614,1090]`; elbow Goal−Present `−43 raw`
+  (약 −3.78°)가 감독 hold 상한 40 raw를 3 count 초과한다. 따라서 안전 상한이나
+  1° start gate를 완화하지 않고 ORIGINAL/SMOOTH는 `NOT_RUN`이다.
 
 ## 2026-10-27 jitter-only 큰 동작 준비 — 오프라인·Jetson 배포 PASS, 실기 NOT_RUN
 

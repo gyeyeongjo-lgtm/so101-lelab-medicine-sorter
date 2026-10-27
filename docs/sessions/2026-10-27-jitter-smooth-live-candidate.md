@@ -100,3 +100,25 @@ Goal raw/normalized, Moving과 Goal−Present를 가진다. Torque/Temperature s
 4. telemetry와 사용자 육안 비교
 
 SMOOTH live, reset, run/web 연결, 30/40°/s 시험은 모두 `NOT_RUN/NOT_APPLIED`다.
+
+## Jetson 배포 및 fresh read-only 상태
+
+Jetson은 `git pull --ff-only`로 최신
+`532323fdbc1fbd4b1d5803fbd523283a7047872e`에 배치됐다. 사용자가 이어서 실행한
+`robot-status`는 canonical follower `/dev/ttyACM0`, serial `5AE6058306`을 선택했고
+30 read request, state-change write 0, `disconnect(disable_torque=False)`로 끝났다.
+
+| joint | Goal raw | Present raw | Goal−Present | Torque | Moving | °C |
+|---|---:|---:|---:|---:|---:|---:|
+| shoulder_pan | 2100 | 2096 | +4 | 1 | 0 | 33 |
+| shoulder_lift | 1394 | 1394 | 0 | 1 | 0 | 33 |
+| elbow_flex | 2205 | 2248 | −43 | 1 | 0 | 43 |
+| wrist_flex | 2696 | 2695 | +1 | 1 | 0 | 33 |
+| wrist_roll | 1615 | 1614 | +1 | 1 | 0 | 31 |
+| gripper | 1090 | 1090 | 0 | 1 | 0 | 35 |
+
+Goal은 저장 home raw와 일치하고 사용자의 외부 home 모습 확인도 정상이지만,
+elbow residual 43 raw는 약 3.78°이며 감독 `--stable-hold-gap-raw` 상한 40을 3 count
+초과한다. 따라서 현재 ORIGINAL을 호출해도 실제 구간 전에 fail-closed할 상태다.
+상한 40과 저장 pose start 1° gate를 완화하거나 Goal/Torque를 변경하지 않는다.
+ORIGINAL/SMOOTH actual motion은 계속 `NOT_RUN`이다.
