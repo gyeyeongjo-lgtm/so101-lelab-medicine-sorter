@@ -54,7 +54,11 @@ def build_parser() -> argparse.ArgumentParser:
                                 help="motion-test JSONL이 있으면 실제 cadence/feedback도 분석합니다")
     motion_test_parser = sub.add_parser(
         "motion-test", help="동일한 두 티칭 자세 사이 한 free-space 구간만 감독 실행합니다")
-    motion_test_parser.add_argument("--from-pose", required=True)
+    motion_start = motion_test_parser.add_mutually_exclusive_group(required=True)
+    motion_start.add_argument("--from-pose")
+    motion_start.add_argument(
+        "--from-current", action="store_true",
+        help="fresh HOLD 뒤 현재 자세를 시작점으로 고정합니다")
     motion_test_parser.add_argument("--to-pose", required=True)
     motion_test_parser.add_argument("--profile", choices=("original", "smooth"), required=True)
     motion_test_parser.add_argument("--log", type=Path, required=True,
@@ -109,7 +113,8 @@ def main(argv=None, *, status_adapter_factory=None) -> int:
             payload = run_free_space_motion_test(
                 config, load_demo_settings(config),
                 from_pose=args.from_pose, to_pose=args.to_pose,
-                motion_profile=args.profile, log_path=args.log, step=args.step)
+                from_current=args.from_current, motion_profile=args.profile,
+                log_path=args.log, step=args.step)
         elif args.mode == "web":
             if not 1 <= args.port <= 65535:
                 raise SorterError("web_port_invalid", args.port, "1..65535",

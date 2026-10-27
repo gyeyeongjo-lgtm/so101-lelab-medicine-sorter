@@ -2,6 +2,30 @@
 
 업데이트: 2026-10-27
 
+## 2026-10-27 jitter live A/B — robot-status PASS, motion NOT_RUN
+
+- 사용자가 현재 canonical follower `/dev/ttyACM0`, USB serial `5AE6058306`의
+  write 차단 `robot-status` 1회를 승인했다. 저장 config의 순간 포트는 반대로
+  기록돼 있어 원본은 수정하지 않고 `/tmp` 사본에서 follower/leader 포트만 실제
+  serial과 맞췄다.
+- `handshake=False` 연결 뒤 첫 `Goal_Position` read(motor ID 1, retry 0)가
+  `There is no status packet!`으로 실패했다. 승인된 중단 조건에 따라 재시도,
+  다른 read 경로, endpoint 선정, original/smooth motion을 수행하지 않았다.
+- write firewall은 설치된 상태였고 Goal/Torque/config write와 motor command는
+  모두 `0`; 종료는 `disconnect(disable_torque=False)` 경로다. fresh Present/Goal/
+  Torque/Moving/Temperature가 완성되지 않아 free-space start/end pose를 확정하지
+  않았으며 `READY_FOR_SMOOTH_MOTION_TEST=NO`다.
+- 이후 사용자가 follower 전원·USB·motor bus 케이블을 현장에서 확인하고 승인한
+  단일 read-only bus 진단에서는 같은 `/dev/ttyACM0` session에서 motor ID 1~6의
+  `Present_Position` 최소 read가 모두 응답했다. write firewall 아래 motor command는
+  `0`이며 `READY_FOR_ROBOT_STATUS=YES`다.
+- 이어서 승인된 `robot-status` 1회가 30/30 read로 PASS했다. Torque/Moving은 모두
+  0, 온도는 26–30°C, state-change write는 0이었다. current raw pose는 저장된
+  `finish`에 가장 가깝지만 wrist_flex가 약 3.25° 차이나 기존 motion-test의 1°
+  start gate를 만족하지 않는다. endpoint 후보는 `finish` 하나로 제한했으나
+  `READY_FOR_ORIGINAL_TEST=NO`; original/smooth motion은 `NOT_RUN`이다.
+  [상세](sessions/2026-10-27-jitter-live-ab-precheck-blocked.md).
+
 ## 2026-10-27 fixed-demo motion smoothing A/B — 구현·오프라인 PASS, 실제 telemetry BLOCKED
 
 - 기존 성공 pose/IK/calibration/TCP와 `run`/web의 original executor는 변경하지

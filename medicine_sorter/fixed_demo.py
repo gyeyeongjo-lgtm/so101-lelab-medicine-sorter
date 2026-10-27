@@ -47,7 +47,8 @@ MAX_TEMPERATURE_C = 55
 PRESTART_MAX_TEMPERATURE_C_EXCLUSIVE = 50
 WARM_START_MAX_TEMPERATURE_C_EXCLUSIVE = 52
 ORIGINAL_CONTROL_PERIOD_S = 0.1
-MOTION_LOG_SCHEMA_VERSION = 1
+MOTION_LOG_SCHEMA_VERSION = 2
+DEADLINE_MISS_TOLERANCE_S = 0.005
 GRIPPER_CONTACT_RELIEF_BIAS = 1.0
 TEACH_GOAL_PRESENT_RAW_TOLERANCE = 40
 POST_GOAL_READ_DELAY_S = 0.2
@@ -697,6 +698,11 @@ def analyze_motion_rows(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     intervals = [(current - previous) / 1_000_000_000
                  for previous, current in zip(timestamps, timestamps[1:])]
     interval_mean, interval_std = _mean_std(intervals)
+    planned = [row.get("planned_monotonic_ns") for row in rows]
+    lateness = [
+        (timestamps[index] - int(planned[index])) / 1_000_000_000
+        for index in range(len(rows)) if planned[index] is not None
+    ]
     per_joint = {}
     for joint in JOINTS:
         command = [float(row["command_position"][joint]) for row in rows]
@@ -724,6 +730,7 @@ def analyze_motion_rows(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             "goal_present_error_mean": error_mean,
             "goal_present_error_std": error_std,
             "goal_present_error_peak_to_peak": max(error, default=0.0) - min(error, default=0.0),
+            "goal_present_error_max_abs": max((abs(value) for value in error), default=0.0),
             "goal_present_error_direction_reversals": _direction_reversals(error_delta),
             "moving_true_cycles": sum(value != 0 for value in moving),
         }
@@ -731,6 +738,11 @@ def analyze_motion_rows(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "sample_count": len(rows),
         "command_interval_mean_s": interval_mean,
         "command_interval_std_s": interval_std,
+        "command_interval_max_s": max(intervals, default=None),
+        "deadline_miss_tolerance_s": DEADLINE_MISS_TOLERANCE_S,
+        "deadline_miss_count": sum(
+            value > DEADLINE_MISS_TOLERANCE_S for value in lateness),
+        "deadline_lateness_max_s": max(lateness, default=None),
         "joints": per_joint,
     }
 
@@ -835,9 +847,11 @@ class MotionTraceRecorder:
                         "기존 원본 로그를 보존하고 새 파일명을 사용해 주세요") from error
         self.path = path
         self.count = 0
+        self.previous_write_monotonic_ns: int | None = None
 
     def record(self, *, stage: str, profile: str, sequence: int,
-               scheduled_offset_s: float, command_monotonic_ns: int,
+               scheduled_offset_s: float, planned_monotonic_ns: int,
+               command_monotonic_ns: int,
                command_position: Mapping[str, float], present_position: Mapping[str, float],
                goal_position: Mapping[str, float], moving: Mapping[str, int]) -> None:
         row = {
@@ -847,6 +861,12 @@ class MotionTraceRecorder:
             "profile": profile,
             "sequence": sequence,
             "scheduled_offset_s": scheduled_offset_s,
+            "planned_monotonic_ns": planned_monotonic_ns,
+            "actual_write_monotonic_ns": command_monotonic_ns,
+            "actual_interval_s": (
+                None if self.previous_write_monotonic_ns is None else
+                (command_monotonic_ns - self.previous_write_monotonic_ns) / 1_000_000_000
+            ),
             "command_monotonic_ns": command_monotonic_ns,
             "command_position": {joint: float(command_position[joint]) for joint in JOINTS},
             "present_position": {joint: float(present_position[joint]) for joint in JOINTS},
@@ -859,6 +879,7 @@ class MotionTraceRecorder:
         }
         self.file.write(json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n")
         self.file.flush()
+        self.previous_write_monotonic_ns = command_monotonic_ns
         self.count += 1
 
     def close(self) -> None:
@@ -1532,13 +1553,15 @@ def _relieve_blocked_gripper(session: HardwareSession, *, stage: str,
 
 def _record_motion_cycle(session: HardwareSession, recorder: MotionTraceRecorder | None, *,
                          stage: str, profile: str, sequence: int,
-                         scheduled_offset_s: float, command_monotonic_ns: int,
+                         scheduled_offset_s: float, planned_monotonic_ns: int,
+                         command_monotonic_ns: int,
                          command_position: Mapping[str, float]) -> None:
     if recorder is None:
         return
     recorder.record(
         stage=stage, profile=profile, sequence=sequence,
         scheduled_offset_s=scheduled_offset_s,
+        planned_monotonic_ns=planned_monotonic_ns,
         command_monotonic_ns=command_monotonic_ns,
         command_position=command_position,
         present_position=_positions(session.follower.bus),
@@ -1553,15 +1576,22 @@ def _execute_original_commands(session: HardwareSession, start: Mapping[str, flo
                                sleep: Callable[[float], None],
                                monotonic: Callable[[], float],
                                stop_requested: Callable[[], bool]) -> None:
+    planned_started_ns: int | None = None
     for sequence, point in enumerate(smooth_interpolation(start, target, settings), start=1):
         if stop_requested():
             raise KeyboardInterrupt
         fallback_ns = int(monotonic() * 1_000_000_000)
         command_ns = session.writes.motion_goal(point)
+        actual_ns = command_ns if isinstance(command_ns, int) else fallback_ns
+        if planned_started_ns is None:
+            planned_started_ns = actual_ns
+        scheduled_offset_s = (sequence - 1) * settings.control_period_s
         _record_motion_cycle(
             session, recorder, stage=stage, profile="original", sequence=sequence,
-            scheduled_offset_s=(sequence - 1) * settings.control_period_s,
-            command_monotonic_ns=(command_ns if isinstance(command_ns, int) else fallback_ns),
+            scheduled_offset_s=scheduled_offset_s,
+            planned_monotonic_ns=(planned_started_ns
+                                  + round(scheduled_offset_s * 1_000_000_000)),
+            command_monotonic_ns=actual_ns,
             command_position=point,
         )
         sleep(settings.control_period_s)
@@ -1597,6 +1627,7 @@ def _execute_time_based_commands(session: HardwareSession, start: Mapping[str, f
         _record_motion_cycle(
             session, recorder, stage=stage, profile="smooth", sequence=sequence,
             scheduled_offset_s=deadline - started,
+            planned_monotonic_ns=round(deadline * 1_000_000_000),
             command_monotonic_ns=(command_ns if isinstance(command_ns, int) else fallback_ns),
             command_position=point,
         )
@@ -1662,8 +1693,8 @@ def execute_segment(session: HardwareSession, target: Mapping[str, float], setti
 
 
 def run_free_space_motion_test(
-        config, settings: DemoSettings, *, from_pose: str, to_pose: str,
-        motion_profile: str, log_path: Path, step: bool,
+        config, settings: DemoSettings, *, from_pose: str | None, to_pose: str,
+        from_current: bool = False, motion_profile: str, log_path: Path, step: bool,
         session_factory=HardwareSession,
         install_signal_handlers: bool = True,
 ) -> dict[str, Any]:
@@ -1673,12 +1704,18 @@ def run_free_space_motion_test(
     if motion_profile not in {"original", "smooth"}:
         raise _fail("motion_profile_invalid", motion_profile, "original or smooth",
                     "A/B 비교할 profile을 지정해 주세요")
-    if (from_pose not in ALL_POSE_NAMES or to_pose not in ALL_POSE_NAMES
-            or from_pose in GRIPPER_POSES or to_pose in GRIPPER_POSES
-            or from_pose == to_pose):
+    if from_current == (from_pose is not None):
+        raise _fail("motion_test_start_mode_invalid", {
+            "from_pose": from_pose, "from_current": from_current},
+            "exactly one of from_pose or from_current",
+            "현재 자세 시작은 --from-current를 사용해 주세요")
+    if (to_pose not in ALL_POSE_NAMES or to_pose in GRIPPER_POSES
+            or (from_pose is not None and (
+                from_pose not in ALL_POSE_NAMES or from_pose in GRIPPER_POSES
+                or from_pose == to_pose))):
         raise _fail("motion_test_pose_invalid", [from_pose, to_pose],
-                    "two different arm pose names",
-                    "충돌 없는 짧은 arm-only 시작/종료 자세를 지정해 주세요")
+                    "current or arm pose start, and a different arm pose target",
+                    "충돌 없는 짧은 arm-only 종료 자세를 지정해 주세요")
     poses = load_pose_file(settings.pose_path,
                            expected_serial=config.raw["robot"]["follower_serial"])
     recorder = MotionTraceRecorder(log_path)
@@ -1686,6 +1723,9 @@ def run_free_space_motion_test(
     motion_armed = False
     old_signals = {}
     stopping = False
+    execution_settings = (replace(settings, control_period_s=ORIGINAL_CONTROL_PERIOD_S)
+                          if motion_profile == "original" else settings)
+    start_label = "CURRENT" if from_current else str(from_pose)
 
     def stop(_signum, _frame):
         nonlocal stopping
@@ -1700,11 +1740,11 @@ def run_free_space_motion_test(
     try:
         print(json.dumps({
             "status": "FREE_SPACE_MOTION_TEST_PLAN",
-            "from_pose": from_pose, "to_pose": to_pose,
+            "from_pose": start_label, "to_pose": to_pose,
             "motion_profile": motion_profile, "log_path": str(log_path),
             "arm_only": True, "gripper_goal_change": False,
             "two_degree_hard_cap": settings.max_step_deg,
-            "control_period_s": settings.control_period_s,
+            "control_period_s": execution_settings.control_period_s,
         }, ensure_ascii=False, indent=2))
         input("팔 지지·free-space·즉시 정지 준비와 시작 자세를 확인했으면 Enter: ")
         session.connect()
@@ -1713,33 +1753,37 @@ def run_free_space_motion_test(
         motion_armed = True
         current = _positions(session.follower.bus)
         moving = _raw(session.follower.bus, "Moving")
-        start_error = {
-            joint: current[joint] - float(poses[from_pose][joint]) for joint in ARM_JOINTS
-        }
+        start_error = ({joint: 0.0 for joint in ARM_JOINTS} if from_current else {
+            joint: current[joint] - float(poses[str(from_pose)][joint])
+            for joint in ARM_JOINTS
+        })
         if any(moving.values()):
             raise SegmentSafetyFault(
                 "motion_test_start_moving",
                 {"stage": from_pose, "moving": moving, "start_error": start_error})
-        if any(abs(value) > 1.0 for value in start_error.values()):
+        if not from_current and any(abs(value) > 1.0 for value in start_error.values()):
             raise SegmentSafetyFault(
                 "motion_test_start_pose_mismatch",
                 {"stage": from_pose, "start_error": start_error,
                  "required_abs_max_deg": 1.0})
         target = _arm_only(current, poses[to_pose])
-        input(f"{from_pose} → {to_pose} 한 구간만 실행합니다. 주변 clear면 Enter: ")
+        input(f"{start_label} → {to_pose} 한 구간만 실행합니다. 주변 clear면 Enter: ")
         segment = execute_segment(
-            session, target, settings, stage=f"motion_test:{from_pose}->{to_pose}",
+            session, target, execution_settings,
+            stage=f"motion_test:{start_label}->{to_pose}",
             motion_profile=motion_profile, recorder=recorder,
             stop_requested=lambda: stopping,
         )
         return {
             "status": "FREE_SPACE_MOTION_TEST_COMPLETE",
-            "from_pose": from_pose, "to_pose": to_pose,
+            "from_pose": start_label, "to_pose": to_pose,
+            "fresh_current_start": current if from_current else None,
             "motion_profile": motion_profile,
             "log_path": str(log_path.resolve()), "log_samples": recorder.count,
             "prestart_temperatures_c": prestart_temperatures,
             "final_temperatures_c": segment["temperatures_c"],
             "hold": hold, "write_counts": dict(session.writes.counts),
+            "actual_log_analysis": load_and_analyze_motion_log(log_path),
             "torque_gain_changed": False, "ik_changed": False,
             "calibration_changed": False,
         }

@@ -171,6 +171,16 @@ python3 -m medicine_sorter --config configs/system.example.json motion-test --fr
 python3 -m medicine_sorter --config configs/system.example.json motion-compare --from-pose FROM --to-pose TO --actual-log .local/fixed-demo-motion/smooth-001.jsonl
 ```
 
+fresh read-only 상태로 확인한 현재 자세에서 재배치 없이 짧은 endpoint 하나로 가는
+첫 ORIGINAL 시험은 `--from-current`를 사용합니다. 이 모드는 HOLD 직후의 actual
+Present를 시작점으로 고정하며, original baseline은 0.1초 relative cadence를
+유지합니다. JSONL에는 absolute planned timestamp, actual write timestamp와 interval,
+Goal/Present/error/Moving이 함께 저장됩니다.
+
+```bash
+python3 -m medicine_sorter --config configs/system.example.json motion-test --from-current --to-pose finish --profile original --log .local/fixed-demo-motion/original-current-finish-001.jsonl --step
+```
+
 `web --port 8030`은 `0.0.0.0`에 바인딩되는 같은 네트워크용 버튼 UI입니다. A/B/C별
 red/blue/green/skip, 세 프리셋, 카메라 기반 계획 확인, 자동 실행, 현재 단계·온도,
 큰 빨간 정지 버튼을 제공합니다. 정지는 보간 중에도 감지해 Ctrl+C와 같은 current

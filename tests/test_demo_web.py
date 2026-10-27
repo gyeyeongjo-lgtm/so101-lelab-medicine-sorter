@@ -34,12 +34,18 @@ class DemoWebTests(unittest.TestCase):
         motion = build_parser().parse_args([
             "motion-test", "--from-pose", "home", "--to-pose", "finish",
             "--profile", "smooth", "--log", ".local/test.jsonl", "--step"])
+        current = build_parser().parse_args([
+            "motion-test", "--from-current", "--to-pose", "finish",
+            "--profile", "original", "--log", ".local/current.jsonl", "--step"])
         self.assertEqual(compare.mode, "motion-compare")
         self.assertEqual(compare.from_pose, "home")
         self.assertIsNone(compare.actual_log)
         self.assertEqual(motion.mode, "motion-test")
         self.assertEqual(motion.profile, "smooth")
         self.assertTrue(motion.step)
+        self.assertTrue(current.from_current)
+        self.assertIsNone(current.from_pose)
+        self.assertEqual(current.profile, "original")
 
     def test_rule_parser_allows_three_colors_and_skip(self):
         self.assertEqual(parse_web_rules(

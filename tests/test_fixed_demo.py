@@ -19,7 +19,8 @@ from medicine_sorter.fixed_demo import (
     establish_hold, load_demo_settings,
     execute_segment, load_partial_pose_file, load_pose_records, parse_destination_rules,
     routes_from_snapshot,
-    resolve_robot_ports, roi_preview_annotations, run_demo, save_pose_file,
+    resolve_robot_ports, roi_preview_annotations, run_demo,
+    run_free_space_motion_test, save_pose_file,
     save_roi_preview, slot_for_pixel, smooth_interpolation, stage_names_for_routes,
     target_for_stage, teach, validate_demo_settings, _read_temperatures,
     verify_expected_marker_layout, verify_prestart_temperatures,
@@ -477,6 +478,7 @@ class FixedDemoTests(unittest.TestCase):
             present = {joint: presents[index] for joint in JOINTS}
             goal = {joint: goals[index] for joint in JOINTS}
             rows.append({
+                "planned_monotonic_ns": index * 50_000_000,
                 "command_monotonic_ns": index * 50_000_000,
                 "command_position": command,
                 "present_position": present,
@@ -487,12 +489,82 @@ class FixedDemoTests(unittest.TestCase):
         result = analyze_motion_rows(rows)
         self.assertAlmostEqual(result["command_interval_mean_s"], 0.05)
         self.assertAlmostEqual(result["command_interval_std_s"], 0.0)
+        self.assertAlmostEqual(result["command_interval_max_s"], 0.05)
+        self.assertEqual(result["deadline_miss_count"], 0)
         pan = result["joints"]["shoulder_pan"]
         self.assertEqual(pan["emitted_delta_per_cycle"], [1.0, -1.0])
         self.assertEqual(pan["max_delta"], 1.0)
         self.assertEqual(pan["direction_reversals"], 1)
         self.assertEqual(pan["moving_true_cycles"], 1)
         self.assertGreater(pan["goal_present_error_peak_to_peak"], 0.0)
+        self.assertEqual(pan["goal_present_error_max_abs"], 0.5)
+
+    def test_original_from_current_uses_fresh_start_and_point_one_second_baseline(self):
+        current = {joint: float(index) for index, joint in enumerate(JOINTS)}
+        finish = dict(current)
+        finish["wrist_flex"] += 3.0
+        present_raw = {joint: 2000 + index for index, joint in enumerate(JOINTS)}
+        poses = {
+            name: {"position": dict(current), "present_raw": dict(present_raw)}
+            for name in ALL_POSE_NAMES
+        }
+        poses["finish"] = {"position": finish, "present_raw": dict(present_raw)}
+        captured = {}
+
+        class Session:
+            def __init__(self, *_args, **_kwargs):
+                bus = FakeBus()
+                bus.registers["Present_Position"] = dict(current)
+                bus.registers["Moving"] = {joint: 0 for joint in JOINTS}
+                self.follower = SimpleNamespace(bus=bus)
+                self.writes = SimpleNamespace(counts={"Goal_Position_motion": 0})
+
+            def connect(self):
+                return None
+
+            def ctrl_c_hold(self):
+                return True
+
+            def close(self):
+                return None
+
+        class Recorder:
+            def __init__(self, _path):
+                self.count = 3
+
+            def close(self):
+                return None
+
+        def fake_execute(_session, target, settings, **kwargs):
+            captured["target"] = dict(target)
+            captured["period"] = settings.control_period_s
+            captured["profile"] = kwargs["motion_profile"]
+            return {"temperatures_c": {joint: 30 for joint in JOINTS}}
+
+        with tempfile.TemporaryDirectory() as folder:
+            pose_path = Path(folder) / "poses.json"
+            save_pose_file(pose_path, follower_serial="5AE6058306", poses=poses)
+            settings = replace(self.settings, pose_path=pose_path)
+            with (patch("medicine_sorter.fixed_demo.MotionTraceRecorder", Recorder),
+                  patch("medicine_sorter.fixed_demo.verify_prestart_temperatures",
+                        return_value={joint: 30 for joint in JOINTS}),
+                  patch("medicine_sorter.fixed_demo.establish_hold",
+                        return_value={"hold": "TEST"}),
+                  patch("medicine_sorter.fixed_demo.execute_segment", fake_execute),
+                  patch("medicine_sorter.fixed_demo.load_and_analyze_motion_log",
+                        return_value={"sample_count": 3}),
+                  patch("builtins.input", return_value="")):
+                result = run_free_space_motion_test(
+                    self.config, settings, from_pose=None, from_current=True,
+                    to_pose="finish", motion_profile="original",
+                    log_path=Path(folder) / "ignored.jsonl", step=True,
+                    session_factory=Session, install_signal_handlers=False)
+        self.assertEqual(result["from_pose"], "CURRENT")
+        self.assertEqual(result["fresh_current_start"], current)
+        self.assertEqual(captured["period"], 0.1)
+        self.assertEqual(captured["profile"], "original")
+        self.assertEqual(captured["target"]["wrist_flex"], finish["wrist_flex"])
+        self.assertEqual(captured["target"]["gripper"], current["gripper"])
 
     def test_smooth_profile_keeps_absolute_cadence_despite_write_latency(self):
         clock = Clock()
