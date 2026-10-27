@@ -58,7 +58,7 @@ DEADLINE_MISS_TOLERANCE_S = 0.005
 GRIPPER_CONTACT_RELIEF_BIAS = 1.0
 TEACH_GOAL_PRESENT_RAW_TOLERANCE = 40
 DEFAULT_ALREADY_ON_GOAL_PRESENT_RAW_TOLERANCE = 10
-MAX_SUPERVISED_HOLD_GOAL_PRESENT_RAW_TOLERANCE = 40
+MAX_SUPERVISED_HOLD_GOAL_PRESENT_RAW_TOLERANCE = 60
 POST_GOAL_READ_DELAY_S = 0.2
 POST_GOAL_READ_RETRIES = 3
 VALID_BOTTLE_TYPES = {"A", "B", "C"}
@@ -876,6 +876,75 @@ def load_and_analyze_motion_log(path: Path) -> dict[str, Any]:
     except (KeyError, TypeError, ValueError) as error:
         raise _fail("motion_log_invalid", str(error), "complete motion telemetry rows",
                     "원본 로그를 수정하지 말고 다시 확인해 주세요") from error
+
+
+def compare_actual_motion_logs(original_log: Path, smooth_log: Path) -> dict[str, Any]:
+    original = load_and_analyze_motion_log(original_log)
+    smooth = load_and_analyze_motion_log(smooth_log)
+
+    def maximum(analysis: Mapping[str, Any], key: str) -> float:
+        return max(float(analysis["joints"][joint][key]) for joint in ARM_JOINTS)
+
+    start_raw_difference = {}
+    final_raw_difference = {}
+    raw_comparable = (original.get("raw_feedback_available") is True
+                      and smooth.get("raw_feedback_available") is True)
+    if raw_comparable:
+        for joint in ARM_JOINTS:
+            original_joint = original["joints"][joint]
+            smooth_joint = smooth["joints"][joint]
+            start_raw_difference[joint] = (
+                smooth_joint["present_raw_start"] - original_joint["present_raw_start"])
+            final_raw_difference[joint] = (
+                smooth_joint["present_raw_final"] - original_joint["present_raw_final"])
+
+    joints = {}
+    for joint in ARM_JOINTS:
+        a = original["joints"][joint]
+        b = smooth["joints"][joint]
+        joints[joint] = {
+            "original_max_step_deg": a["max_delta"],
+            "smooth_max_step_deg": b["max_delta"],
+            "original_max_tracking_error_deg": a["goal_present_error_max_abs"],
+            "smooth_max_tracking_error_deg": b["goal_present_error_max_abs"],
+            "original_present_velocity_reversals": a["present_velocity_direction_reversals"],
+            "smooth_present_velocity_reversals": b["present_velocity_direction_reversals"],
+            "start_present_raw_difference_smooth_minus_original": (
+                start_raw_difference.get(joint)),
+            "final_present_raw_difference_smooth_minus_original": (
+                final_raw_difference.get(joint)),
+        }
+
+    return {
+        "status": "LIVE_MOTION_A_B_ANALYSIS",
+        "original_log": str(original_log),
+        "smooth_log": str(smooth_log),
+        "original": original,
+        "smooth": smooth,
+        "comparison": {
+            "raw_start_end_comparable": raw_comparable,
+            "start_present_raw_difference_smooth_minus_original": start_raw_difference,
+            "final_present_raw_difference_smooth_minus_original": final_raw_difference,
+            "original_actual_interval_mean_s": original["command_interval_mean_s"],
+            "original_interval_std_s": original["command_interval_std_s"],
+            "original_max_interval_s": original["command_interval_max_s"],
+            "original_max_step_deg": maximum(original, "max_delta"),
+            "original_max_tracking_error_deg": maximum(
+                original, "goal_present_error_max_abs"),
+            "smooth_actual_interval_mean_s": smooth["command_interval_mean_s"],
+            "smooth_interval_std_s": smooth["command_interval_std_s"],
+            "smooth_max_interval_s": smooth["command_interval_max_s"],
+            "smooth_max_step_deg": maximum(smooth, "max_delta"),
+            "smooth_max_tracking_error_deg": maximum(
+                smooth, "goal_present_error_max_abs"),
+            "user_visual_original": "REQUIRED",
+            "user_visual_smooth": "REQUIRED",
+            "smoothing_effective": "INCONCLUSIVE_NEEDS_USER_VISUAL_AND_START_MATCH_REVIEW",
+        },
+        "joints": joints,
+        "motor_command": 0,
+        "serial_open": 0,
+    }
 
 
 def compare_pose_motion(config, settings: DemoSettings, *, from_pose: str, to_pose: str,
@@ -1967,7 +2036,7 @@ def run_free_space_motion_test(
             "motion_test_stable_hold_gap_invalid", stable_hold_gap_raw,
             (f"{DEFAULT_ALREADY_ON_GOAL_PRESENT_RAW_TOLERANCE}.."
              f"{MAX_SUPERVISED_HOLD_GOAL_PRESENT_RAW_TOLERANCE} raw"),
-            "기본 10 raw를 쓰거나 감독 시험에서 명시적으로 최대 40 raw를 지정해 주세요",
+            "기본 10 raw를 쓰거나 감독 시험에서 명시적으로 최대 60 raw를 지정해 주세요",
         )
     if motion_profile not in {"original", "smooth"}:
         raise _fail("motion_profile_invalid", motion_profile, "original or smooth",
@@ -2040,6 +2109,8 @@ def run_free_space_motion_test(
         print(json.dumps({
             "status": "FREE_SPACE_MOTION_TEST_PLAN",
             "from_pose": start_label, "to_pose": to_pose,
+            "start_pose_gate": ("fresh_current_no_taught_pose_match" if from_current else
+                                "taught_pose_within_1deg"),
             "motion_profile": motion_profile, "log_path": str(log_path),
             "arm_only": True, "gripper_goal_change": False,
             "two_degree_hard_cap": settings.max_step_deg,
@@ -2100,6 +2171,8 @@ def run_free_space_motion_test(
             "status": "FREE_SPACE_MOTION_TEST_EXTERNAL_CONFIRMATION_REQUIRED",
             "from_pose": start_label, "to_pose": to_pose,
             "fresh_current_start": current if from_current else None,
+            "start_pose_gate": ("fresh_current_no_taught_pose_match" if from_current else
+                                "taught_pose_within_1deg"),
             "motion_profile": motion_profile,
             "control_hz": (10 if motion_profile == "original" else selected_control_hz),
             "trajectory_curve": ("cubic" if motion_profile == "original" else "quintic"),

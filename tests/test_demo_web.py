@@ -31,6 +31,9 @@ class DemoWebTests(unittest.TestCase):
     def test_cli_has_offline_compare_and_single_segment_motion_test(self):
         compare = build_parser().parse_args([
             "motion-compare", "--from-pose", "home", "--to-pose", "finish"])
+        analyze = build_parser().parse_args([
+            "motion-analyze", "--original-log", "original.jsonl",
+            "--smooth-log", "smooth.jsonl"])
         motion = build_parser().parse_args([
             "motion-test", "--from-pose", "home", "--to-pose", "finish",
             "--profile", "smooth", "--control-hz", "40",
@@ -42,6 +45,8 @@ class DemoWebTests(unittest.TestCase):
         self.assertEqual(compare.mode, "motion-compare")
         self.assertEqual(compare.from_pose, "home")
         self.assertIsNone(compare.actual_log)
+        self.assertEqual(analyze.mode, "motion-analyze")
+        self.assertEqual(analyze.original_log, Path("original.jsonl"))
         self.assertEqual(motion.mode, "motion-test")
         self.assertEqual(motion.profile, "smooth")
         self.assertEqual(motion.control_hz, 40)

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from .config import load_config
 from .errors import SorterError
-from .fixed_demo import (compare_pose_motion, load_demo_settings,
+from .fixed_demo import (compare_actual_motion_logs, compare_pose_motion, load_demo_settings,
                          DEFAULT_FREE_SPACE_VELOCITY,
                          DEFAULT_SMOOTH_CONTROL_HZ,
                          FREE_SPACE_VELOCITY_CHOICES,
@@ -56,6 +56,10 @@ def build_parser() -> argparse.ArgumentParser:
     compare_parser.add_argument("--to-pose", required=True)
     compare_parser.add_argument("--actual-log", type=Path,
                                 help="motion-test JSONL이 있으면 실제 cadence/feedback도 분석합니다")
+    analyze_parser = sub.add_parser(
+        "motion-analyze", help="장치를 열지 않고 ORIGINAL/SMOOTH JSONL을 비교합니다")
+    analyze_parser.add_argument("--original-log", type=Path, required=True)
+    analyze_parser.add_argument("--smooth-log", type=Path, required=True)
     motion_test_parser = sub.add_parser(
         "motion-test", help="동일한 두 티칭 자세 사이 한 free-space 구간만 감독 실행합니다")
     motion_start = motion_test_parser.add_mutually_exclusive_group(required=True)
@@ -80,7 +84,7 @@ def build_parser() -> argparse.ArgumentParser:
                                     help="현장 확인 Enter 후 한 구간만 실행합니다")
     motion_test_parser.add_argument(
         "--stable-hold-gap-raw", type=int, default=10,
-        help="감독 motion-test의 already-ON 정지 Goal−Present 허용치(10..40 raw, 기본 10)",
+        help="감독 motion-test의 already-ON 정지 Goal−Present 허용치(10..60 raw, 기본 10)",
     )
     web_parser = sub.add_parser("web", help="고정 데모 버튼 UI를 실행합니다")
     web_parser.add_argument("--port", type=int, default=8030,
@@ -126,6 +130,8 @@ def main(argv=None, *, status_adapter_factory=None) -> int:
                 config, load_demo_settings(config),
                 from_pose=args.from_pose, to_pose=args.to_pose,
                 actual_log=args.actual_log)
+        elif args.mode == "motion-analyze":
+            payload = compare_actual_motion_logs(args.original_log, args.smooth_log)
         elif args.mode == "motion-test":
             payload = run_free_space_motion_test(
                 config, load_demo_settings(config),

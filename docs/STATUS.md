@@ -2,6 +2,23 @@
 
 업데이트: 2026-10-27
 
+## 2026-10-27 감독 A/B 절차 변경 — 구현·오프라인 PASS, live NOT_RUN
+
+- 사용자가 현재 외부 자세를 home으로 직접 확인하고 elbow `43 raw` residual을
+  정상적인 중력 처짐으로 수용했다. 이전 `BLOCKED_COOL_DOWN_REQUIRED` 판단은 사용자
+  현장 판정과 새 절차로 대체하며, 온도 gate 자체는 시작 `<50°C`, 실행 중 `55°C`
+  stop으로 그대로 유지한다.
+- fixed-demo/teach 기본 already-ON Goal−Present gate `10 raw`는 변경하지 않았다.
+  감독 `motion-test`에서 명시적으로 지정할 때만 `--stable-hold-gap-raw 60`을
+  허용한다. `--from-current`는 fresh 실제 자세를 시작으로 기록하고 taught home 1°
+  일치 gate를 적용하지 않는다. 2° cap, Overload HOLD, Ctrl+C HOLD,
+  `disconnect(disable_torque=False)`는 유지한다.
+- 장치를 열지 않는 `motion-analyze --original-log ... --smooth-log ...`를 추가해
+  command interval mean/std/max, arm max step, max tracking error, Present 속도 반전,
+  ORIGINAL/SMOOTH 시작·종료 raw 차이를 함께 보고한다.
+- 장비 없는 테스트 fixed-demo/web `66/66`, sorter `31/31`, compile·diff check PASS.
+  serial open·motor command는 `0`; 새 ORIGINAL/SMOOTH 절차는 `NOT_RUN`이다.
+
 ## 2026-10-27 jitter smooth live 후보 — 구현·오프라인 PASS, 실기 NOT_RUN
 
 - 사용자는 승인된 `current → home` ORIGINAL 재배치에서 외부 링크가 실제로 home
@@ -37,7 +54,8 @@
   Present는 완전히 같아 elbow residual이 계속 `−43 raw`로 고정됐고 Moving은 전 축
   0이었다. elbow 온도만 `43→45°C`로 상승했다. 자연 수렴이 아니라 정적 하중/
   deadband 가능성을 보이는 preflight blocker이며 아직 jitter 원인으로 확정하지 않는다.
-  50°C prestart limit에 접근하므로 live A/B는 `BLOCKED_COOL_DOWN_REQUIRED`다.
+  당시에는 50°C prestart limit 접근을 blocker로 기록했다. 이후 사용자가 현장에서
+  중력 처짐 정상 상태로 수용하고 위 감독 절차로 변경했으며 실제 온도 gate는 유지된다.
 
 ## 2026-10-27 jitter-only 큰 동작 준비 — 오프라인·Jetson 배포 PASS, 실기 NOT_RUN
 

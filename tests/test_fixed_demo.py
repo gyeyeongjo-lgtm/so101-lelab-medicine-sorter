@@ -16,7 +16,8 @@ from medicine_sorter.fixed_demo import (
     WARM_START_MAX_TEMPERATURE_C_EXCLUSIVE,
     SMOOTH_FEEDBACK_PERIOD_S, SMOOTH_SAFETY_PERIOD_S,
     StrictWriteGate,
-    analyze_motion_rows, clamp_to_calibrated_inner_range, compare_pose_motion,
+    analyze_motion_rows, clamp_to_calibrated_inner_range,
+    compare_actual_motion_logs, compare_pose_motion,
     establish_hold, load_demo_settings,
     execute_segment, load_partial_pose_file, load_pose_records, parse_destination_rules,
     routes_from_snapshot,
@@ -426,12 +427,21 @@ class FixedDemoTests(unittest.TestCase):
         self.assertEqual(result["max_existing_goal_present_gap_raw"], 40)
         self.assertEqual(bus.sent, [])
 
-    def test_supervised_hold_gap_limit_cannot_exceed_forty_raw(self):
+    def test_supervised_hold_accepts_sixty_but_rejects_more(self):
         bus = FakeBus()
+        bus.registers["Goal_Position"] = dict(bus.registers["Present_Position"])
+        bus.registers["Goal_Position"]["elbow_flex"] -= 60
+        bus.registers["Torque_Enable"] = {joint: 1 for joint in JOINTS}
         gate = StrictWriteGate(bus)
+        clock = Clock()
+        result = establish_hold(
+            bus, gate, max_existing_goal_present_gap_raw=60,
+            sleep=clock.sleep, monotonic=clock.monotonic)
+        self.assertEqual(result["max_existing_goal_present_gap_raw"], 60)
+        self.assertEqual(bus.sent, [])
         with self.assertRaisesRegex(
                 ValueError, "invalid_existing_goal_present_gap_tolerance"):
-            establish_hold(bus, gate, max_existing_goal_present_gap_raw=41)
+            establish_hold(bus, gate, max_existing_goal_present_gap_raw=61)
         self.assertEqual(bus.sent, [])
 
     def test_mixed_torque_fails_without_write(self):
@@ -662,6 +672,37 @@ class FixedDemoTests(unittest.TestCase):
         self.assertEqual(len(result["temperature_samples"]), 2)
         self.assertEqual(result["goal_sources"],
                          ["commanded_sync_write_not_read_back"])
+
+    def test_actual_log_comparison_reports_start_match_and_joint_metrics(self):
+        def analysis(offset):
+            return {
+                "raw_feedback_available": True,
+                "command_interval_mean_s": 0.1 - offset,
+                "command_interval_std_s": 0.001,
+                "command_interval_max_s": 0.11,
+                "joints": {
+                    joint: {
+                        "max_delta": 1.5 - offset,
+                        "goal_present_error_max_abs": 4.0 - offset,
+                        "present_velocity_direction_reversals": int(offset == 0),
+                        "present_raw_start": 2000 + index + int(offset * 10),
+                        "present_raw_final": 2100 + index,
+                    }
+                    for index, joint in enumerate(JOINTS)
+                },
+            }
+
+        with patch("medicine_sorter.fixed_demo.load_and_analyze_motion_log",
+                   side_effect=[analysis(0.0), analysis(0.1)]):
+            result = compare_actual_motion_logs(Path("original.jsonl"), Path("smooth.jsonl"))
+        self.assertEqual(result["status"], "LIVE_MOTION_A_B_ANALYSIS")
+        self.assertEqual(result["comparison"]["original_max_step_deg"], 1.5)
+        self.assertEqual(result["comparison"]["smooth_max_step_deg"], 1.4)
+        self.assertEqual(
+            result["joints"]["elbow_flex"]
+            ["start_present_raw_difference_smooth_minus_original"], 1)
+        self.assertEqual(result["serial_open"], 0)
+        self.assertEqual(result["motor_command"], 0)
 
     def test_original_rejects_smooth_only_options_before_session(self):
         with self.assertRaises(SorterError) as caught:

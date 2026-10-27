@@ -129,3 +129,32 @@ ORIGINAL/SMOOTH actual motion은 계속 `NOT_RUN`이다.
 정적 하중 또는 servo deadband가 존재할 가능성을 높이지만, gain/기계 원인으로
 확정하지 않는다. 50°C prestart limit에 접근하므로 추가 live motion은
 `BLOCKED_COOL_DOWN_REQUIRED`; 안전 gate 완화, Goal/Torque write, 자동 재시도는 0이다.
+
+## 사용자 지정 감독 A/B 절차 변경
+
+사용자는 외부 팔이 home임을 현장에서 직접 확인하고 elbow `43 raw` residual을
+정상적인 중력 처짐으로 수용했다. 전원 차단·냉각 대기 대신 다음 절차로 변경했다.
+이는 사용자 현장 판정이며 encoder residual 자체가 사라졌다는 뜻은 아니다.
+
+- fixed-demo 기본 already-ON gap: `10 raw` 유지
+- 감독 `motion-test` 명시 옵션 상한만 `60 raw`
+- start: `--from-current`, fresh 실제 자세를 로그에 저장
+- taught home 1° gate: `--from-current` 시험에는 적용하지 않음
+- prestart temperature: `<50°C` 유지
+- runtime temperature stop: `55°C` 유지
+- 2° cap, servo Overload fault HOLD, Ctrl+C current HOLD 유지
+- gain/Torque/calibration/IK/TCP 변경 없음
+
+실행 순서는 ORIGINAL `current(home 확인) → red_above`, 이어서 SMOOTH 감독 reset
+`current(red_above) → home`과 SMOOTH 비교 구간 `current(home) → red_above`다. 각
+motion-test 호출은 별도의 계획·주변 clear Enter를 요구하고, reset이 실패하면 shell
+`&&`에 의해 두 번째 smooth 구간은 실행되지 않는다. 각 호출은 자체 시작 `<50°C`
+검사도 다시 수행한다.
+
+`motion-analyze`는 장치를 열지 않고 ORIGINAL/최종 SMOOTH JSONL에서 cadence,
+max step, max Goal−Present, Present velocity reversal과 시작·종료 encoder raw 차이를
+한 결과로 비교한다. 육안 평가는 출력 공유 후 별도로 합친다.
+
+오프라인 검증은 fixed-demo `60/60`, web `6/6`, sorter `31/31`, compile 및
+`git diff --check` PASS다. 이번 변경의 serial open과 motor command는 `0`;
+새 live ORIGINAL/SMOOTH는 `NOT_RUN`이다.
