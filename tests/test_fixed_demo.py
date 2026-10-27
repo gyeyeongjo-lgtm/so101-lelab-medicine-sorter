@@ -14,6 +14,7 @@ from medicine_sorter.fixed_demo import (
     PRESTART_MAX_TEMPERATURE_C_EXCLUSIVE, SegmentSafetyFault,
     TEACH_GOAL_PRESENT_RAW_TOLERANCE, TYPE_GRIPPER_POSES,
     WARM_START_MAX_TEMPERATURE_C_EXCLUSIVE,
+    SMOOTH_FEEDBACK_PERIOD_S, SMOOTH_SAFETY_PERIOD_S,
     StrictWriteGate,
     analyze_motion_rows, clamp_to_calibrated_inner_range, compare_pose_motion,
     establish_hold, load_demo_settings,
@@ -23,6 +24,7 @@ from medicine_sorter.fixed_demo import (
     run_free_space_motion_test, save_pose_file,
     save_roi_preview, slot_for_pixel, smooth_interpolation, stage_names_for_routes,
     target_for_stage, teach, validate_demo_settings, _read_temperatures,
+    _execute_time_based_commands,
     verify_expected_marker_layout, verify_prestart_temperatures,
 )
 
@@ -623,6 +625,57 @@ class FixedDemoTests(unittest.TestCase):
         self.assertEqual(result["torque_enable_cycles"][0]["wrist_flex"], 1)
         self.assertEqual(result["moving_cycles"][1]["wrist_flex"], 1)
 
+    def test_sparse_feedback_analysis_keeps_command_and_feedback_cadence_separate(self):
+        rows = []
+        for index in range(5):
+            sampled = index in {0, 4}
+            values = {joint: float(index) for joint in JOINTS}
+            raw = {joint: 2000 + index for joint in JOINTS}
+            rows.append({
+                "sequence": index + 1,
+                "planned_monotonic_ns": index * 25_000_000,
+                "command_monotonic_ns": index * 25_000_000,
+                "command_position": values,
+                "feedback_monotonic_ns": index * 25_000_000 if sampled else None,
+                "present_position": values if sampled else None,
+                "goal_position": values if sampled else None,
+                "goal_source": "commanded_sync_write_not_read_back",
+                "goal_present_error": ({joint: 0.0 for joint in JOINTS}
+                                       if sampled else None),
+                "present_raw": raw if sampled else None,
+                "goal_raw": None,
+                "torque_enable": ({joint: 1 for joint in JOINTS}
+                                  if sampled else None),
+                "moving": ({joint: int(index == 0) for joint in JOINTS}
+                           if sampled else None),
+                "temperatures_c": ({joint: 32 for joint in JOINTS}
+                                   if sampled else None),
+            })
+        result = analyze_motion_rows(rows)
+        self.assertAlmostEqual(result["command_interval_mean_s"], 0.025)
+        self.assertEqual(result["feedback_sample_count"], 2)
+        self.assertAlmostEqual(result["feedback_interval_mean_s"], 0.1)
+        self.assertTrue(result["raw_feedback_available"])
+        self.assertFalse(result["goal_raw_feedback_available"])
+        self.assertEqual(result["joints"]["elbow_flex"]["present_raw_net_delta"], 4)
+        self.assertEqual(len(result["torque_enable_cycles"]), 2)
+        self.assertEqual(len(result["temperature_samples"]), 2)
+        self.assertEqual(result["goal_sources"],
+                         ["commanded_sync_write_not_read_back"])
+
+    def test_original_rejects_smooth_only_options_before_session(self):
+        with self.assertRaises(SorterError) as caught:
+            run_free_space_motion_test(
+                self.config, self.settings, from_pose="home", from_current=False,
+                to_pose="red_above", motion_profile="original",
+                log_path=Path(".local/fixed-demo-motion/unused.jsonl"), step=True,
+                control_hz=40, free_space_velocity=20,
+                session_factory=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                    AssertionError("session must not be constructed")),
+                install_signal_handlers=False,
+            )
+        self.assertEqual(caught.exception.code, "original_profile_options_forbidden")
+
     def test_quintic_profile_has_zero_endpoint_slope_and_preserves_endpoint(self):
         start = {joint: 0.0 for joint in JOINTS}
         delta = {joint: 20.0 for joint in JOINTS}
@@ -681,6 +734,70 @@ class FixedDemoTests(unittest.TestCase):
                 self.settings.max_step_deg + 1e-9)
             previous = point
         self.assertAlmostEqual(writes.sent[-1]["shoulder_pan"], 20.0)
+
+    def test_smooth_live_uses_quintic_absolute_deadlines_and_decimated_reads(self):
+        clock = Clock()
+
+        class Writes:
+            def __init__(self, bus):
+                self.bus = bus
+                self.times = []
+                self.sent = []
+                self.last_motion_write_completed_ns = None
+
+            def motion_goal(self, values):
+                started = clock.value
+                self.times.append(started)
+                self.sent.append(dict(values))
+                self.bus.registers["Goal_Position"] = {
+                    joint: int(round(values[joint])) for joint in JOINTS}
+                clock.value += 0.005
+                self.last_motion_write_completed_ns = int(clock.value * 1_000_000_000)
+                return int(started * 1_000_000_000)
+
+        bus = FakeBus()
+        bus.registers["Present_Position"] = {joint: 0 for joint in JOINTS}
+        bus.registers["Goal_Position"] = {joint: 0 for joint in JOINTS}
+        bus.registers["Torque_Enable"] = {joint: 1 for joint in JOINTS}
+        writes = Writes(bus)
+        session = SimpleNamespace(follower=SimpleNamespace(bus=bus), writes=writes)
+        settings = replace(self.settings, control_period_s=0.025)
+        start = {joint: 0.0 for joint in JOINTS}
+        target = dict(start)
+        target["shoulder_lift"] = 20.0
+        recorded = []
+
+        def capture(*_args, **kwargs):
+            recorded.append(kwargs)
+
+        with patch("medicine_sorter.fixed_demo._record_motion_cycle", side_effect=capture):
+            _execute_time_based_commands(
+                session, start, target, settings, stage="free_space",
+                recorder=object(), sleep=clock.sleep, monotonic=clock.monotonic,
+                stop_requested=lambda: False)
+
+        intervals = [current - previous
+                     for previous, current in zip(writes.times, writes.times[1:])]
+        self.assertTrue(intervals)
+        self.assertTrue(all(abs(value - 0.025) < 1e-9 for value in intervals))
+        self.assertLess(writes.sent[0]["shoulder_lift"], 0.01)
+        self.assertAlmostEqual(writes.sent[-1]["shoulder_lift"], 20.0)
+        previous = start
+        for point in writes.sent:
+            self.assertLessEqual(max(abs(point[joint] - previous[joint])
+                                     for joint in JOINTS), 2.0 + 1e-9)
+            previous = point
+        self.assertTrue(all(row["profile"] == "smooth_quintic_absolute"
+                            for row in recorded))
+        feedback_samples = [row for row in recorded if row["present_raw"] is not None]
+        safety_samples = [row for row in recorded if row["temperatures_c"] is not None]
+        self.assertLess(len(feedback_samples), len(writes.sent))
+        self.assertLess(len(safety_samples), len(feedback_samples))
+        self.assertEqual(SMOOTH_FEEDBACK_PERIOD_S, 0.1)
+        self.assertEqual(SMOOTH_SAFETY_PERIOD_S, 1.0)
+        goal_reads = [item for item in bus.reads if item[0] == "Goal_Position"]
+        self.assertEqual(len(goal_reads), len(feedback_samples))
+        self.assertLess(len(goal_reads), len(writes.sent))
 
     def test_warm_start_allows_only_50_to_51_and_keeps_hard_limit(self):
         class WarmBus(FakeBus):

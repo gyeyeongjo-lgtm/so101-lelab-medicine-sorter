@@ -47,7 +47,13 @@ MAX_TEMPERATURE_C = 55
 PRESTART_MAX_TEMPERATURE_C_EXCLUSIVE = 50
 WARM_START_MAX_TEMPERATURE_C_EXCLUSIVE = 52
 ORIGINAL_CONTROL_PERIOD_S = 0.1
-MOTION_LOG_SCHEMA_VERSION = 3
+SMOOTH_CONTROL_HZ_CHOICES = (30, 40, 50)
+DEFAULT_SMOOTH_CONTROL_HZ = 40
+FREE_SPACE_VELOCITY_CHOICES = (20, 30, 40)
+DEFAULT_FREE_SPACE_VELOCITY = 20
+SMOOTH_FEEDBACK_PERIOD_S = 0.1
+SMOOTH_SAFETY_PERIOD_S = 1.0
+MOTION_LOG_SCHEMA_VERSION = 4
 DEADLINE_MISS_TOLERANCE_S = 0.005
 GRIPPER_CONTACT_RELIEF_BIAS = 1.0
 TEACH_GOAL_PRESENT_RAW_TOLERANCE = 40
@@ -743,20 +749,37 @@ def analyze_motion_rows(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     write_durations = [float(row["write_duration_s"]) for row in rows
                        if row.get("write_duration_s") is not None]
     write_duration_mean, write_duration_std = _mean_std(write_durations)
+    feedback_rows = [row for row in rows
+                     if isinstance(row.get("present_position"), Mapping)
+                     and isinstance(row.get("goal_present_error"), Mapping)
+                     and isinstance(row.get("moving"), Mapping)]
+    feedback_timestamps = [
+        int(row.get("feedback_monotonic_ns") or row["command_monotonic_ns"])
+        for row in feedback_rows
+    ]
+    if any(current <= previous
+           for previous, current in zip(feedback_timestamps, feedback_timestamps[1:])):
+        raise ValueError("motion_feedback_timestamps_not_strictly_increasing")
+    feedback_intervals = [
+        (current - previous) / 1_000_000_000
+        for previous, current in zip(feedback_timestamps, feedback_timestamps[1:])
+    ]
+    feedback_interval_mean, feedback_interval_std = _mean_std(feedback_intervals)
+    raw_feedback_available = bool(feedback_rows) and all(
+        isinstance(row.get("present_raw"), Mapping) for row in feedback_rows)
+    goal_raw_feedback_available = bool(feedback_rows) and all(
+        isinstance(row.get("goal_raw"), Mapping) for row in feedback_rows)
+    torque_rows = [row for row in rows if isinstance(row.get("torque_enable"), Mapping)]
+    temperature_rows = [row for row in rows if isinstance(row.get("temperatures_c"), Mapping)]
     per_joint = {}
-    raw_feedback_available = all(
-        isinstance(row.get("present_raw"), Mapping)
-        and isinstance(row.get("goal_raw"), Mapping)
-        and isinstance(row.get("torque_enable"), Mapping)
-        for row in rows)
     for joint in JOINTS:
         command = [float(row["command_position"][joint]) for row in rows]
-        present = [float(row["present_position"][joint]) for row in rows]
-        error = [float(row["goal_present_error"][joint]) for row in rows]
-        moving = [int(row["moving"][joint]) for row in rows]
+        present = [float(row["present_position"][joint]) for row in feedback_rows]
+        error = [float(row["goal_present_error"][joint]) for row in feedback_rows]
+        moving = [int(row["moving"][joint]) for row in feedback_rows]
         command_delta = [current - previous for previous, current in zip(command, command[1:])]
         command_delta_abs = [abs(value) for value in command_delta]
-        present_velocity = [(present[index] - present[index - 1]) / intervals[index - 1]
+        present_velocity = [(present[index] - present[index - 1]) / feedback_intervals[index - 1]
                             for index in range(1, len(present))]
         error_delta = [current - previous for previous, current in zip(error, error[1:])]
         velocity_mean, velocity_std = _mean_std(present_velocity)
@@ -780,10 +803,10 @@ def analyze_motion_rows(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             "goal_present_error_max_abs": max((abs(value) for value in error), default=0.0),
             "goal_present_error_direction_reversals": _direction_reversals(error_delta),
             "moving_true_cycles": sum(value != 0 for value in moving),
+            "feedback_sample_count": len(feedback_rows),
         }
         if raw_feedback_available:
-            present_raw = [int(row["present_raw"][joint]) for row in rows]
-            goal_raw = [int(row["goal_raw"][joint]) for row in rows]
+            present_raw = [int(row["present_raw"][joint]) for row in feedback_rows]
             per_joint[joint].update({
                 "present_raw_start": present_raw[0],
                 "present_raw_final": present_raw[-1],
@@ -792,10 +815,20 @@ def analyze_motion_rows(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
                     (abs(current - previous)
                      for previous, current in zip(present_raw, present_raw[1:])),
                     default=0),
-                "goal_raw_start": goal_raw[0],
-                "goal_raw_final": goal_raw[-1],
-                "goal_raw_net_delta": goal_raw[-1] - goal_raw[0],
             })
+            if goal_raw_feedback_available:
+                goal_raw = [int(row["goal_raw"][joint]) for row in feedback_rows]
+                per_joint[joint].update({
+                    "goal_raw_start": goal_raw[0],
+                    "goal_raw_final": goal_raw[-1],
+                    "goal_raw_net_delta": goal_raw[-1] - goal_raw[0],
+                })
+            else:
+                per_joint[joint].update({
+                    "goal_raw_start": None,
+                    "goal_raw_final": None,
+                    "goal_raw_net_delta": None,
+                })
     return {
         "sample_count": len(rows),
         "command_interval_mean_s": interval_mean,
@@ -808,12 +841,25 @@ def analyze_motion_rows(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         "write_duration_mean_s": write_duration_mean,
         "write_duration_std_s": write_duration_std,
         "write_duration_max_s": max(write_durations, default=None),
+        "feedback_sample_count": len(feedback_rows),
+        "feedback_interval_mean_s": feedback_interval_mean,
+        "feedback_interval_std_s": feedback_interval_std,
+        "feedback_interval_max_s": max(feedback_intervals, default=None),
         "raw_feedback_available": raw_feedback_available,
+        "goal_raw_feedback_available": goal_raw_feedback_available,
+        "goal_sources": sorted({str(row.get("goal_source", "legacy_unspecified"))
+                                for row in feedback_rows}),
         "torque_enable_cycles": (
             [{joint: int(row["torque_enable"][joint]) for joint in JOINTS}
-             for row in rows] if raw_feedback_available else "NOT_RECORDED"),
+             for row in torque_rows] if torque_rows else "NOT_RECORDED"),
         "moving_cycles": [
-            {joint: int(row["moving"][joint]) for joint in JOINTS} for row in rows],
+            {joint: int(row["moving"][joint]) for joint in JOINTS}
+            for row in feedback_rows],
+        "temperature_samples": [
+            {"sequence": int(row["sequence"]),
+             "temperatures_c": {joint: int(row["temperatures_c"][joint])
+                                for joint in JOINTS}}
+            for row in temperature_rows],
         "joints": per_joint,
     }
 
@@ -845,15 +891,19 @@ def compare_pose_motion(config, settings: DemoSettings, *, from_pose: str, to_po
     start = dict(poses[from_pose])
     target = _arm_only(start, poses[to_pose])
     original_settings = replace(settings, control_period_s=ORIGINAL_CONTROL_PERIOD_S)
+    live_smooth_settings = replace(
+        settings, control_period_s=1.0 / DEFAULT_SMOOTH_CONTROL_HZ)
     original_points = smooth_interpolation(start, target, original_settings)
     smooth_points = smooth_interpolation(start, target, settings)
-    quintic_points = smooth_interpolation(start, target, settings, profile="quintic")
+    quintic_points = smooth_interpolation(
+        start, target, live_smooth_settings, profile="quintic")
     original_metrics = planned_trajectory_metrics(
         start, original_points, original_settings.control_period_s, original_settings)
     smooth_metrics = planned_trajectory_metrics(
         start, smooth_points, settings.control_period_s, settings)
     quintic_metrics = planned_trajectory_metrics(
-        start, quintic_points, settings.control_period_s, settings)
+        start, quintic_points, live_smooth_settings.control_period_s,
+        live_smooth_settings)
     original_max_step = max(
         original_metrics["joints"][joint]["max_delta"] for joint in ARM_JOINTS)
     smooth_max_step = max(
@@ -870,7 +920,7 @@ def compare_pose_motion(config, settings: DemoSettings, *, from_pose: str, to_po
         "original": original_metrics,
         "smooth": smooth_metrics,
         "quintic": quintic_metrics,
-        "smoothing_method": "shared cubic smoothstep with absolute-deadline live scheduler",
+        "smoothing_method": "shared quintic smoothstep with absolute-deadline live scheduler",
         "two_degree_cap_removed": False,
         "torque_gain_changed": False,
         "ik_changed": False,
@@ -887,12 +937,16 @@ def compare_pose_motion(config, settings: DemoSettings, *, from_pose: str, to_po
         "ORIGINAL_DIRECTION_REVERSALS": {
             joint: original_metrics["joints"][joint]["direction_reversals"]
             for joint in ARM_JOINTS},
-        "SMOOTHING_METHOD": "s(t)=3t^2-2t^3 shared by all arm joints; absolute deadlines",
+        "SMOOTHING_METHOD": (
+            "live candidate: s(t)=10t^3-15t^4+6t^5 shared by all arm joints; "
+            "absolute deadlines"),
         "CONTROL_PERIOD": settings.control_period_s,
         "SMOOTH_MAX_STEP": smooth_max_step,
-        "QUINTIC_METHOD": "s(t)=10t^3-15t^4+6t^5; offline candidate only",
-        "QUINTIC_CONTROL_PERIOD": settings.control_period_s,
+        "QUINTIC_METHOD": "s(t)=10t^3-15t^4+6t^5; live motion-test candidate",
+        "QUINTIC_CONTROL_PERIOD": live_smooth_settings.control_period_s,
+        "QUINTIC_CONTROL_HZ": DEFAULT_SMOOTH_CONTROL_HZ,
         "QUINTIC_MAX_STEP": quintic_max_step,
+        "LIVE_SMOOTH_MAX_STEP": quintic_max_step,
         "EXPECTED_IMPROVEMENT": (
             "relative-sleep drift is not accumulated; expired ticks are skipped; "
             "2deg remains a synchronized hard cap"),
@@ -932,10 +986,20 @@ class MotionTraceRecorder:
     def record(self, *, stage: str, profile: str, sequence: int,
                scheduled_offset_s: float, planned_monotonic_ns: int,
                command_monotonic_ns: int, write_completed_monotonic_ns: int,
-               command_position: Mapping[str, float], present_position: Mapping[str, float],
-               goal_position: Mapping[str, float], present_raw: Mapping[str, int],
-               goal_raw: Mapping[str, int], torque_enable: Mapping[str, int],
-               moving: Mapping[str, int]) -> None:
+               command_position: Mapping[str, float],
+               present_position: Mapping[str, float] | None,
+               goal_position: Mapping[str, float] | None,
+               present_raw: Mapping[str, int] | None,
+               goal_raw: Mapping[str, int] | None,
+               torque_enable: Mapping[str, int] | None,
+               moving: Mapping[str, int] | None,
+               feedback_monotonic_ns: int | None = None,
+               temperatures_c: Mapping[str, int] | None = None,
+               goal_source: str = "register_readback") -> None:
+        present_payload = (None if present_position is None else
+                           {joint: float(present_position[joint]) for joint in JOINTS})
+        goal_payload = (None if goal_position is None else
+                        {joint: float(goal_position[joint]) for joint in JOINTS})
         row = {
             "schema_version": MOTION_LOG_SCHEMA_VERSION,
             "observed_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -954,16 +1018,25 @@ class MotionTraceRecorder:
             ),
             "command_monotonic_ns": command_monotonic_ns,
             "command_position": {joint: float(command_position[joint]) for joint in JOINTS},
-            "present_position": {joint: float(present_position[joint]) for joint in JOINTS},
-            "goal_position": {joint: float(goal_position[joint]) for joint in JOINTS},
-            "present_raw": {joint: int(present_raw[joint]) for joint in JOINTS},
-            "goal_raw": {joint: int(goal_raw[joint]) for joint in JOINTS},
-            "torque_enable": {joint: int(torque_enable[joint]) for joint in JOINTS},
-            "goal_present_error": {
-                joint: float(goal_position[joint]) - float(present_position[joint])
-                for joint in JOINTS
-            },
-            "moving": {joint: int(moving[joint]) for joint in JOINTS},
+            "feedback_sampled": present_payload is not None,
+            "feedback_monotonic_ns": feedback_monotonic_ns,
+            "present_position": present_payload,
+            "goal_position": goal_payload,
+            "goal_source": goal_source,
+            "present_raw": (None if present_raw is None else
+                            {joint: int(present_raw[joint]) for joint in JOINTS}),
+            "goal_raw": (None if goal_raw is None else
+                         {joint: int(goal_raw[joint]) for joint in JOINTS}),
+            "torque_enable": (None if torque_enable is None else
+                              {joint: int(torque_enable[joint]) for joint in JOINTS}),
+            "goal_present_error": (
+                None if present_payload is None or goal_payload is None else
+                {joint: goal_payload[joint] - present_payload[joint] for joint in JOINTS}
+            ),
+            "moving": (None if moving is None else
+                       {joint: int(moving[joint]) for joint in JOINTS}),
+            "temperatures_c": (None if temperatures_c is None else
+                               {joint: int(temperatures_c[joint]) for joint in JOINTS}),
         }
         self.file.write(json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n")
         self.file.flush()
@@ -1671,13 +1744,31 @@ def _record_motion_cycle(session: HardwareSession, recorder: MotionTraceRecorder
                          stage: str, profile: str, sequence: int,
                          scheduled_offset_s: float, planned_monotonic_ns: int,
                          command_monotonic_ns: int, write_completed_monotonic_ns: int,
-                         command_position: Mapping[str, float]) -> None:
+                         command_position: Mapping[str, float],
+                         present_raw: Mapping[str, int] | None = None,
+                         goal_raw: Mapping[str, int] | None = None,
+                         torque: Mapping[str, int] | None = None,
+                         moving: Mapping[str, int] | None = None,
+                         feedback_monotonic_ns: int | None = None,
+                         temperatures_c: Mapping[str, int] | None = None,
+                         goal_source: str = "register_readback",
+                         read_full_feedback: bool = True) -> None:
     if recorder is None:
         return
-    present_raw = _raw(session.follower.bus, "Present_Position")
-    goal_raw = _raw(session.follower.bus, "Goal_Position")
-    torque = _raw(session.follower.bus, "Torque_Enable")
-    moving = _raw(session.follower.bus, "Moving")
+    if read_full_feedback:
+        present_raw = _raw(session.follower.bus, "Present_Position")
+        goal_raw = _raw(session.follower.bus, "Goal_Position")
+        torque = _raw(session.follower.bus, "Torque_Enable")
+        moving = _raw(session.follower.bus, "Moving")
+        feedback_monotonic_ns = time.monotonic_ns()
+    present_position = (None if present_raw is None else
+                        _normalize_raw_positions(session.follower.bus, present_raw))
+    if goal_raw is not None:
+        goal_position = _normalize_raw_positions(session.follower.bus, goal_raw)
+    elif present_raw is not None:
+        goal_position = {joint: float(command_position[joint]) for joint in JOINTS}
+    else:
+        goal_position = None
     recorder.record(
         stage=stage, profile=profile, sequence=sequence,
         scheduled_offset_s=scheduled_offset_s,
@@ -1685,10 +1776,11 @@ def _record_motion_cycle(session: HardwareSession, recorder: MotionTraceRecorder
         command_monotonic_ns=command_monotonic_ns,
         write_completed_monotonic_ns=write_completed_monotonic_ns,
         command_position=command_position,
-        present_position=_normalize_raw_positions(session.follower.bus, present_raw),
-        goal_position=_normalize_raw_positions(session.follower.bus, goal_raw),
+        present_position=present_position,
+        goal_position=goal_position,
         present_raw=present_raw, goal_raw=goal_raw, torque_enable=torque,
-        moving=moving,
+        moving=moving, feedback_monotonic_ns=feedback_monotonic_ns,
+        temperatures_c=temperatures_c, goal_source=goal_source,
     )
 
 
@@ -1730,11 +1822,13 @@ def _execute_time_based_commands(session: HardwareSession, start: Mapping[str, f
                                  monotonic: Callable[[], float],
                                  stop_requested: Callable[[], bool]) -> None:
     # Validate the same travel and 2-degree contract as the original generator first.
-    smooth_interpolation(start, target, settings)
+    smooth_interpolation(start, target, settings, profile="quintic")
     delta = {joint: float(target[joint]) - float(start[joint]) for joint in JOINTS}
-    duration = trajectory_duration(delta, settings)
+    duration = trajectory_duration(delta, settings, profile="quintic")
     started = monotonic()
     deadline = started + settings.control_period_s
+    next_feedback = started
+    next_safety = started
     previous = {joint: float(start[joint]) for joint in JOINTS}
     sequence = 0
     while True:
@@ -1745,7 +1839,7 @@ def _execute_time_based_commands(session: HardwareSession, start: Mapping[str, f
             sleep(remaining)
         now = monotonic()
         elapsed = max(0.0, now - started)
-        requested = trajectory_position(start, delta, elapsed / duration)
+        requested = trajectory_position(start, delta, elapsed / duration, profile="quintic")
         point = _hard_cap_synchronized(previous, requested, settings)
         sequence += 1
         fallback_ns = int(now * 1_000_000_000)
@@ -1754,17 +1848,48 @@ def _execute_time_based_commands(session: HardwareSession, start: Mapping[str, f
         completed_ns = getattr(session.writes, "last_motion_write_completed_ns", None)
         if not isinstance(completed_ns, int):
             completed_ns = actual_ns
+        final_command = (elapsed >= duration
+                         and all(abs(point[joint] - float(target[joint])) <= 1e-9
+                                 for joint in JOINTS))
+        present_raw = None
+        goal_raw = None
+        moving = None
+        feedback_ns = None
+        if recorder is not None and (sequence == 1 or now >= next_feedback or final_command):
+            present_raw = _raw(session.follower.bus, "Present_Position")
+            goal_raw = _raw(session.follower.bus, "Goal_Position")
+            moving = _raw(session.follower.bus, "Moving")
+            feedback_ns = int(monotonic() * 1_000_000_000)
+            while next_feedback <= monotonic():
+                next_feedback += SMOOTH_FEEDBACK_PERIOD_S
+        torque = None
+        temperatures = None
+        if sequence == 1 or now >= next_safety or final_command:
+            torque = _raw(session.follower.bus, "Torque_Enable")
+            if set(torque.values()) != {1}:
+                raise SegmentSafetyFault(
+                    "torque_changed_during_smooth_motion",
+                    {"stage": stage, "sequence": sequence, "torque_enable": torque},
+                )
+            temperatures = _read_temperatures(
+                session.follower.bus, stage=f"{stage}:smooth_safety")
+            while next_safety <= monotonic():
+                next_safety += SMOOTH_SAFETY_PERIOD_S
         _record_motion_cycle(
-            session, recorder, stage=stage, profile="smooth", sequence=sequence,
+            session, recorder, stage=stage, profile="smooth_quintic_absolute",
+            sequence=sequence,
             scheduled_offset_s=deadline - started,
             planned_monotonic_ns=round(deadline * 1_000_000_000),
             command_monotonic_ns=actual_ns,
             write_completed_monotonic_ns=completed_ns,
             command_position=point,
+            present_raw=present_raw, goal_raw=goal_raw, torque=torque, moving=moving,
+            feedback_monotonic_ns=feedback_ns, temperatures_c=temperatures,
+            goal_source="sparse_register_readback",
+            read_full_feedback=False,
         )
         previous = point
-        if (elapsed >= duration
-                and all(abs(previous[joint] - float(target[joint])) <= 1e-9 for joint in JOINTS)):
+        if final_command:
             break
         deadline += settings.control_period_s
         after_cycle = monotonic()
@@ -1827,6 +1952,8 @@ def run_free_space_motion_test(
         config, settings: DemoSettings, *, from_pose: str | None, to_pose: str,
         from_current: bool = False, motion_profile: str, log_path: Path, step: bool,
         stable_hold_gap_raw: int = DEFAULT_ALREADY_ON_GOAL_PRESENT_RAW_TOLERANCE,
+        control_hz: int | None = None,
+        free_space_velocity: int | None = None,
         session_factory=HardwareSession,
         install_signal_handlers: bool = True,
 ) -> dict[str, Any]:
@@ -1845,6 +1972,28 @@ def run_free_space_motion_test(
     if motion_profile not in {"original", "smooth"}:
         raise _fail("motion_profile_invalid", motion_profile, "original or smooth",
                     "A/B 비교할 profile을 지정해 주세요")
+    if motion_profile == "original" and (control_hz is not None or
+                                          free_space_velocity is not None):
+        raise _fail(
+            "original_profile_options_forbidden",
+            {"control_hz": control_hz, "free_space_velocity": free_space_velocity},
+            "no smooth-only options with original",
+            "ORIGINAL은 기존 10Hz·20°/s 그대로 실행해 주세요",
+        )
+    selected_control_hz = (DEFAULT_SMOOTH_CONTROL_HZ if control_hz is None
+                           else control_hz)
+    selected_free_space_velocity = (
+        DEFAULT_FREE_SPACE_VELOCITY if free_space_velocity is None
+        else free_space_velocity
+    )
+    if selected_control_hz not in SMOOTH_CONTROL_HZ_CHOICES:
+        raise _fail("smooth_control_hz_invalid", selected_control_hz,
+                    str(SMOOTH_CONTROL_HZ_CHOICES),
+                    "30, 40, 50Hz 중 하나를 지정해 주세요")
+    if selected_free_space_velocity not in FREE_SPACE_VELOCITY_CHOICES:
+        raise _fail("free_space_velocity_invalid", selected_free_space_velocity,
+                    str(FREE_SPACE_VELOCITY_CHOICES),
+                    "20, 30, 40°/s 중 하나를 지정해 주세요")
     if from_current == (from_pose is not None):
         raise _fail("motion_test_start_mode_invalid", {
             "from_pose": from_pose, "from_current": from_current},
@@ -1864,8 +2013,17 @@ def run_free_space_motion_test(
     motion_armed = False
     old_signals = {}
     stopping = False
-    execution_settings = (replace(settings, control_period_s=ORIGINAL_CONTROL_PERIOD_S)
-                          if motion_profile == "original" else settings)
+    if motion_profile == "original":
+        execution_settings = replace(settings, control_period_s=ORIGINAL_CONTROL_PERIOD_S)
+    else:
+        smooth_velocity = dict(settings.velocity)
+        smooth_velocity.update({joint: float(selected_free_space_velocity)
+                                for joint in ARM_JOINTS})
+        execution_settings = replace(
+            settings,
+            control_period_s=1.0 / selected_control_hz,
+            velocity=smooth_velocity,
+        )
     start_label = "CURRENT" if from_current else str(from_pose)
 
     def stop(_signum, _frame):
@@ -1886,6 +2044,19 @@ def run_free_space_motion_test(
             "arm_only": True, "gripper_goal_change": False,
             "two_degree_hard_cap": settings.max_step_deg,
             "control_period_s": execution_settings.control_period_s,
+            "control_hz": (10 if motion_profile == "original" else selected_control_hz),
+            "trajectory_curve": ("cubic" if motion_profile == "original" else "quintic"),
+            "deadline_mode": ("relative_sleep" if motion_profile == "original" else
+                              "absolute_deadline_skip_expired_ticks"),
+            "arm_velocity_limit_deg_s": (
+                settings.velocity["shoulder_pan"] if motion_profile == "original" else
+                selected_free_space_velocity),
+            "feedback_period_s": (
+                execution_settings.control_period_s if motion_profile == "original" else
+                SMOOTH_FEEDBACK_PERIOD_S),
+            "temperature_overload_period_s": (
+                execution_settings.control_period_s if motion_profile == "original" else
+                SMOOTH_SAFETY_PERIOD_S),
             "stable_hold_gap_raw": stable_hold_gap_raw,
         }, ensure_ascii=False, indent=2))
         input("팔 지지·free-space·즉시 정지 준비와 시작 자세를 확인했으면 Enter: ")
@@ -1930,6 +2101,11 @@ def run_free_space_motion_test(
             "from_pose": start_label, "to_pose": to_pose,
             "fresh_current_start": current if from_current else None,
             "motion_profile": motion_profile,
+            "control_hz": (10 if motion_profile == "original" else selected_control_hz),
+            "trajectory_curve": ("cubic" if motion_profile == "original" else "quintic"),
+            "arm_velocity_limit_deg_s": (
+                settings.velocity["shoulder_pan"] if motion_profile == "original" else
+                selected_free_space_velocity),
             "log_path": str(log_path.resolve()), "log_samples": recorder.count,
             "prestart_temperatures_c": prestart_temperatures,
             "final_temperatures_c": segment["temperatures_c"],

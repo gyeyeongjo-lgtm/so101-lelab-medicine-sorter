@@ -2,13 +2,37 @@
 
 업데이트: 2026-10-27
 
+## 2026-10-27 jitter smooth live 후보 — 구현·오프라인 PASS, 실기 NOT_RUN
+
+- 사용자는 승인된 `current → home` ORIGINAL 재배치에서 외부 링크가 실제로 home
+  방향으로 정상 이동했고 home 모습도 정상이었지만, 육안 떨림은 여전히 있었다고
+  확인했다. 등급은 지정되지 않아 `PRESENT_UNRATED`로 기록한다. 따라서 encoder-only
+  완료가 아니라 physical motion은 확인됐지만, 동일 start/end A/B의 ORIGINAL
+  `home → red_above` baseline으로 대체하지는 않는다.
+- `motion-test --profile smooth`를 shared quintic
+  `10t³−15t⁴+6t⁵` + absolute deadline으로 연결했다. 기본은 40Hz·arm 20°/s이며
+  `--control-hz 30|40|50`, `--free-space-velocity 20|30|40`을 지원한다. 첫 A/B는
+  속도 20을 유지해 scheduler만 비교한다. 2° hard cap, 55°C stop, Overload HOLD,
+  `disconnect(disable_torque=False)`는 유지한다.
+- smooth loop는 매 cycle Goal sync-write만 수행하고, 실제 Present/Goal/Moving은
+  0.1초마다 sparse read, Torque와 6축 Temperature/Overload는 약 1초마다 및 최종
+  cycle에 읽는다. telemetry schema v4는 command cadence와 feedback cadence를 분리해
+  분석하고 sparse Goal은 실제 register readback임을 기록한다.
+- 알려진 `home → red_above` delta의 기본 40Hz·20°/s quintic 계획은 186 command,
+  4.65 s, 최대 step `0.498898°`, hard-cap binding 0, direction reversal 0이다.
+  30/40/50Hz × 20/30/40°/s 9개 조합 모두 최대 step `<2°`, reversal 0을 확인했다.
+- 장비 없는 테스트는 fixed-demo/web `65/65`, sorter `31/31`, compile·diff check
+  PASS다. serial open과 motor command는 `0`; smooth live, run/web `--profile smooth`
+  연결, 속도 30/40 실기는 모두 `NOT_RUN/NOT_APPLIED`다.
+  [상세](sessions/2026-10-27-jitter-smooth-live-candidate.md).
+
 ## 2026-10-27 jitter-only 큰 동작 준비 — 오프라인·Jetson 배포 PASS, 실기 NOT_RUN
 
 - HOME/teaching/calibration/vision/basket/grasp, Torque/gain/IK/TCP를 변경하지 않고
   jitter 진단만 보강했다. cycle telemetry schema v3는 normalized/raw Goal·Present,
   Torque, Moving, write 시작/완료 시각과 write duration을 같은 cycle에 기록한다.
-- cubic absolute-deadline 외에 quintic `10t³−15t⁴+6t⁵`를 오프라인 비교 후보로
-  추가했다. quintic은 live profile에는 아직 연결하지 않았다. motion 완료 출력도
+- cubic absolute-deadline 외에 quintic `10t³−15t⁴+6t⁵`를 당시 오프라인 비교 후보로
+  추가했다. 이후 위 신규 항목에서 quintic을 motion-test live 후보에 연결했다. motion 완료 출력도
   encoder raw가 1 count 이상 변했는지와 외부 링크 영상 확인을 분리하며, 사용자
   영상 확인 전 PASS를 반환하지 않는다.
 - 비교 후보는 기존 성공 free-space 경로의 역방향인 `home → red_above`다. net delta는
@@ -50,6 +74,17 @@
   `--stable-hold-gap-raw`(10..40)를 추가해, 현재처럼 finish Goal과 wrist Present가
   14 raw 벌어진 정지 상태를 3초 안정성 검사 후 write 없이 사용할 수 있게 준비했다.
   실제 `finish/current → home` 재배치와 baseline motion은 아직 `NOT_RUN`이다.
+- 이후 승인된 감독 재배치 `current → home` ORIGINAL은 encoder 기준으로 실행됐다.
+  telemetry 58 sample에서 actual interval은 mean `0.1052506 s`, std `0.0002672 s`,
+  max `0.1058187 s`였고 planned 0.1 s deadline miss는 57회였다. write duration은
+  mean `0.0005560 s`, max `0.0007206 s`라 큰 랜덤 timing jitter보다 상대 sleep에
+  약 5.25 ms가 매 cycle 누적되는 구조가 관측됐다. elbow_flex는 max emitted step
+  `1.984°`, max Goal−Present `6.505°`였고 큰 동작 관절의 Present 속도 부호 반전은
+  0회였다. 최종 Present는 `[2096,1394,2260,2694,1613,1090]` raw로 저장 home의
+  elbow와 `+55 raw` 차이가 남았지만 기존 5° settle tolerance 안에서 완료 처리됐다.
+  사용자는 이후 외부 링크가 실제로 정상적인 home 방향으로 이동했고 떨림이 계속
+  보였다고 확인했다. physical motion은 확인됐지만 육안 등급은 `PRESENT_UNRATED`이며,
+  `home → red_above` 동일 구간 baseline과 SMOOTH는 여전히 `NOT_RUN`이다.
 
 ## 2026-10-27 jitter live A/B — ORIGINAL false positive, SMOOTH NOT_RUN
 

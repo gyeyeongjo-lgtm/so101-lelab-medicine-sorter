@@ -33,7 +33,9 @@ class DemoWebTests(unittest.TestCase):
             "motion-compare", "--from-pose", "home", "--to-pose", "finish"])
         motion = build_parser().parse_args([
             "motion-test", "--from-pose", "home", "--to-pose", "finish",
-            "--profile", "smooth", "--log", ".local/test.jsonl", "--step"])
+            "--profile", "smooth", "--control-hz", "40",
+            "--free-space-velocity", "20",
+            "--log", ".local/test.jsonl", "--step"])
         current = build_parser().parse_args([
             "motion-test", "--from-current", "--to-pose", "finish",
             "--profile", "original", "--log", ".local/current.jsonl", "--step"])
@@ -42,6 +44,8 @@ class DemoWebTests(unittest.TestCase):
         self.assertIsNone(compare.actual_log)
         self.assertEqual(motion.mode, "motion-test")
         self.assertEqual(motion.profile, "smooth")
+        self.assertEqual(motion.control_hz, 40)
+        self.assertEqual(motion.free_space_velocity, 20)
         self.assertEqual(motion.stable_hold_gap_raw, 10)
         self.assertTrue(motion.step)
         self.assertTrue(current.from_current)

@@ -7,6 +7,10 @@ from pathlib import Path
 from .config import load_config
 from .errors import SorterError
 from .fixed_demo import (compare_pose_motion, load_demo_settings,
+                         DEFAULT_FREE_SPACE_VELOCITY,
+                         DEFAULT_SMOOTH_CONTROL_HZ,
+                         FREE_SPACE_VELOCITY_CHOICES,
+                         SMOOTH_CONTROL_HZ_CHOICES,
                          parse_destination_rules, run_demo,
                          run_free_space_motion_test, save_roi_preview, teach)
 from .robot import (LiveRobotAdapter, MockRobotAdapter, RobotController,
@@ -61,6 +65,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="fresh HOLD 뒤 현재 자세를 시작점으로 고정합니다")
     motion_test_parser.add_argument("--to-pose", required=True)
     motion_test_parser.add_argument("--profile", choices=("original", "smooth"), required=True)
+    motion_test_parser.add_argument(
+        "--control-hz", type=int, choices=SMOOTH_CONTROL_HZ_CHOICES,
+        help=(f"smooth 전용 absolute-deadline 주기(기본 {DEFAULT_SMOOTH_CONTROL_HZ}Hz)"),
+    )
+    motion_test_parser.add_argument(
+        "--free-space-velocity", type=int, choices=FREE_SPACE_VELOCITY_CHOICES,
+        help=("smooth free-space arm 속도 상한; 첫 A/B는 "
+              f"기본 {DEFAULT_FREE_SPACE_VELOCITY}°/s 유지"),
+    )
     motion_test_parser.add_argument("--log", type=Path, required=True,
                                     help="덮어쓰지 않을 새 .jsonl 경로")
     motion_test_parser.add_argument("--step", action="store_true",
@@ -119,7 +132,9 @@ def main(argv=None, *, status_adapter_factory=None) -> int:
                 from_pose=args.from_pose, to_pose=args.to_pose,
                 from_current=args.from_current, motion_profile=args.profile,
                 log_path=args.log, step=args.step,
-                stable_hold_gap_raw=args.stable_hold_gap_raw)
+                stable_hold_gap_raw=args.stable_hold_gap_raw,
+                control_hz=args.control_hz,
+                free_space_velocity=args.free_space_velocity)
         elif args.mode == "web":
             if not 1 <= args.port <= 65535:
                 raise SorterError("web_port_invalid", args.port, "1..65535",

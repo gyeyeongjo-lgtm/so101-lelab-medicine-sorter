@@ -136,3 +136,44 @@ Jetson 첫 테스트 호출은 `tests.test_fixed_demo` 모듈 경로 방식이 P
 `ModuleNotFoundError`로 실패했다. 장비 접근 없는 실행 형식 오류였고, 동일 파일을
 `unittest discover`로 실행해 `54+6=60/60 PASS`를 확인했다. 실제 A/B는 현장 안전
 확인과 별도 실행 승인 전까지 실행하지 않는다.
+
+## 승인된 current → home 재배치 결과
+
+사용자가 승인한 감독 `motion-test --from-current --to-pose home --profile original
+--stable-hold-gap-raw 40` 재배치는 encoder telemetry 기준으로 완료됐다. 로그 경로는
+`.local/fixed-demo-motion/reposition-current-home-20261027-001.jsonl`이다. 이 구간은
+ORIGINAL baseline 자체가 아니라 baseline 시작 자세를 만들기 위한 별도 재배치다.
+
+```text
+samples = 58
+actual interval mean = 0.1052506 s
+actual interval std  = 0.0002672 s
+actual interval max  = 0.1058187 s
+deadline misses      = 57
+write duration mean  = 0.0005560 s
+write duration max   = 0.0007206 s
+```
+
+| joint | max emitted step | Present velocity sign reversals | max Goal−Present | Present raw start→final |
+|---|---:|---:|---:|---:|
+| shoulder_pan | 0.282° | 0 | 0.791° | 1976→2096 |
+| shoulder_lift | 1.300° | 0 | 1.758° | 822→1394 |
+| elbow_flex | 1.984° | 0 | 6.505° | 3078→2260 |
+| wrist_flex | 0.207° | 2 | 0.352° | 2605→2694 |
+| wrist_roll | 0.0045° | 1 | 0.176° | 1613→1613 |
+| gripper | 0° | 0 | 0° | 1090→1090 |
+
+58 sample의 모든 cycle telemetry에서 Torque는 6축 모두 1이었다. elbow_flex가
+2° hard cap 근처 step을 반복했고 추종 오차가 가장 컸다. 반면 command interval
+표준편차는 0.267 ms이고 write 자체는 평균 0.556 ms였으므로, 현재 로그는 큰 랜덤
+serial timing jitter보다 `relative sleep + 처리시간`의 일관된 약 5.25 ms 지연과
+큰 계단형 target/추종 지연을 더 강하게 뒷받침한다.
+
+저장 home raw는 `[2100,1394,2205,2696,1615,1089]`, 최종 Present는
+`[2096,1394,2260,2694,1613,1090]`이다. elbow가 home보다 `+55 raw`, 약 4.84°
+남았지만 기존 arm settle tolerance 5° 안이라 프로그램은 완료 처리했다. 이를
+완전한 home 정렬이나 jitter baseline PASS로 확대 해석하지 않는다.
+
+사용자가 외부 링크의 실제 이동, home 도착 모습, 육안 jitter 등급을 아직 확인하지
+않았으므로 상태는 `EXTERNAL_CONFIRMATION_REQUIRED`다. `home → red_above` ORIGINAL,
+smooth/quintic live는 모두 `NOT_RUN`이며 자동 연속 실행하지 않는다.
