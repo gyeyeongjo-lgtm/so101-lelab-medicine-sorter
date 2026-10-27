@@ -405,6 +405,33 @@ class FixedDemoTests(unittest.TestCase):
         self.assertEqual(result["hold"], "ALREADY_ON_NO_TOGGLE")
         self.assertEqual(bus.sent, [])
 
+    def test_supervised_hold_can_accept_stable_gap_without_any_write(self):
+        bus = FakeBus()
+        bus.registers["Goal_Position"] = dict(bus.registers["Present_Position"])
+        bus.registers["Goal_Position"]["wrist_flex"] -= 14
+        bus.registers["Torque_Enable"] = {joint: 1 for joint in JOINTS}
+        gate = StrictWriteGate(bus)
+        clock = Clock()
+        with self.assertRaisesRegex(RuntimeError, "already_on_goal_present_gap"):
+            establish_hold(bus, gate, sleep=clock.sleep, monotonic=clock.monotonic)
+        self.assertEqual(bus.sent, [])
+
+        clock = Clock()
+        result = establish_hold(
+            bus, gate, max_existing_goal_present_gap_raw=40,
+            sleep=clock.sleep, monotonic=clock.monotonic)
+        self.assertEqual(result["hold"], "ALREADY_ON_NO_TOGGLE")
+        self.assertEqual(result["max_existing_goal_present_gap_raw"], 40)
+        self.assertEqual(bus.sent, [])
+
+    def test_supervised_hold_gap_limit_cannot_exceed_forty_raw(self):
+        bus = FakeBus()
+        gate = StrictWriteGate(bus)
+        with self.assertRaisesRegex(
+                ValueError, "invalid_existing_goal_present_gap_tolerance"):
+            establish_hold(bus, gate, max_existing_goal_present_gap_raw=41)
+        self.assertEqual(bus.sent, [])
+
     def test_mixed_torque_fails_without_write(self):
         bus = FakeBus()
         bus.registers["Torque_Enable"]["gripper"] = 1

@@ -168,6 +168,12 @@ command/Present/Goal/Moving 원본 로그가
 Moving을 기록합니다. 이 명령은 현장 start/end pose가 확정되기 전에는 실행하지
 마세요.
 
+기본 already-ON Goal−Present gate는 기존 10 raw를 유지합니다. 감독
+`motion-test`에서만 `--stable-hold-gap-raw 10..40`을 명시할 수 있으며, 이 옵션은
+Goal이나 Torque를 쓰지 않습니다. 선택한 범위 안이어도 3초 동안 Torque ON,
+Moving 0, Goal 불변, Present drift 2 raw 이하와 온도 제한을 모두 통과해야 motion이
+무장됩니다.
+
 ```bash
 python3 -m medicine_sorter --config configs/system.example.json motion-test --from-pose FROM --to-pose TO --profile smooth --log .local/fixed-demo-motion/smooth-001.jsonl --step
 python3 -m medicine_sorter --config configs/system.example.json motion-compare --from-pose FROM --to-pose TO --actual-log .local/fixed-demo-motion/smooth-001.jsonl

@@ -65,6 +65,10 @@ def build_parser() -> argparse.ArgumentParser:
                                     help="덮어쓰지 않을 새 .jsonl 경로")
     motion_test_parser.add_argument("--step", action="store_true",
                                     help="현장 확인 Enter 후 한 구간만 실행합니다")
+    motion_test_parser.add_argument(
+        "--stable-hold-gap-raw", type=int, default=10,
+        help="감독 motion-test의 already-ON 정지 Goal−Present 허용치(10..40 raw, 기본 10)",
+    )
     web_parser = sub.add_parser("web", help="고정 데모 버튼 UI를 실행합니다")
     web_parser.add_argument("--port", type=int, default=8030,
                             help="같은 네트워크에 공개할 HTTP port (기본 8030)")
@@ -114,7 +118,8 @@ def main(argv=None, *, status_adapter_factory=None) -> int:
                 config, load_demo_settings(config),
                 from_pose=args.from_pose, to_pose=args.to_pose,
                 from_current=args.from_current, motion_profile=args.profile,
-                log_path=args.log, step=args.step)
+                log_path=args.log, step=args.step,
+                stable_hold_gap_raw=args.stable_hold_gap_raw)
         elif args.mode == "web":
             if not 1 <= args.port <= 65535:
                 raise SorterError("web_port_invalid", args.port, "1..65535",

@@ -125,6 +125,13 @@ PASS했다. state-change write는 0이고 종료는 `disconnect(disable_torque=F
 `finish → home` 재배치가 먼저 필요하다. wrist 14 raw gap을 임의 Goal sync하거나
 Torque toggle하지 않았으며, 이를 허용하려면 별도 안전 계약과 사용자 승인이 필요하다.
 
+기본 fixed-demo의 already-ON Goal−Present gate 10 raw는 변경하지 않았다. 감독
+`motion-test`에만 `--stable-hold-gap-raw 10..40` 옵션을 추가했다. 40 raw는 기존
+중력 처짐용 teach capture 허용치의 상한을 재사용하며 더 큰 값은 CLI/함수 양쪽에서
+거부한다. 선택 범위 안이어도 기존 3초 HOLD stability(Torque 전 축 ON, Moving 전 축
+0, Goal 불변, Present drift ≤2 raw, 온도 정상)를 통과해야 하고 이 과정의 Goal/Torque
+write는 0이다. 이 코드는 실제 재배치 승인이 아니며 live motion은 `NOT_RUN`이다.
+
 Jetson 첫 테스트 호출은 `tests.test_fixed_demo` 모듈 경로 방식이 Python 3.14에서
 `ModuleNotFoundError`로 실패했다. 장비 접근 없는 실행 형식 오류였고, 동일 파일을
 `unittest discover`로 실행해 `54+6=60/60 PASS`를 확인했다. 실제 A/B는 현장 안전

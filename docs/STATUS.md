@@ -46,6 +46,10 @@
   초과한다. 현재 Present는 저장 `finish`와 최대 14 raw 차이지만 `home`과는
   shoulder_lift `−572`, elbow_flex `+873 raw` 차이라 home이 아니다. 따라서 ORIGINAL
   jitter baseline은 여전히 `NOT_RUN`; 먼저 별도 `finish → home` 재배치가 필요하다.
+- fixed-demo 기본 already-ON gap 10 raw는 유지한다. 감독 `motion-test`에만 명시적인
+  `--stable-hold-gap-raw`(10..40)를 추가해, 현재처럼 finish Goal과 wrist Present가
+  14 raw 벌어진 정지 상태를 3초 안정성 검사 후 write 없이 사용할 수 있게 준비했다.
+  실제 `finish/current → home` 재배치와 baseline motion은 아직 `NOT_RUN`이다.
 
 ## 2026-10-27 jitter live A/B — ORIGINAL false positive, SMOOTH NOT_RUN
 

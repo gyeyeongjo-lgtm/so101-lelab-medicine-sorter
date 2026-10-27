@@ -51,6 +51,8 @@ MOTION_LOG_SCHEMA_VERSION = 3
 DEADLINE_MISS_TOLERANCE_S = 0.005
 GRIPPER_CONTACT_RELIEF_BIAS = 1.0
 TEACH_GOAL_PRESENT_RAW_TOLERANCE = 40
+DEFAULT_ALREADY_ON_GOAL_PRESENT_RAW_TOLERANCE = 10
+MAX_SUPERVISED_HOLD_GOAL_PRESENT_RAW_TOLERANCE = 40
 POST_GOAL_READ_DELAY_S = 0.2
 POST_GOAL_READ_RETRIES = 3
 VALID_BOTTLE_TYPES = {"A", "B", "C"}
@@ -1246,8 +1248,17 @@ class StrictWriteGate:
         self.pending = None
 
 
-def establish_hold(bus, writes: StrictWriteGate, *, sleep: Callable[[float], None] = time.sleep,
-                   monotonic: Callable[[], float] = time.monotonic) -> dict[str, Any]:
+def establish_hold(
+        bus, writes: StrictWriteGate, *,
+        max_existing_goal_present_gap_raw: int =
+        DEFAULT_ALREADY_ON_GOAL_PRESENT_RAW_TOLERANCE,
+        sleep: Callable[[float], None] = time.sleep,
+        monotonic: Callable[[], float] = time.monotonic,
+) -> dict[str, Any]:
+    if (type(max_existing_goal_present_gap_raw) is not int
+            or not 0 <= max_existing_goal_present_gap_raw
+            <= MAX_SUPERVISED_HOLD_GOAL_PRESENT_RAW_TOLERANCE):
+        raise ValueError("invalid_existing_goal_present_gap_tolerance")
     writes.mode = "atomic"
     present = _raw(bus, "Present_Position")
     torque = _raw(bus, "Torque_Enable")
@@ -1269,7 +1280,8 @@ def establish_hold(bus, writes: StrictWriteGate, *, sleep: Callable[[float], Non
             raise RuntimeError("mixed_torque_after_goal_write")
     elif set(torque.values()) == {1}:
         goal = _raw(bus, "Goal_Position")
-        if any(abs(goal[joint] - present[joint]) > 10 for joint in JOINTS):
+        if any(abs(goal[joint] - present[joint])
+               > max_existing_goal_present_gap_raw for joint in JOINTS):
             raise RuntimeError("already_on_goal_present_gap")
         hold_mode = "ALREADY_ON_NO_TOGGLE"
     else:
@@ -1293,7 +1305,12 @@ def establish_hold(bus, writes: StrictWriteGate, *, sleep: Callable[[float], Non
             break
         sleep(0.1)
     writes.arm_motion()
-    return {"hold": hold_mode, "samples": samples, "writes": dict(writes.counts)}
+    return {
+        "hold": hold_mode,
+        "samples": samples,
+        "writes": dict(writes.counts),
+        "max_existing_goal_present_gap_raw": max_existing_goal_present_gap_raw,
+    }
 
 
 def calibrated_bounds(robot) -> dict[str, tuple[float, float]]:
@@ -1809,12 +1826,22 @@ def execute_segment(session: HardwareSession, target: Mapping[str, float], setti
 def run_free_space_motion_test(
         config, settings: DemoSettings, *, from_pose: str | None, to_pose: str,
         from_current: bool = False, motion_profile: str, log_path: Path, step: bool,
+        stable_hold_gap_raw: int = DEFAULT_ALREADY_ON_GOAL_PRESENT_RAW_TOLERANCE,
         session_factory=HardwareSession,
         install_signal_handlers: bool = True,
 ) -> dict[str, Any]:
     if not step:
         raise _fail("motion_test_requires_step", False, "--step",
                     "짧은 free-space 시험은 현장 확인 후 단계 실행만 허용합니다")
+    if (type(stable_hold_gap_raw) is not int
+            or not DEFAULT_ALREADY_ON_GOAL_PRESENT_RAW_TOLERANCE
+            <= stable_hold_gap_raw <= MAX_SUPERVISED_HOLD_GOAL_PRESENT_RAW_TOLERANCE):
+        raise _fail(
+            "motion_test_stable_hold_gap_invalid", stable_hold_gap_raw,
+            (f"{DEFAULT_ALREADY_ON_GOAL_PRESENT_RAW_TOLERANCE}.."
+             f"{MAX_SUPERVISED_HOLD_GOAL_PRESENT_RAW_TOLERANCE} raw"),
+            "기본 10 raw를 쓰거나 감독 시험에서 명시적으로 최대 40 raw를 지정해 주세요",
+        )
     if motion_profile not in {"original", "smooth"}:
         raise _fail("motion_profile_invalid", motion_profile, "original or smooth",
                     "A/B 비교할 profile을 지정해 주세요")
@@ -1859,11 +1886,15 @@ def run_free_space_motion_test(
             "arm_only": True, "gripper_goal_change": False,
             "two_degree_hard_cap": settings.max_step_deg,
             "control_period_s": execution_settings.control_period_s,
+            "stable_hold_gap_raw": stable_hold_gap_raw,
         }, ensure_ascii=False, indent=2))
         input("팔 지지·free-space·즉시 정지 준비와 시작 자세를 확인했으면 Enter: ")
         session.connect()
         prestart_temperatures = verify_prestart_temperatures(session.follower.bus)
-        hold = establish_hold(session.follower.bus, session.writes)
+        hold = establish_hold(
+            session.follower.bus, session.writes,
+            max_existing_goal_present_gap_raw=stable_hold_gap_raw,
+        )
         motion_armed = True
         current = _positions(session.follower.bus)
         moving = _raw(session.follower.bus, "Moving")

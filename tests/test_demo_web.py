@@ -42,6 +42,7 @@ class DemoWebTests(unittest.TestCase):
         self.assertIsNone(compare.actual_log)
         self.assertEqual(motion.mode, "motion-test")
         self.assertEqual(motion.profile, "smooth")
+        self.assertEqual(motion.stable_hold_gap_raw, 10)
         self.assertTrue(motion.step)
         self.assertTrue(current.from_current)
         self.assertIsNone(current.from_pose)
