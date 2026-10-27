@@ -30,6 +30,11 @@
   사용자 영상 확인 전에는 motion PASS로 판정하지 않는다. absolute 30–50Hz,
   live quintic, serial read decimation, free-space 속도 상향과 run/web 연결은 이
   ORIGINAL 실측 결과가 나온 뒤 한 변수씩 적용하며 현재는 `NOT_APPLIED`다.
+- 첫 `home → red_above` ORIGINAL 시도는 실제 구간 실행 전에
+  `already_on_goal_present_gap`으로 중단됐다. Torque가 이미 ALL ON인 상태에서 한 축
+  이상의 raw `|Goal−Present| > 10`이므로 기존 안전 게이트가 Goal 덮어쓰기와 Torque
+  toggle을 모두 거부했다. `log_samples=0`, current HOLD write도 0이며 실제 motion은
+  `NOT_RUN`; 자동 재시도하지 않고 fresh read-only 상태로 문제 축을 먼저 식별한다.
 
 ## 2026-10-27 jitter live A/B — ORIGINAL false positive, SMOOTH NOT_RUN
 

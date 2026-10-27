@@ -80,6 +80,26 @@ absolute 30–50 Hz, live quintic, loop read decimation, free-space 전용 veloc
 `run --profile smooth`/web 연결은 baseline 로그를 분석하기 전에는 적용하지 않는다.
 따라서 현재 기본 fixed-demo 실행 경로와 gain/Torque/IK/calibration/TCP에는 변화가 없다.
 
+## ORIGINAL attempt 1 — pre-motion HOLD gate abort
+
+Jetson commit `c9c4f4b19a8dcf91eeb72977839e0f1dd942f692`에서 사용자가
+`home → red_above`, profile `original`, `--step`을 시작했다. 첫 현장 확인 뒤 serial
+session은 열렸지만 `establish_hold()`의 already-ON 분기에서
+`already_on_goal_present_gap`으로 중단됐다.
+
+- Torque: ALL ON으로 판정된 경로
+- gate: 적어도 한 축에서 raw `|Goal−Present| > 10`
+- Goal/Torque/motion write: `0/0/0`
+- telemetry samples: `0`
+- current-position HOLD write: `0` (`motion_armed` 전 실패)
+- physical motion: `NOT_RUN`
+- ORIGINAL baseline: `NOT_MEASURED`
+- SMOOTH/QUINTIC: `NOT_RUN`
+
+어느 축이 얼마나 벌어졌는지는 오류 payload에 포함되지 않아 아직 `UNKNOWN`이다.
+자동 재실행이나 임의 Goal sync를 하지 않고, 다음은 write 차단 fresh read-only status로
+Present/Goal/Torque/Moving/Temperature를 확인하는 단계다.
+
 Jetson 첫 테스트 호출은 `tests.test_fixed_demo` 모듈 경로 방식이 Python 3.14에서
 `ModuleNotFoundError`로 실패했다. 장비 접근 없는 실행 형식 오류였고, 동일 파일을
 `unittest discover`로 실행해 `54+6=60/60 PASS`를 확인했다. 실제 A/B는 현장 안전
