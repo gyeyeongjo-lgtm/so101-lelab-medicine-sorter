@@ -107,6 +107,24 @@ Present/Goal/Torque/Moving/Temperature를 확인하는 단계다.
 먼저 읽고 follower serial의 유일한 match만 연다. 0개 또는 중복 match는 serial open
 전에 fail-closed한다.
 
+수정 후 read-only status는 `/dev/ttyACM0`, serial `5AE6058306`에서 30/30 read로
+PASS했다. state-change write는 0이고 종료는 `disconnect(disable_torque=False)`다.
+
+| joint | Goal raw | Present raw | Goal−Present | Torque | Moving | °C |
+|---|---:|---:|---:|---:|---:|---:|
+| shoulder_pan | 1974 | 1976 | −2 | 1 | 0 | 32 |
+| shoulder_lift | 815 | 822 | −7 | 1 | 0 | 34 |
+| elbow_flex | 3081 | 3078 | +3 | 1 | 0 | 31 |
+| wrist_flex | 2591 | 2605 | −14 | 1 | 0 | 35 |
+| wrist_roll | 1613 | 1613 | 0 | 1 | 0 | 31 |
+| gripper | 1090 | 1090 | 0 | 1 | 0 | 34 |
+
+현재 Present와 저장 `finish` raw 차이는 `[+2,+7,−3,+14,0,−2]`로 현재가 finish임을
+확인했다. 반면 저장 `home`과의 차이는 `[−124,−572,+873,−91,−2,+1]`이다. 따라서
+`home → red_above` baseline을 바로 재시도할 수 없고, baseline과 분리된
+`finish → home` 재배치가 먼저 필요하다. wrist 14 raw gap을 임의 Goal sync하거나
+Torque toggle하지 않았으며, 이를 허용하려면 별도 안전 계약과 사용자 승인이 필요하다.
+
 Jetson 첫 테스트 호출은 `tests.test_fixed_demo` 모듈 경로 방식이 Python 3.14에서
 `ModuleNotFoundError`로 실패했다. 장비 접근 없는 실행 형식 오류였고, 동일 파일을
 `unittest discover`로 실행해 `54+6=60/60 PASS`를 확인했다. 실제 A/B는 현장 안전

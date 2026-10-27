@@ -40,6 +40,12 @@
   serial `5AE6058306`의 유일한 ACM match를 먼저 선택하도록 read-only adapter를
   수정했다. 이 변경은 port 선택만 바꾸며 motor/Goal/Torque/config write는 추가하지
   않는다.
+- 수정 후 read-only 상태는 follower `/dev/ttyACM0`, serial `5AE6058306`에서 PASS했다.
+  Torque는 6축 모두 ON, Moving은 모두 0, 온도는 31–35°C, state-change write는 0이다.
+  Goal−Present raw는 `[-2,-7,+3,-14,0,0]`으로 wrist_flex만 기존 10 raw gate를
+  초과한다. 현재 Present는 저장 `finish`와 최대 14 raw 차이지만 `home`과는
+  shoulder_lift `−572`, elbow_flex `+873 raw` 차이라 home이 아니다. 따라서 ORIGINAL
+  jitter baseline은 여전히 `NOT_RUN`; 먼저 별도 `finish → home` 재배치가 필요하다.
 
 ## 2026-10-27 jitter live A/B — ORIGINAL false positive, SMOOTH NOT_RUN
 
