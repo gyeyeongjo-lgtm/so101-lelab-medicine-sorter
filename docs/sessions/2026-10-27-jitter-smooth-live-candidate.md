@@ -82,6 +82,8 @@ Goal raw/normalized, Moving과 Goal−Present를 가진다. Torque/Temperature s
 - Python compile `PASS`
 - `git diff --check` `PASS`
 - serial open / motor command `0 / 0`
+- implementation commit `28acf6e9f2f68bc1b666ae40b691bba7d6b07df4`
+- GitHub `fix/usb-recording` push `PASS`
 
 ## 다음 gate
 

@@ -23,7 +23,8 @@
   30/40/50Hz × 20/30/40°/s 9개 조합 모두 최대 step `<2°`, reversal 0을 확인했다.
 - 장비 없는 테스트는 fixed-demo/web `65/65`, sorter `31/31`, compile·diff check
   PASS다. serial open과 motor command는 `0`; smooth live, run/web `--profile smooth`
-  연결, 속도 30/40 실기는 모두 `NOT_RUN/NOT_APPLIED`다.
+  연결, 속도 30/40 실기는 모두 `NOT_RUN/NOT_APPLIED`다. 구현 commit
+  `28acf6e9f2f68bc1b666ae40b691bba7d6b07df4`는 `fix/usb-recording`에 push됐다.
   [상세](sessions/2026-10-27-jitter-smooth-live-candidate.md).
 
 ## 2026-10-27 jitter-only 큰 동작 준비 — 오프라인·Jetson 배포 PASS, 실기 NOT_RUN
