@@ -9,8 +9,8 @@ from typing import Any, Callable, Mapping
 from urllib.parse import urlsplit
 
 from .errors import SorterError
-from .fixed_demo import (DemoSettings, VALID_BOTTLE_TYPES, VALID_DESTINATIONS,
-                         run_demo)
+from .fixed_demo import (DEFAULT_DEMO_MOTION_PROFILE, DemoSettings, MOTION_PROFILES,
+                         VALID_BOTTLE_TYPES, VALID_DESTINATIONS, run_demo)
 
 
 INDEX_HTML = """<!doctype html>
@@ -19,7 +19,7 @@ INDEX_HTML = """<!doctype html>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#10151c;color:#eef4fb;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:1100px;margin:auto;padding:22px}h1{margin:0 0 6px}.note{color:#b7c7d9}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px}.card{background:#18212b;border:1px solid #2c3b4b;border-radius:12px;padding:15px}.choices{display:flex;flex-wrap:wrap;gap:7px}.choices input{position:absolute;opacity:0}.choices label,.preset,button{border:1px solid #496176;background:#243343;color:#eef4fb;border-radius:9px;padding:10px 12px;cursor:pointer;font-weight:700}.choices input:checked+label{background:#1770bf;border-color:#5eb1ff}.actions{display:flex;gap:10px;flex-wrap:wrap;margin:15px 0}.primary{background:#1675c1}.stop{background:#b5202a;border-color:#ff6670;font-size:18px}.stop:disabled,button:disabled{opacity:.38;cursor:not-allowed}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#0b1117;border-radius:9px;padding:12px;min-height:64px}.stage{font-size:22px;font-weight:800;color:#8fd3ff}.ok{color:#82e6a7}.warn{color:#ffc66d}img{width:100%;min-height:220px;object-fit:contain;background:#05080b;border-radius:9px;border:1px solid #2c3b4b}
 </style></head><body><main>
-<h1>SO-101 약통 분류 데모</h1><p class="note">A=칸1 · B=칸2 · C=칸3 검증 배치 전용입니다. 실행 전 세 마커와 모터 온도 &lt;50°C를 자동 확인합니다.</p>
+<h1>SO-101 약통 분류 데모</h1><p class="note">A=칸1 · B=칸2 · C=칸3 검증 배치 전용입니다. 실행 전 세 마커와 모터 온도 &lt;50°C를 자동 확인합니다.</p><p class="ok">현재 motion profile: <strong id="profile">확인 중</strong></p>
 <section class="grid"><div class="card"><h2>분류 규칙</h2>
 <div id="rules"></div><h3>프리셋</h3><div class="choices">
 <button class="preset" data-rules="A=blue,B=red,C=green">A→파랑 B→빨강 C→초록</button>
@@ -39,7 +39,7 @@ async function post(path){const r=await fetch(path,{method:'POST',headers:{'Cont
 document.querySelector('#plan').onclick=async()=>{try{const d=await post('/api/plan');document.querySelector('#plan-result').textContent=JSON.stringify(d,null,2)}catch(e){document.querySelector('#error').textContent=JSON.stringify(e,null,2)}};
 document.querySelector('#run').onclick=async()=>{try{const d=await post('/api/run');document.querySelector('#plan-result').textContent=JSON.stringify(d,null,2)}catch(e){document.querySelector('#error').textContent=JSON.stringify(e,null,2)}};
 document.querySelector('#stop').onclick=async()=>{try{const r=await fetch('/api/stop',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});document.querySelector('#error').textContent=JSON.stringify(await r.json(),null,2)}catch(e){document.querySelector('#error').textContent=String(e)}};
-async function poll(){try{const r=await fetch('/api/status',{cache:'no-store'}),d=await r.json(),busy=d.running===true;for(const id of ['plan','run'])document.querySelector('#'+id).disabled=busy;for(const x of document.querySelectorAll('input,.preset'))x.disabled=busy;document.querySelector('#stop').disabled=!busy;document.querySelector('#stage').textContent=d.stage?(d.stage_index+'/'+d.stage_count+' '+d.stage):d.status;document.querySelector('#temps').textContent=d.temperatures_c?JSON.stringify(d.temperatures_c,null,2):'아직 읽지 않음';document.querySelector('#error').textContent=d.last_error?JSON.stringify(d.last_error,null,2):'없음';document.querySelector('#cooldown').textContent=d.cooldown_notice||'';if(d.last_plan)document.querySelector('#plan-result').textContent=JSON.stringify(d.last_plan,null,2)}catch(e){document.querySelector('#error').textContent=String(e)}}
+async function poll(){try{const r=await fetch('/api/status',{cache:'no-store'}),d=await r.json(),busy=d.running===true;for(const id of ['plan','run'])document.querySelector('#'+id).disabled=busy;for(const x of document.querySelectorAll('input,.preset'))x.disabled=busy;document.querySelector('#stop').disabled=!busy;document.querySelector('#profile').textContent=d.motion_profile||'알 수 없음';document.querySelector('#stage').textContent=d.stage?(d.stage_index+'/'+d.stage_count+' '+d.stage):d.status;document.querySelector('#temps').textContent=d.temperatures_c?JSON.stringify(d.temperatures_c,null,2):'아직 읽지 않음';document.querySelector('#error').textContent=d.last_error?JSON.stringify(d.last_error,null,2):'없음';document.querySelector('#cooldown').textContent=d.cooldown_notice||'';if(d.last_plan)document.querySelector('#plan-result').textContent=JSON.stringify(d.last_plan,null,2)}catch(e){document.querySelector('#error').textContent=String(e)}}
 const camera='http://'+location.hostname+':8020/stream.mjpg';document.querySelector('#camera').src=camera;document.querySelector('#camera-link').href='http://'+location.hostname+':8020/';poll();setInterval(poll,500);
 </script></main></body></html>"""
 
@@ -67,9 +67,13 @@ def parse_web_rules(payload: Any) -> dict[str, str]:
 
 class DemoWebController:
     def __init__(self, config, settings: DemoSettings, *,
+                 motion_profile: str = DEFAULT_DEMO_MOTION_PROFILE,
                  run_function: Callable[..., dict[str, Any]] = run_demo):
+        if motion_profile not in MOTION_PROFILES:
+            raise ValueError(f"motion_profile_invalid:{motion_profile}")
         self.config = config
         self.settings = settings
+        self.motion_profile = motion_profile
         self.run_function = run_function
         self.lock = threading.Lock()
         self.stop_event = threading.Event()
@@ -78,7 +82,7 @@ class DemoWebController:
             "status": "IDLE", "running": False, "stage": None,
             "stage_index": 0, "stage_count": 0, "temperatures_c": None,
             "last_error": None, "last_plan": None, "last_result": None,
-            "cooldown_notice": None,
+            "cooldown_notice": None, "motion_profile": motion_profile,
         }
 
     def snapshot(self) -> dict[str, Any]:
@@ -107,7 +111,8 @@ class DemoWebController:
                                   "현재 실행이 끝난 뒤 계획을 확인해 주세요")
         try:
             result = self.run_function(
-                self.config, self.settings, dry_run=True, step=False, auto=False, rules=rules)
+                self.config, self.settings, dry_run=True, step=False, auto=False,
+                motion_profile=self.motion_profile, rules=rules)
         except SorterError as error:
             self._remember_error(error)
             raise
@@ -134,13 +139,15 @@ class DemoWebController:
             self.thread = threading.Thread(target=self._worker, args=(rules,),
                                            name="fixed-demo-auto-run", daemon=True)
             self.thread.start()
-        return {"status": "STARTED", "rules": rules}
+        return {"status": "STARTED", "rules": rules,
+                "motion_profile": self.motion_profile}
 
     def _worker(self, rules: Mapping[str, str]) -> None:
         try:
             result = self.run_function(
                 self.config, self.settings, dry_run=False, step=False, auto=True,
-                rules=rules, progress_callback=self._progress,
+                motion_profile=self.motion_profile, rules=rules,
+                progress_callback=self._progress,
                 stop_requested=self.stop_event.is_set, install_signal_handlers=False)
         except SorterError as error:
             with self.lock:
@@ -244,13 +251,15 @@ def make_handler(controller: DemoWebController):
 
 
 def serve_demo_web(config, settings: DemoSettings, *, port: int,
+                   motion_profile: str = DEFAULT_DEMO_MOTION_PROFILE,
                    host: str = "0.0.0.0",
                    controller: DemoWebController | None = None,
                    server_factory=ThreadingHTTPServer) -> None:
-    active_controller = controller or DemoWebController(config, settings)
+    active_controller = controller or DemoWebController(
+        config, settings, motion_profile=motion_profile)
     server = server_factory((host, port), make_handler(active_controller))
     server.daemon_threads = True
-    print(f"SO-101 fixed demo web: http://{host}:{port}/")
+    print(f"SO-101 fixed demo web ({active_controller.motion_profile}): http://{host}:{port}/")
     try:
         server.serve_forever(poll_interval=0.25)
     except KeyboardInterrupt:

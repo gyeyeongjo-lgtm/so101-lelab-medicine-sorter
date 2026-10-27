@@ -19,14 +19,22 @@ class DemoWebTests(unittest.TestCase):
 
     def test_cli_has_auto_and_web_8030(self):
         auto = build_parser().parse_args(["run", "--auto", "--rule", "A=blue"])
+        original = build_parser().parse_args([
+            "run", "--step", "--profile", "original", "--rule", "A=blue"])
         warm = build_parser().parse_args(
             ["run", "--step", "--warm-start-once", "--rule", "A=green"])
         web = build_parser().parse_args(["web", "--port", "8030"])
+        web_original = build_parser().parse_args([
+            "web", "--port", "8030", "--profile", "original"])
         self.assertTrue(auto.auto)
+        self.assertEqual(auto.profile, "smooth")
+        self.assertEqual(original.profile, "original")
         self.assertTrue(warm.step)
         self.assertTrue(warm.warm_start_once)
         self.assertEqual(web.mode, "web")
         self.assertEqual(web.port, 8030)
+        self.assertEqual(web.profile, "smooth")
+        self.assertEqual(web_original.profile, "original")
 
     def test_cli_has_offline_compare_and_single_segment_motion_test(self):
         compare = build_parser().parse_args([
@@ -67,7 +75,8 @@ class DemoWebTests(unittest.TestCase):
     def test_html_contains_controls_status_and_camera(self):
         for required in ("계획 확인", "정지 — 현재 위치 HOLD", "/api/run",
                          "/api/stop", "stage_index", "temperatures_c",
-                         "8020/stream.mjpg", "전원을 뽑고 식히세요"):
+                         "8020/stream.mjpg", "전원을 뽑고 식히세요",
+                         "현재 motion profile", "d.motion_profile"):
             self.assertIn(required, INDEX_HTML)
 
     def test_plan_is_camera_only_contract_and_start_is_auto(self):
@@ -93,8 +102,26 @@ class DemoWebTests(unittest.TestCase):
         self.assertEqual(state["status"], "COMPLETE")
         self.assertEqual(state["temperatures_c"], {"gripper": 33})
         self.assertEqual(state["cooldown_notice"], "전원을 뽑고 식히세요")
+        self.assertEqual(state["motion_profile"], "smooth")
+        self.assertEqual(calls[0]["motion_profile"], "smooth")
+        self.assertEqual(calls[1]["motion_profile"], "smooth")
         self.assertTrue(calls[1]["auto"])
         self.assertFalse(calls[1]["install_signal_handlers"])
+
+    def test_web_original_profile_is_explicit_rollback(self):
+        calls = []
+
+        def fake_run(_config, _settings, **kwargs):
+            calls.append(kwargs)
+            return {"status": "FIXED_DEMO_PLAN", "routes": []}
+
+        controller = DemoWebController(
+            self.config, self.settings, motion_profile="original",
+            run_function=fake_run)
+        result = controller.plan({"A": "blue"})
+        self.assertEqual(result["status"], "FIXED_DEMO_PLAN")
+        self.assertEqual(controller.snapshot()["motion_profile"], "original")
+        self.assertEqual(calls[0]["motion_profile"], "original")
 
     def test_stop_sets_event_and_worker_reports_stopped(self):
         entered = threading.Event()

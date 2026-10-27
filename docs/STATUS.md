@@ -2,6 +2,25 @@
 
 업데이트: 2026-10-27
 
+## 2026-10-27 fixed-demo smooth 기본 전환 — 구현·오프라인 PASS, 통합 live NOT_RUN
+
+- 사용자가 `motion-test`의 `home → red_above` SMOOTH
+  (shared quintic, absolute deadline, 40Hz, 20°/s)에서 ORIGINAL보다 떨림이 육안으로
+  확실히 개선됐다고 확인했다(`USER_REPORTED_PASS`). 추가 실기 없이 이 검증 profile을
+  `run --step`, `run --auto`, web 실행의 기본값으로 연결했다.
+- `run`과 `web`은 기본 `--profile smooth`이며, 필요하면 각각
+  `--profile original`로 기존 fixed-demo cubic/relative-sleep 실행기로 되돌릴 수 있다.
+  dry-run 계획, 실행 결과, web 상태/API와 화면에 현재 motion profile을 표시한다.
+- smooth fixed-demo는 모든 stage에서 quintic absolute-deadline 40Hz, arm 20°/s를
+  사용한다. 기존 2° hard cap, 시작 온도 `<50°C`, 실행 중 55°C stop,
+  servo Overload fault HOLD, CLI Ctrl+C HOLD, web 정지 버튼 HOLD,
+  `disconnect(disable_torque=False)`는 변경하지 않았다.
+- 장비 없는 검증은 fixed-demo/web `69/69`, sorter `31/31`, CLI help, compile 및
+  `git diff --check` PASS다. 검증 중 serial open과 motor command는 0이다. 기본 전환
+  이후 전체 pick-and-place와 web live는 사용자의 요청대로 추가 시험하지 않아
+  `NOT_RUN`; 기존 사용자 성공 경로와 pose/calibration/gain/IK/TCP는 변경하지 않았다.
+  [상세](sessions/2026-10-27-fixed-demo-smooth-default.md).
+
 ## 2026-10-27 ORIGINAL 재시도 연결 실패 — 원인 수정·오프라인 PASS, live 재시험 NOT_RUN
 
 - Jetson commit `364281456709fd1c5bfb01a4ef174532c8c8e39a`에서 승인된

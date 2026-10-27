@@ -7,9 +7,11 @@ from pathlib import Path
 from .config import load_config
 from .errors import SorterError
 from .fixed_demo import (compare_actual_motion_logs, compare_pose_motion, load_demo_settings,
+                         DEFAULT_DEMO_MOTION_PROFILE,
                          DEFAULT_FREE_SPACE_VELOCITY,
                          DEFAULT_SMOOTH_CONTROL_HZ,
                          FREE_SPACE_VELOCITY_CHOICES,
+                         MOTION_PROFILES,
                          SMOOTH_CONTROL_HZ_CHOICES,
                          parse_destination_rules, run_demo,
                          run_free_space_motion_test, save_roi_preview, teach)
@@ -47,6 +49,10 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--rule", nargs="+", metavar="TYPE=COLOR",
                             help="예: --rule C=green B=red A=blue")
     run_parser.add_argument(
+        "--profile", choices=MOTION_PROFILES, default=DEFAULT_DEMO_MOTION_PROFILE,
+        help="동작 profile (기본 smooth 40Hz·20°/s, 기존 방식은 original)",
+    )
+    run_parser.add_argument(
         "--warm-start-once", action="store_true",
         help="감독 --step 1회에서만 시작 온도 50–51°C를 허용합니다(실행 중 55°C 제한 유지)",
     )
@@ -68,7 +74,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--from-current", action="store_true",
         help="fresh HOLD 뒤 현재 자세를 시작점으로 고정합니다")
     motion_test_parser.add_argument("--to-pose", required=True)
-    motion_test_parser.add_argument("--profile", choices=("original", "smooth"), required=True)
+    motion_test_parser.add_argument("--profile", choices=MOTION_PROFILES, required=True)
     motion_test_parser.add_argument(
         "--control-hz", type=int, choices=SMOOTH_CONTROL_HZ_CHOICES,
         help=(f"smooth 전용 absolute-deadline 주기(기본 {DEFAULT_SMOOTH_CONTROL_HZ}Hz)"),
@@ -89,6 +95,10 @@ def build_parser() -> argparse.ArgumentParser:
     web_parser = sub.add_parser("web", help="고정 데모 버튼 UI를 실행합니다")
     web_parser.add_argument("--port", type=int, default=8030,
                             help="같은 네트워크에 공개할 HTTP port (기본 8030)")
+    web_parser.add_argument(
+        "--profile", choices=MOTION_PROFILES, default=DEFAULT_DEMO_MOTION_PROFILE,
+        help="웹 실행 profile (기본 smooth 40Hz·20°/s, 기존 방식은 original)",
+    )
     mock = sub.add_parser("mock-run", help="저장 scene으로 전체 상태 흐름을 시험합니다")
     mock.add_argument("--scene", type=Path, required=True)
     mock.add_argument("--command", required=True)
@@ -124,7 +134,8 @@ def main(argv=None, *, status_adapter_factory=None) -> int:
             rules = parse_destination_rules(args.rule, settings.destinations)
             payload = run_demo(config, settings, dry_run=args.dry_run,
                                step=args.step, auto=args.auto,
-                               warm_start_once=args.warm_start_once, rules=rules)
+                               warm_start_once=args.warm_start_once,
+                               motion_profile=args.profile, rules=rules)
         elif args.mode == "motion-compare":
             payload = compare_pose_motion(
                 config, load_demo_settings(config),
@@ -146,8 +157,10 @@ def main(argv=None, *, status_adapter_factory=None) -> int:
                 raise SorterError("web_port_invalid", args.port, "1..65535",
                                   "사용 가능한 port를 지정해 주세요")
             from .web import serve_demo_web
-            serve_demo_web(config, load_demo_settings(config), port=args.port)
-            payload = {"status": "WEB_STOPPED", "host": "0.0.0.0", "port": args.port}
+            serve_demo_web(config, load_demo_settings(config), port=args.port,
+                           motion_profile=args.profile)
+            payload = {"status": "WEB_STOPPED", "host": "0.0.0.0", "port": args.port,
+                       "motion_profile": args.profile}
         elif args.mode == "mock-run":
             app = SorterApplication(config, RobotController(MockRobotAdapter()))
             payload = app.run_recorded_mock(args.command, args.scene).as_dict()

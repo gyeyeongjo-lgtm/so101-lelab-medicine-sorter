@@ -51,6 +51,8 @@ SMOOTH_CONTROL_HZ_CHOICES = (30, 40, 50)
 DEFAULT_SMOOTH_CONTROL_HZ = 40
 FREE_SPACE_VELOCITY_CHOICES = (20, 30, 40)
 DEFAULT_FREE_SPACE_VELOCITY = 20
+MOTION_PROFILES = ("original", "smooth")
+DEFAULT_DEMO_MOTION_PROFILE = "smooth"
 SMOOTH_FEEDBACK_PERIOD_S = 0.1
 SMOOTH_SAFETY_PERIOD_S = 1.0
 MOTION_LOG_SCHEMA_VERSION = 4
@@ -1994,7 +1996,7 @@ def execute_segment(session: HardwareSession, target: Mapping[str, float], setti
                     sleep: Callable[[float], None] = time.sleep,
                     monotonic: Callable[[], float] = time.monotonic,
                     stop_requested: Callable[[], bool] = lambda: False) -> dict[str, Any]:
-    if motion_profile not in {"original", "smooth"}:
+    if motion_profile not in MOTION_PROFILES:
         raise ValueError(f"motion_profile_invalid:{motion_profile}")
     ensure_in_bounds(target, session.bounds)
     start = _positions(session.follower.bus)
@@ -2058,7 +2060,7 @@ def run_free_space_motion_test(
              f"{MAX_SUPERVISED_HOLD_GOAL_PRESENT_RAW_TOLERANCE} raw"),
             "기본 10 raw를 쓰거나 감독 시험에서 명시적으로 최대 60 raw를 지정해 주세요",
         )
-    if motion_profile not in {"original", "smooth"}:
+    if motion_profile not in MOTION_PROFILES:
         raise _fail("motion_profile_invalid", motion_profile, "original or smooth",
                     "A/B 비교할 profile을 지정해 주세요")
     if motion_profile == "original" and (control_hz is not None or
@@ -2250,6 +2252,7 @@ def run_free_space_motion_test(
 def run_demo(config, settings: DemoSettings, *, dry_run: bool, step: bool,
              auto: bool = False,
              warm_start_once: bool = False,
+             motion_profile: str = DEFAULT_DEMO_MOTION_PROFILE,
              rules: Mapping[str, str] | None = None,
              snapshot_loader: Callable[[str], dict[str, Any]] = fetch_snapshot,
              session_factory=HardwareSession,
@@ -2265,6 +2268,20 @@ def run_demo(config, settings: DemoSettings, *, dry_run: bool, step: bool,
     if warm_start_once and not step:
         raise _fail("warm_start_requires_supervised_step", True, "--step",
                     "50–51°C 1회 시작은 터미널 --step에서만 사용해 주세요")
+    if motion_profile not in MOTION_PROFILES:
+        raise _fail("motion_profile_invalid", motion_profile, "original or smooth",
+                    "smooth를 사용하거나 기존 방식은 --profile original로 선택해 주세요")
+    if motion_profile == "smooth":
+        smooth_velocity = dict(settings.velocity)
+        smooth_velocity.update({joint: float(DEFAULT_FREE_SPACE_VELOCITY)
+                                for joint in ARM_JOINTS})
+        execution_settings = replace(
+            settings,
+            control_period_s=1.0 / DEFAULT_SMOOTH_CONTROL_HZ,
+            velocity=smooth_velocity,
+        )
+    else:
+        execution_settings = settings
     prestart_temperature_limit = (
         WARM_START_MAX_TEMPERATURE_C_EXCLUSIVE
         if warm_start_once else PRESTART_MAX_TEMPERATURE_C_EXCLUSIVE
@@ -2291,6 +2308,15 @@ def run_demo(config, settings: DemoSettings, *, dry_run: bool, step: bool,
         "motor_command": 0,
         "prestart_temperature_limit_c_exclusive": prestart_temperature_limit,
         "warm_start_once": warm_start_once,
+        "motion_profile": motion_profile,
+        "control_hz": (DEFAULT_SMOOTH_CONTROL_HZ if motion_profile == "smooth" else
+                       round(1.0 / execution_settings.control_period_s)),
+        "trajectory_curve": "quintic" if motion_profile == "smooth" else "cubic",
+        "deadline_mode": ("absolute_deadline_skip_expired_ticks"
+                          if motion_profile == "smooth" else "relative_sleep"),
+        "arm_velocity_limit_deg_s": (
+            DEFAULT_FREE_SPACE_VELOCITY if motion_profile == "smooth" else
+            execution_settings.velocity["shoulder_pan"]),
     }
     if dry_run:
         return result
@@ -2335,7 +2361,7 @@ def run_demo(config, settings: DemoSettings, *, dry_run: bool, step: bool,
         )
         latest_temperatures = prestart_temperatures
         progress({"status": "PRESTART_PASS", "temperatures_c": prestart_temperatures,
-                  "marker_layout": marker_layout})
+                  "marker_layout": marker_layout, "motion_profile": motion_profile})
         if stop_requested():
             raise KeyboardInterrupt
         hold = establish_hold(session.follower.bus, session.writes)
@@ -2352,8 +2378,10 @@ def run_demo(config, settings: DemoSettings, *, dry_run: bool, step: bool,
                 raise KeyboardInterrupt
             progress({"status": "RUNNING", "stage_index": index,
                       "stage_count": len(stages), "stage": stage,
-                      "temperatures_c": latest_temperatures})
-            segment = execute_segment(session, target, settings, stage=stage,
+                      "temperatures_c": latest_temperatures,
+                      "motion_profile": motion_profile})
+            segment = execute_segment(session, target, execution_settings, stage=stage,
+                                      motion_profile=motion_profile,
                                       stop_requested=lambda: stopping or stop_requested())
             current = dict(segment["final_target"])
             latest_temperatures = segment["temperatures_c"]
@@ -2368,7 +2396,8 @@ def run_demo(config, settings: DemoSettings, *, dry_run: bool, step: bool,
                        "contact_reliefs": contact_reliefs})
         progress({"status": "COMPLETE", "stage_index": len(stages),
                   "stage_count": len(stages), "stage": stages[-1],
-                  "temperatures_c": latest_temperatures})
+                  "temperatures_c": latest_temperatures,
+                  "motion_profile": motion_profile})
         return result
     except KeyboardInterrupt:
         connected = session.follower is not None and session.writes is not None

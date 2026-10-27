@@ -1209,6 +1209,20 @@ class FixedDemoTests(unittest.TestCase):
         self.assertEqual(result["motor_command"], 0)
         self.assertEqual(result["destination_rules"], {"A": "green", "C": "blue"})
         self.assertEqual(result["marker_layout_preflight"]["status"], "PASS")
+        self.assertEqual(result["motion_profile"], "smooth")
+        self.assertEqual(result["control_hz"], 40)
+        self.assertEqual(result["trajectory_curve"], "quintic")
+        self.assertEqual(result["deadline_mode"], "absolute_deadline_skip_expired_ticks")
+        self.assertEqual(result["arm_velocity_limit_deg_s"], 20)
+
+        original = run_demo(
+            self.config, self.settings, dry_run=True, step=False,
+            motion_profile="original", rules={"A": "green"},
+            snapshot_loader=lambda _url: snapshot(), session_factory=forbidden_factory)
+        self.assertEqual(original["motion_profile"], "original")
+        self.assertEqual(original["control_hz"], 20)
+        self.assertEqual(original["trajectory_curve"], "cubic")
+        self.assertEqual(original["deadline_mode"], "relative_sleep")
 
     def test_marker_layout_mismatch_blocks_before_session(self):
         def forbidden_factory(*_args, **_kwargs):
@@ -1241,8 +1255,16 @@ class FixedDemoTests(unittest.TestCase):
 
         poses = {name: {joint: 2000.0 for joint in JOINTS} for name in ALL_POSE_NAMES}
         progress = []
+        segment_calls = []
 
-        def fake_segment(_session, target, _settings, *, stage, **_kwargs):
+        def fake_segment(_session, target, _settings, *, stage, **kwargs):
+            segment_calls.append({
+                "stage": stage,
+                "motion_profile": kwargs["motion_profile"],
+                "control_period_s": _settings.control_period_s,
+                "max_step_deg": _settings.max_step_deg,
+                "arm_velocity": _settings.velocity["shoulder_pan"],
+            })
             return {"final_target": dict(target), "contact_relief": None,
                     "temperatures_c": {joint: 31 for joint in JOINTS}}
 
@@ -1261,6 +1283,11 @@ class FixedDemoTests(unittest.TestCase):
         self.assertEqual(running[-2]["stage"], "home")
         self.assertEqual(running[-1]["stage"], "finish")
         self.assertEqual(result["status"], "FIXED_DEMO_COMPLETE")
+        self.assertEqual(result["motion_profile"], "smooth")
+        self.assertTrue(all(call["motion_profile"] == "smooth" for call in segment_calls))
+        self.assertTrue(all(call["control_period_s"] == 0.025 for call in segment_calls))
+        self.assertTrue(all(call["max_step_deg"] == 2.0 for call in segment_calls))
+        self.assertTrue(all(call["arm_velocity"] == 20.0 for call in segment_calls))
         self.assertEqual(result["prestart_temperatures_c"],
                          {joint: 30 for joint in JOINTS})
         self.assertEqual(result["final_temperatures_c"],
