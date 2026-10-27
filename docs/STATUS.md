@@ -2,6 +2,27 @@
 
 업데이트: 2026-10-27
 
+## 2026-10-27 ORIGINAL 재시도 연결 실패 — 원인 수정·오프라인 PASS, live 재시험 NOT_RUN
+
+- Jetson commit `364281456709fd1c5bfb01a4ef174532c8c8e39a`에서 승인된
+  `current → red_above` ORIGINAL을 시작했으나, 첫 Enter 뒤 follower 연결 준비 중
+  motor ID1 `Min_Position_Limit` read가 `There is no status packet!`으로 실패했다.
+  HOLD와 trajectory 실행 전이므로 `log_samples=0`, actual motion은 `NOT_RUN`이다.
+  write gate가 이미 닫힌 상태였고 motion arm 전이라 Goal/Torque/config/motion write와
+  current HOLD는 모두 0이다. 자동 재시도하지 않았다.
+- 원인은 `calibrated_bounds()`가 이미 로드된 calibration의 존재를 확인하려고
+  LeRobot `bus.is_calibrated`를 호출한 것이다. 이 property는 저장 값을 보는 단순
+  검사와 달리 각 motor의 Min/Max position register를 live read한다.
+- follower 경로는 이제 장치 Min/Max를 다시 읽지 않고 메모리에 로드된 정확한 6축
+  `bus.calibration`, 6축 motor mapping, raw endpoint 및 `_normalize` 변환만 엄격히
+  검사한다. 값이 없거나 불완전·중복·비정상이면 모터 명령 전에 fail-closed한다.
+  calibration 값·normalization·gain·Torque·IK·TCP는 변경하지 않았다. leader teach
+  경로는 이번 jitter 시험 범위가 아니므로 변경하지 않았다.
+- 회귀 검증은 fixed-demo/web `68/68`, sorter `31/31`, compile·diff check PASS다.
+  live-limit read를 발생시키는 `is_calibrated` property가 0회 호출되는 전용 테스트와
+  불완전 저장 calibration fail-closed 테스트를 포함한다. 검증 중 serial open과 motor
+  command는 0; 새 JSONL을 쓰는 ORIGINAL 재시험은 `NOT_RUN`이다.
+
 ## 2026-10-27 감독 A/B 절차 변경 — 구현·오프라인 PASS, live NOT_RUN
 
 - 사용자가 현재 외부 자세를 home으로 직접 확인하고 elbow `43 raw` residual을

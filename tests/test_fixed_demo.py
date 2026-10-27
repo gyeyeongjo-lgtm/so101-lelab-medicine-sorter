@@ -17,6 +17,7 @@ from medicine_sorter.fixed_demo import (
     SMOOTH_FEEDBACK_PERIOD_S, SMOOTH_SAFETY_PERIOD_S,
     StrictWriteGate,
     analyze_motion_rows, clamp_to_calibrated_inner_range,
+    calibrated_bounds,
     compare_actual_motion_logs, compare_pose_motion,
     establish_hold, load_demo_settings,
     execute_segment, load_partial_pose_file, load_pose_records, parse_destination_rules,
@@ -114,6 +115,45 @@ class FixedDemoTests(unittest.TestCase):
         self.assertEqual(self.settings.roi_status, "verified")
         self.assertEqual(self.settings.expected_bottle_slots,
                          {"A": "slot1", "B": "slot2", "C": "slot3"})
+
+    def test_calibrated_bounds_uses_loaded_calibration_without_live_limit_reads(self):
+        class CalibrationOnlyBus:
+            def __init__(self):
+                self.motors = {
+                    joint: SimpleNamespace(id=index + 1)
+                    for index, joint in enumerate(JOINTS)
+                }
+                self.calibration = {
+                    joint: SimpleNamespace(range_min=100, range_max=3900)
+                    for joint in JOINTS
+                }
+                self.live_limit_reads = 0
+
+            @property
+            def is_calibrated(self):
+                self.live_limit_reads += 1
+                raise AssertionError("is_calibrated performs forbidden live limit reads")
+
+            def _normalize(self, values):
+                return {motor_id: (raw - 2000) / 10.0
+                        for motor_id, raw in values.items()}
+
+        bus = CalibrationOnlyBus()
+        bounds = calibrated_bounds(SimpleNamespace(bus=bus))
+        self.assertEqual(bus.live_limit_reads, 0)
+        self.assertEqual(set(bounds), set(JOINTS))
+        self.assertTrue(all(value == (-190.0, 190.0) for value in bounds.values()))
+
+    def test_calibrated_bounds_fails_closed_on_incomplete_loaded_calibration(self):
+        bus = SimpleNamespace(
+            motors={joint: SimpleNamespace(id=index + 1)
+                    for index, joint in enumerate(JOINTS)},
+            calibration={joint: SimpleNamespace(range_min=100, range_max=3900)
+                         for joint in JOINTS if joint != "elbow_flex"},
+            _normalize=lambda values: values,
+        )
+        with self.assertRaisesRegex(RuntimeError, "stored_calibration_not_loaded"):
+            calibrated_bounds(SimpleNamespace(bus=bus))
 
     def test_verified_three_bottle_layout_passes_and_mismatch_reports_reason(self):
         layout = verify_expected_marker_layout(snapshot(), self.settings)

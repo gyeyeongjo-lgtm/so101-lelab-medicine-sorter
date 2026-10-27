@@ -158,3 +158,44 @@ max step, max Goal−Present, Present velocity reversal과 시작·종료 encode
 오프라인 검증은 fixed-demo `60/60`, web `6/6`, sorter `31/31`, compile 및
 `git diff --check` PASS다. 이번 변경의 serial open과 motor command는 `0`;
 새 live ORIGINAL/SMOOTH는 `NOT_RUN`이다.
+
+## ORIGINAL current → red_above 연결 준비 실패와 수정
+
+Jetson을 commit `364281456709fd1c5bfb01a4ef174532c8c8e39a`로 갱신한 뒤 사용자가
+`--from-current --to-pose red_above --profile original --stable-hold-gap-raw 60`
+시험을 시작했다. 첫 현장 확인 Enter 뒤 다음 오류로 중단됐다.
+
+```text
+Failed to read 'Min_Position_Limit' on id_=1 after 1 tries.
+[TxRxResult] There is no status packet!
+```
+
+실패 시점은 `HardwareSession.connect()`의 저장 calibration bounds 준비 단계다.
+`calibrated_bounds()`가 LeRobot `bus.is_calibrated` property를 호출했고, 이 property가
+`read_calibration()`을 통해 servo Min/Max register를 live read했다. 따라서 이는
+trajectory command나 HOLD 문제가 아니라 불필요한 연결 전 calibration register
+재검사의 단일 read failure다.
+
+- `current_position_hold=false`: 아직 motion이 arm되지 않아 HOLD write 없음
+- `log_samples=0`: trajectory `NOT_RUN`
+- Goal/Torque/config/motion write: `0`
+- automatic retry: `0`
+- 기존 0-sample JSONL은 보존하고 다음 시험은 새 이름 사용
+
+수정 후 follower bounds는 이미 메모리에 로드된 `bus.calibration`과 `bus.motors`가
+정확히 6축인지, motor ID가 유일·유효한지, 각 raw range가 `0 <= min < max < 4096`인지,
+LeRobot `_normalize` 결과가 유한하며 서로 다른 두 경계인지 검사한다. 이 경로에서는
+`bus.is_calibrated`와 Min/Max live register read를 호출하지 않는다. 저장 calibration이
+불완전하면 write 전에 fail-closed한다. 저장 calibration 값과 정규화 방식은 바꾸지
+않았고 gain/Torque/IK/TCP도 변경하지 않았다. jitter-only 범위 밖인 leader teach
+연결은 변경하지 않았다.
+
+장비 없는 검증:
+
+- fixed-demo + web: `68/68 PASS`
+- sorter: `31/31 PASS`
+- Python compile: `PASS`
+- `git diff --check`: `PASS`
+- live-limit property access 검증: `0`
+- serial open / motor command: `0 / 0`
+- 수정 후 ORIGINAL/SMOOTH live: `NOT_RUN`

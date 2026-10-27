@@ -1456,18 +1456,38 @@ def establish_hold(
 
 
 def calibrated_bounds(robot) -> dict[str, tuple[float, float]]:
-    bus = robot.bus
-    if not bus.is_calibrated or not callable(getattr(bus, "_normalize", None)):
+    bus = getattr(robot, "bus", None)
+    calibration = getattr(bus, "calibration", None)
+    motors = getattr(bus, "motors", None)
+    normalize = getattr(bus, "_normalize", None)
+    if (not isinstance(calibration, Mapping)
+            or not isinstance(motors, Mapping)
+            or set(calibration) != set(JOINTS)
+            or set(motors) != set(JOINTS)
+            or not callable(normalize)):
         raise RuntimeError("stored_calibration_not_loaded")
-    result = {}
+    result: dict[str, tuple[float, float]] = {}
+    motor_ids: set[int] = set()
     for joint in JOINTS:
-        motor_id = bus.motors[joint].id
-        item = bus.calibration[joint]
-        raw_min = item.range_min if hasattr(item, "range_min") else item["range_min"]
-        raw_max = item.range_max if hasattr(item, "range_max") else item["range_max"]
-        low = float(bus._normalize({motor_id: int(raw_min)})[motor_id])
-        high = float(bus._normalize({motor_id: int(raw_max)})[motor_id])
-        result[joint] = (min(low, high), max(low, high))
+        try:
+            motor_id = getattr(motors[joint], "id")
+            if type(motor_id) is not int or not 1 <= motor_id <= 253 or motor_id in motor_ids:
+                raise ValueError("invalid_or_duplicate_motor_id")
+            motor_ids.add(motor_id)
+            item = calibration[joint]
+            raw_min = item.range_min if hasattr(item, "range_min") else item["range_min"]
+            raw_max = item.range_max if hasattr(item, "range_max") else item["range_max"]
+            if (type(raw_min) is not int or type(raw_max) is not int
+                    or not 0 <= raw_min < raw_max < 4096):
+                raise ValueError("invalid_calibrated_raw_endpoints")
+            low = float(normalize({motor_id: raw_min})[motor_id])
+            high = float(normalize({motor_id: raw_max})[motor_id])
+        except (AttributeError, KeyError, TypeError, ValueError) as error:
+            raise RuntimeError(f"stored_calibration_invalid:{joint}") from error
+        lower, upper = sorted((low, high))
+        if not math.isfinite(lower) or not math.isfinite(upper) or lower >= upper:
+            raise RuntimeError(f"stored_calibration_invalid:{joint}")
+        result[joint] = (lower, upper)
     return result
 
 
