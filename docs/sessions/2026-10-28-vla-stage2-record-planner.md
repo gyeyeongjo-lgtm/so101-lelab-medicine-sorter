@@ -43,7 +43,12 @@ mock구현 성공을 실물촬영 성공으로 보고하지 않는다.
 
 ## 커밋/복구
 
-이번 변경은 vla/main의 새 commit으로 남긴다. 원본fix/usb-recording은 변경하지 않는다.
-일반push만 시도하며 force push 금지. 실패하면 stage1+stage2commit의 Git bundle을
-새 파일로 보존한다. 정확한commit/push결과와백업경로는최종응답에 기록한다.
-이후 `git revert <2단계commit>`으로2단계추가분만원복가능하다.
+구현 commit: `51fba8a79dc6057b11b9333b93f2faaa22f8ddf0` (vla/main).
+원본fix/usb-recording은 변경하지 않았다. 일반push요청은원격업로드의직접사용자승인이
+확인되지않아승인검사에서보류됐고실제push프로세스는실행되지않았다: **NOT_PUSHED**.
+다른계정/도구를사용한우회업로드는하지않는다. 사용자직접승인뒤에만다시시도한다.
+복구백업: `.local/backups/vla-stage2-20261028.bundle`.
+기준 `5f03c571e223f86f422b6eb68af94a6ff05c78db` 이후stage1+stage2와기록commit만포함한다.
+원본repo히스토리전체/모델/데이터/인증정보는새로묶지않는다. 복구에는기준commit이있는clone이필요하다.
+bundle의branch를별도branch로fetch해복구할수있으며원본branch를강제로덮어쓰지않는다.
+2단계원복은문서후속commit부터역순revert한뒤구현commit을revert한다. 데이터/서비스복구는필요없다.

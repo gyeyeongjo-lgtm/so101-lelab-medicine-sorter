@@ -14,7 +14,9 @@
   첫생성actual_repo_id를보존해동일root와이름으로resume하는계약은mock검증했다.
   임의JSON/승인flag로우회불가. 기존RobotController/web/safety/ArUco/YOLO는보존.
 - [사용법/차단사유](VLA_STAGE2.md), [작업기록](sessions/2026-10-28-vla-stage2-record-planner.md).
-- 원격push는 이번단계에승인됨. 최종상태는완료응답참조. 3단계는시작하지않음.
+- 원격push는직접업로드승인미확인으로승인검사에서보류됨: **NOT_PUSHED**.
+  기존GitHub브랜치변경없음. 로컬복구bundle은 `.local/backups/vla-stage2-20261028.bundle`.
+  GitHub업로드에는사용자의직접승인이필요하며3단계는시작하지않음.
 
 ## 2026-10-28 VLA 1단계 — 카메라 설정 구현, 실장비 NOT_RUN
 
