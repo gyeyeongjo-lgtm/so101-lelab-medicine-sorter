@@ -2,6 +2,20 @@
 
 업데이트: 2026-10-28
 
+## 2026-10-28 VLA 3단계 — 데이터 도구 구현·오프라인 검증
+
+- 감사/대표장면 검수/append-only 검수·세션 기록/새 선별본/증거 기반 세션 분할 구현.
+- VLA104 tests PASS, skip0. 공식0.6.0 소스로 synthetic 원본/선별본 실제 로딩,
+  원본 SHA 동일성·영상 픽셀 동일성·출처/세션 보존 확인. 모델 추론이 아니다.
+- 전체 기존 회귀의 failure6/error23/skip15는 수정 전 HEAD에서도 같은 ID로 재현.
+  현장 로컬 fixture 누락과 기존 ArUco 기준 불일치를 그대로 기록하며 전체 PASS라고 하지 않는다.
+- 기존 ACT6종 read-only 구조/공식 sample reload PASS, 원본 압축6종 SHA256 일치.
+  세션/단위/성공 검수 미확인으로 WARN. 실제 자료의 전체 영상 디코드는 NOT_RUN.
+- 기존 제어/보정/web/safety 변경0, 실제record/학습/모델추론/장치실행0.
+- 원격 NOT_PUSHED. 기존bundle 보존, 새full-history bundle/verify/SHA는 `.local/backups/`.
+- [3단계 사용법](VLA_STAGE3.md), [세션 기록](sessions/2026-10-28-vla-stage3-data-tools.md).
+  아래1·2단계의 "다음 단계 시작 전" 문구는 당시 상태 기록이다. 지금은3단계 종료이며4단계 미시작.
+
 ## 2026-10-28 VLA 2단계 — 계획/카운터 구현, 실제녹화 BLOCKED
 
 - 9조합·27문장·기본한국어·기본A:red gate·10회씩총90목표를 설정으로 추가.

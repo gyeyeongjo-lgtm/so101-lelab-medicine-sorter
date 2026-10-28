@@ -270,7 +270,8 @@ def confirm_save(before, after, task, exit_code, completed, interrupted):
 
 def commit_saved_episode(counter_path, dataset, repo_id, before, expected_revision,
                          combo, task, *, exit_code, completed, interrupted,
-                         snapshot_reader=read_snapshot, tasks_config=None, identity_reader=None):
+                         snapshot_reader=read_snapshot, tasks_config=None, identity_reader=None,
+                         before_counter_replace=None):
     """Internal future-recorder hook; no CLI success-file/override. Tested with fixtures.
 
     Live recorder integration and completion event remain blocked in Stage 2.
@@ -322,6 +323,8 @@ def commit_saved_episode(counter_path, dataset, repo_id, before, expected_revisi
             os.fsync(stream.fileno())
         if digest(load_counter(counter_path, dataset, repo_id)) != initial_digest or snapshot_reader(dataset) != after:
             raise RecordError("dataset/counter changed during commit; no counter replacement")
+        if before_counter_replace is not None:
+            before_counter_replace(current)
         os.replace(temp, counter_path)
         temp = None
         committed = True
@@ -396,6 +399,8 @@ def main(argv=None):
     parser.add_argument("--dataset-root", type=Path, default=ROOT / ".local/vla_datasets/medicine_sorting_vla_v1")
     parser.add_argument("--repo-id", default="local/medicine_sorting_vla_v1")
     parser.add_argument("--counter", type=Path, default=ROOT / ".local/vla_counters/medicine_sorting_vla_v1.json")
+    parser.add_argument("--sessions", type=Path, help="explicit sidecar outside dataset; required for future recording")
+    parser.add_argument("--session-id", help="physical capture session; absent means this run only")
     parser.add_argument("--combo", choices=COMBOS)
     parser.add_argument("--expand-nine", action="store_true", help="planning only; live pipeline gate is separate")
     parser.add_argument("--target-stage", choices=("primary", "secondary"), default="primary")
@@ -409,6 +414,9 @@ def main(argv=None):
         if args.counter.is_symlink():
             raise RecordError("counter symlink rejected")
         dataset, counter = separate_paths(args.dataset_root, args.counter)
+        if args.sessions is not None:
+            from vla_sessions import validate_sessions_path
+            validate_sessions_path(args.sessions, dataset, counter)
         state = load_counter(counter, dataset, args.repo_id)
         before = read_snapshot(dataset)
         if len(before.episodes) != state["revision"] or [x[2] for x in before.episodes] != [x["fingerprint"] for x in state["episodes"]]:
@@ -428,6 +436,8 @@ def main(argv=None):
                   "note": "Draft only; unresolved ports and RobotController safety integration. No data/counter changes."}
         if args.execute:
             result["blocked_reasons"] = preflight(cameras, first_motion_approved=args.first_motion_approved, expanded=args.expand_nine)
+            if args.sessions is None:
+                result["blocked_reasons"].append("explicit --sessions path required")
         print(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False))
         return 2 if args.execute else 0
     except (OSError, ValueError, KeyError, TypeError, ImportError, yaml.YAMLError) as exc:
