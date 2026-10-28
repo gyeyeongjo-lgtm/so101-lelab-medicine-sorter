@@ -2,6 +2,17 @@
 
 업데이트: 2026-10-28
 
+## 2026-10-28 VLA 5단계 — mock 연결·벤치마크 준비, 실제 실행 BLOCKED
+
+- RobotController에는 연속관절/last-target HOLD streaming API가 없어 원본수정 없이 live 차단.
+  새 MockStreamingController는 제안 계약이며 실제 기존제어기라고 표시하지 않는다.
+- observation 공통rename·시각/해상도/task·단위/범위·2°/2pp clipping·hardjump·cliprate·timeout·HOLD 검사 구현.
+- lazy SmolVLA wrapper/속도·메모리 benchmark 코드, read-only 복귀 preflight와 체크리스트 추가.
+  실모델load/추론/GPU실측/장치/Jetson/학습/push0. shadow는 simulation만 검증.
+- 신규59 + 기존VLA144 =203 PASS/skip0. 전체790 testsRun은 기존 failure6/error23/skip15 동일.
+- skip15는 dependency1(websocket-client)/private fixture10/sandbox loopback4로 정정.
+- [상세](VLA_STAGE5.md), [복귀 체크리스트](RETURN_CHECKLIST.md). 6단계 평가기록 코드 준비를 이어 진행하며 7단계 웹은 시작하지 않는다.
+
 ## 2026-10-28 VLA 4단계 — 무학습 준비·mock 검증, 실행 BLOCKED
 
 - 모델 입력 키 근거 보완: 별도 주채팅의 pinned Hub metadata 관측을 attributed JSON으로 기록.

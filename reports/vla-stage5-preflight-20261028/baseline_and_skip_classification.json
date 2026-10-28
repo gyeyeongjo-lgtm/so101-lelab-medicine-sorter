@@ -1,0 +1,236 @@
+{
+  "baseline_HEAD": "596ee5fabb53fb0f818769fc84170f54835d6123",
+  "counts": {
+    "tests": 731,
+    "failures": 6,
+    "errors": 23,
+    "skipped": 15
+  },
+  "legacy_same_as_stage4": {
+    "failures": true,
+    "errors": true,
+    "skipped": true
+  },
+  "skip_categories": {
+    "missing_dependency:websocket-client": 1,
+    "missing_private_fixture": 10,
+    "sandbox_loopback_denied": 4
+  },
+  "skips": [
+    {
+      "id": "test_observe_teleop_trace.TraceAuditTests.test_active_trace_stops_when_teleop_ends_and_is_never_replay_authorized",
+      "reason": "optional websocket-client dependency is not installed",
+      "category": "missing_dependency:websocket-client",
+      "safety_name_matches": [
+        "stop_HOLD"
+      ]
+    },
+    {
+      "id": "test_prepare_c_red_phases.CRedPhasePreparationTests.test_all_five_phases_pass_numeric_and_fake_bus_checks",
+      "reason": "private recorded candidate unavailable",
+      "category": "missing_private_fixture",
+      "safety_name_matches": []
+    },
+    {
+      "id": "test_prepare_c_red_phases.CRedPhasePreparationTests.test_full_approach_with_structured_logging_has_no_fake_schedule_regression",
+      "reason": "private recorded candidate unavailable",
+      "category": "missing_private_fixture",
+      "safety_name_matches": []
+    },
+    {
+      "id": "test_prepare_c_red_phases.CRedPhasePreparationTests.test_next_phase_not_run_after_first_failure",
+      "reason": "private recorded candidate unavailable",
+      "category": "missing_private_fixture",
+      "safety_name_matches": []
+    },
+    {
+      "id": "test_prepare_c_red_phases.CRedPhasePreparationTests.test_phase_boundaries_and_original_follower_commands",
+      "reason": "private recorded candidate unavailable",
+      "category": "missing_private_fixture",
+      "safety_name_matches": []
+    },
+    {
+      "id": "test_prepare_c_red_phases.CRedPhasePreparationTests.test_unprepared_command_is_blocked",
+      "reason": "private recorded candidate unavailable",
+      "category": "missing_private_fixture",
+      "safety_name_matches": []
+    },
+    {
+      "id": "test_prepare_c_red_phases.CRedPhasePreparationTests.test_urdf_violation_blocks_without_clipping",
+      "reason": "private recorded candidate unavailable",
+      "category": "missing_private_fixture",
+      "safety_name_matches": []
+    },
+    {
+      "id": "test_replay_c_red_phase.RecordedPhaseLiveGateTests.test_abort_never_runs_another_phase_and_closes_without_torque_change",
+      "reason": "private recorded candidate unavailable",
+      "category": "missing_private_fixture",
+      "safety_name_matches": []
+    },
+    {
+      "id": "test_replay_c_red_phase.RecordedPhaseLiveGateTests.test_default_is_dry_run_without_transport",
+      "reason": "private recorded candidate unavailable",
+      "category": "missing_private_fixture",
+      "safety_name_matches": []
+    },
+    {
+      "id": "test_replay_c_red_phase.RecordedPhaseLiveGateTests.test_single_grasp_success_needs_stillness_and_human_result",
+      "reason": "private recorded candidate unavailable",
+      "category": "missing_private_fixture",
+      "safety_name_matches": []
+    },
+    {
+      "id": "test_replay_c_red_phase.RecordedPhaseLiveGateTests.test_wrong_scope_or_phrase_never_opens_transport",
+      "reason": "private recorded candidate unavailable",
+      "category": "missing_private_fixture",
+      "safety_name_matches": []
+    },
+    {
+      "id": "test_teach_capture_web.TeachCaptureTests.test_cached_frame_exposes_original_receive_timestamp",
+      "reason": "loopback bind is unavailable in this sandbox: [Errno 1] Operation not permitted",
+      "category": "sandbox_loopback_denied",
+      "safety_name_matches": []
+    },
+    {
+      "id": "test_teach_capture_web.TeachCaptureTests.test_http_capture_refuses_inactive_teleoperation",
+      "reason": "loopback bind is unavailable in this sandbox: [Errno 1] Operation not permitted",
+      "category": "sandbox_loopback_denied",
+      "safety_name_matches": []
+    },
+    {
+      "id": "test_teach_capture_web.TeachCaptureTests.test_legacy_touch_capture_is_blocked_by_default",
+      "reason": "loopback bind is unavailable in this sandbox: [Errno 1] Operation not permitted",
+      "category": "sandbox_loopback_denied",
+      "safety_name_matches": []
+    },
+    {
+      "id": "test_teach_capture_web.TeachCaptureTests.test_waypoint_http_requires_teleop_and_two_user_confirmations",
+      "reason": "loopback bind is unavailable in this sandbox: [Errno 1] Operation not permitted",
+      "category": "sandbox_loopback_denied",
+      "safety_name_matches": []
+    }
+  ],
+  "coverage_name_inventory": {
+    "RobotController": [
+      "test_audit_teleop_trace.TeleopTraceAuditTests.test_source_has_no_robot_control_routes",
+      "test_live_c_approach_only.LiveCApproachOnlyTests.test_start_gate_rejects_pose_drift_before_controller",
+      "test_fit_robot_world_from_joint_samples.JointSampleFitInputTests.test_derives_fk_only_from_reviewed_broadcast",
+      "test_fit_robot_world_from_joint_samples.JointSampleFitInputTests.test_rejects_motion_enabled_source",
+      "test_fit_robot_world_from_joint_samples.JointSampleFitInputTests.test_rejects_unstable_or_nonbroadcast_sample",
+      "test_fit_robot_world_from_joint_samples.JointSampleFitInputTests.test_rejects_jaw_change",
+      "test_fit_robot_world_tcp_transform.JointTcpFitTests.test_recovers_noise_free_transform_and_tcp",
+      "test_fit_robot_world_tcp_transform.JointTcpFitTests.test_rejects_high_residual",
+      "test_fit_robot_world_tcp_transform.JointTcpFitTests.test_optional_pair_selection",
+      "test_fit_robot_world_tcp_transform.JointTcpFitTests.test_rotation_exp_is_proper_rotation",
+      "test_teach_capture_web.TeachCaptureTests.test_source_has_no_robot_control_routes",
+      "test_vla_cameras.VLACaptureTests.test_no_robot_or_serial_imports_in_mock_flow",
+      "test_sorter_robot_cli.SorterRobotCliTests.test_import_does_not_import_lerobot_or_open_device",
+      "test_sorter_robot_cli.SorterRobotCliTests.test_controller_rejects_mock_live_mode_mismatch",
+      "test_sorter_robot_cli.SorterRobotCliTests.test_partial_connect_failure_is_closed_without_stop_write",
+      "test_sorter_robot_cli.SorterRobotCliTests.test_status_and_validate_are_hardware_free",
+      "test_sorter_robot_cli.SorterRobotCliTests.test_robot_status_cli_uses_status_only_adapter",
+      "test_sorter_robot_cli.SorterRobotCliTests.test_cli_mock_flow",
+      "test_sorter_robot_cli.SorterRobotCliTests.test_live_fails_before_device_access_with_specific_missing_items",
+      "test_sorter_robot_cli.ReadOnlyStatusAdapterTests.test_wrong_identity_blocks_before_bus_creation",
+      "test_sorter_robot_cli.ReadOnlyStatusAdapterTests.test_config_style_auto_resolution_selects_follower_by_serial",
+      "test_sorter_robot_cli.ReadOnlyStatusAdapterTests.test_status_reads_raw_registers_without_state_change",
+      "test_sorter_robot_cli.ReadOnlyStatusAdapterTests.test_partial_connect_failure_releases_serial_and_lock",
+      "test_sorter_robot_cli.ReadOnlyStatusAdapterTests.test_read_failure_has_no_retry_and_closes_without_torque_change",
+      "test_audit_calibration_trace_envelope.CalibrationTraceEnvelopeTests.test_source_has_no_robot_control_routes",
+      "test_relative_start_teleop.RelativeStartTeleopTests.test_loaded_calibration_limits_use_le_robot_normalization_for_all_six_axes",
+      "test_camera_preview_joint_ws.CameraPreviewJointWebSocketTests.test_page_has_no_robot_control_endpoint",
+      "test_audit_basket_body_candidate.BasketBodyCandidateTests.test_source_has_no_robot_control_route",
+      "test_live_c_approach.LiveCApproachTests.test_one_shot_scope_contracts_use_existing_first_controller_stage",
+      "test_sorter_config_geometry.SorterConfigGeometryTests.test_fixed_demo_can_be_verified_without_camera_to_robot_transform",
+      "test_vla_stage5.AdapterTests.test_existing_controller_api_not_invented",
+      "test_fit_robot_world_transform.RobotWorldTransformTests.test_recovers_known_planar_rigid_transform",
+      "test_fit_robot_world_transform.RobotWorldTransformTests.test_build_result_stays_motion_disabled",
+      "test_fit_robot_world_transform.RobotWorldTransformTests.test_rejects_collinear_or_missing_pairs"
+    ],
+    "temperature": [
+      "test_recorded_pose_config.RecordedPoseConfigTests.test_pick_ready_records_temperature_without_changing_return_pair",
+      "test_fixed_demo.FixedDemoTests.test_overload_temperature_read_preserves_id_status_and_holds_current",
+      "test_fixed_demo.FixedDemoTests.test_temperature_read_overload_is_not_replaced_by_generic_failure",
+      "test_fixed_demo.FixedDemoTests.test_temperature_limit_reports_motor_id_and_value",
+      "test_fixed_demo.FixedDemoTests.test_prestart_temperature_50_blocks_before_any_motor_write",
+      "test_safe_home_return.SafeHomeReturnTests.test_return_waypoint_fails_wrong_direction_temperature_or_proxy",
+      "test_vla_record.PreflightTests.test_temperature_boundary_missing_nan",
+      "test_so101_exclusive_transport.ExclusiveTransportTests.test_escape_telemetry_reads_temperature_and_status_individually",
+      "test_continuous_following_execution.ContinuousFollowingCycleTests.test_temperature_over_55_blocks_before_any_send",
+      "test_safe_escape_verification.SafeEscapeVerificationTests.test_temperature_above_55_blocks",
+      "test_live_gripper_open_only.LiveGripperOpenOnlyTests.test_high_temperature_blocks_before_send",
+      "test_vla_stage5.AdapterTests.test_temperature_55_after_inference"
+    ],
+    "Overload": [
+      "test_fixed_demo.FixedDemoTests.test_overload_temperature_read_preserves_id_status_and_holds_current",
+      "test_fixed_demo.FixedDemoTests.test_temperature_read_overload_is_not_replaced_by_generic_failure",
+      "test_vla_stage5.AdapterTests.test_overload"
+    ],
+    "stop_HOLD": [
+      "test_c_red_five_point_calibration.FivePointCalibrationTests.test_se2_never_reflects_and_holdout_is_not_in_fit",
+      "test_c_red_five_point_calibration.FivePointCalibrationTests.test_session_fit_blocks_hover_z_spread_and_stores_holdout_vector",
+      "test_c_red_vision_ik_dry_run.CRedVisionIKDryRunTests.test_five_point_fit_and_independent_holdout",
+      "test_audit_medicine_roi_capture.RoiScreenTests.test_holds_missing_body",
+      "test_plan_responsive_joint_escape.ResponsiveJointEscapeTests.test_four_monotonic_bounded_candidates_hold_unresponsive_joints",
+      "test_live_c_approach_only.LiveCApproachOnlyTests.test_fake_live_runs_only_approach_and_holds_gripper",
+      "test_staged_cycle_execution.StagedCycleTests.test_sequence_stops_at_first_unreached_waypoint",
+      "test_staged_cycle_execution.StagedCycleTests.test_stop_waits_for_inflight_send_and_transport_quiescence",
+      "test_staged_cycle_execution.StagedCycleTests.test_stop_before_stage_never_sends",
+      "test_staged_cycle_execution.StagedCycleTests.test_arm_stillness_is_separate_from_command_stop",
+      "test_plan_staged_load_relief_path.StagedLoadReliefPathTests.test_candidates_hold_elbow_while_unloading_lift",
+      "test_plan_staged_load_relief_path.StagedLoadReliefPathTests.test_fresh3_strong_unload_candidates_hold_elbow_and_pass_fk_proxies",
+      "test_recorded_pose_config.RecordedPoseConfigTests.test_placeholder_or_partial_samples_are_rejected",
+      "test_live_wrist_escape_z_plus_20.LiveWristEscapeTests.test_fake_live_reaches_only_plus_twenty_and_stops",
+      "test_fixed_demo.FixedDemoTests.test_atomic_hold_exact_copy_then_torque_once",
+      "test_fixed_demo.FixedDemoTests.test_ctrl_c_hold_is_one_raw_goal_copy_without_torque_toggle",
+      "test_fixed_demo.FixedDemoTests.test_supervised_hold_can_accept_stable_gap_without_any_write",
+      "test_fixed_demo.FixedDemoTests.test_supervised_hold_accepts_sixty_but_rejects_more",
+      "test_fixed_demo.FixedDemoTests.test_transit_stage_accepts_loaded_elbow_error_after_half_second_stopped",
+      "test_fixed_demo.FixedDemoTests.test_overload_temperature_read_preserves_id_status_and_holds_current",
+      "test_observe_teleop_trace.TraceAuditTests.test_active_trace_stops_when_teleop_ends_and_is_never_replay_authorized",
+      "test_replay_c_red_approach.ApproachReplayTests.test_growing_feedback_error_stops_before_fourth_target",
+      "test_summarize_teleop_activity.ActivitySummaryTests.test_bad_timestamps_and_threshold_are_rejected",
+      "test_plan_delayed_wrist_coupled_path.DelayedWristCoupledPathTests.test_wrist_holds_until_each_delay_and_then_decreases",
+      "test_safe_home_return.SafeHomeReturnTests.test_order_pan_delay_gripper_hold_and_two_degree_bound",
+      "test_safe_home_return.SafeHomeReturnTests.test_failure_stops_and_never_runs_later_segment",
+      "test_sorter_robot_cli.SorterRobotCliTests.test_partial_connect_failure_is_closed_without_stop_write",
+      "test_sorter_vision_workflow.SorterVisionWorkflowTests.test_failure_stops_and_closes_without_retry",
+      "test_fit_fixed_point_tcp.FixedPointTcpTests.test_holdout_error_is_rejected",
+      "test_fit_fixed_point_tcp.FixedPointTcpTests.test_near_duplicate_holdout_is_rejected_even_with_zero_error",
+      "test_fit_fixed_point_tcp.FixedPointTcpTests.test_requires_independent_holdout",
+      "test_so101_exclusive_transport.ExclusiveTransportTests.test_gripper_only_send_requires_start_latch_and_honors_stop_latch",
+      "test_demo_web.DemoWebTests.test_stop_sets_event_and_worker_reports_stopped",
+      "test_relative_start_teleop.RelativeStartTeleopTests.test_arm_only_target_holds_gripper_despite_leader_motion",
+      "test_relative_start_teleop.RelativeStartTeleopTests.test_guard_hold_sends_zero_actions",
+      "test_relative_start_teleop.RelativeStartTeleopTests.test_hold_then_away_target_can_send_next_cycle",
+      "test_relative_start_teleop.RelativeStartTeleopTests.test_hold_does_not_write_goal_or_torque_registers",
+      "test_temporary_elbow_direction_guard.TemporaryElbowDirectionGuardTests.test_fake_bus_holds_upper_request_then_resumes_away_without_ending_session",
+      "test_temporary_elbow_direction_guard.TemporaryElbowDirectionGuardTests.test_decision_diagnostics_are_logged_before_hold_and_abort",
+      "test_temporary_elbow_direction_guard.TemporaryElbowDirectionGuardTests.test_recovery_outside_upper_holds_until_small_inward_target_then_sends_once",
+      "test_teleop_cycle_trace.CycleTraceTests.test_relative_observation_does_not_send_and_marks_hold",
+      "test_live_gripper_open_only.LiveGripperOpenOnlyTests.test_post_stop_route_gate_failure_never_prints_next_command",
+      "test_live_gripper_open_only.LiveGripperOpenOnlyTests.test_post_stop_route_goal_raw_mismatch_blocks_next_command",
+      "test_live_gripper_open_only.LiveGripperOpenOnlyTests.test_post_stop_route_arm_goal_raw_change_blocks_next_command",
+      "test_collect_medicine_roi_review.CollectorTests.test_output_must_be_new_and_thresholds_ordered",
+      "test_live_c_approach.LiveCApproachTests.test_interpolation_holds_gripper_and_limits_step",
+      "test_live_c_approach.LiveCApproachTests.test_strong_unload_fresh3_holds_elbow_before_lift_and_generates_105_targets",
+      "test_simulate_fixed_slot_plan.FixedSlotPlanSimulationTests.test_timeout_failure_or_stop_never_advances_to_second_task",
+      "test_simulate_fixed_slot_plan.FixedSlotPlanSimulationTests.test_running_state_can_be_observed_before_result_and_then_stopped",
+      "test_vla_stage3.DataTests.test_review_hold_excluded_and_manual_ok_cannot_override_fail",
+      "test_recover_follower_hold.RecoverFollowerHoldTests.test_exact_current_goal_then_torque_and_stationary_confirmation",
+      "test_recover_follower_hold.RecoverFollowerHoldTests.test_goal_readback_mismatch_never_enables_torque",
+      "test_recover_follower_hold.RecoverFollowerHoldTests.test_zero_goal_never_enables_torque",
+      "test_recover_follower_hold.RecoverFollowerHoldTests.test_drift_before_enable_never_enables_torque",
+      "test_recover_follower_hold.RecoverFollowerHoldTests.test_unexpected_motion_response_disables_torque",
+      "test_recover_follower_hold.RecoverFollowerHoldTests.test_measured_motion_after_enable_disables_torque",
+      "test_stable_aruco_table.StableArucoTableTests.test_moved_id2_is_holdout_not_used_in_projection",
+      "test_vla_stage5.AdapterTests.test_stop_button",
+      "test_vla_stage5.AdapterTests.test_stop_callback",
+      "test_vla_stage5.AdapterTests.test_ctrl_c",
+      "test_vla_stage5.AdapterTests.test_clipping_ratio_holds_last_sent",
+      "test_vla_stage5.AdapterTests.test_stop_while_inference"
+    ]
+  },
+  "coverage_limit": "Static name inventory of discovered test files, not a claim every safety branch passed. New stage5 file is inventoried but not part of baseline execution.",
+  "correction": "Earlier reports grouped all15 as dependencies; actual 1 dependency,10 private fixtures,4 sandbox loopback restrictions."
+}

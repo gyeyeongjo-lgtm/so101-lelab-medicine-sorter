@@ -1,0 +1,23 @@
+{
+  "stage": "5",
+  "new_tests": 59,
+  "existing_vla_tests": 144,
+  "vla": {
+    "tests": 203,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "full": {
+    "tests": 790,
+    "failures": 6,
+    "errors": 23,
+    "skipped": 15
+  },
+  "legacy_unchanged": {
+    "failures": true,
+    "errors": true,
+    "skipped": true
+  },
+  "devices_models_training": "NOT_RUN"
+}
