@@ -12,7 +12,9 @@
 - 기존 ACT6종 read-only 구조/공식 sample reload PASS, 원본 압축6종 SHA256 일치.
   세션/단위/성공 검수 미확인으로 WARN. 실제 자료의 전체 영상 디코드는 NOT_RUN.
 - 기존 제어/보정/web/safety 변경0, 실제record/학습/모델추론/장치실행0.
-- 원격 NOT_PUSHED. 기존bundle 보존, 새full-history bundle/verify/SHA는 `.local/backups/`.
+- 원격 NOT_PUSHED. partial clone의 과거객체569개 미보유로 full-history bundle 실패.
+  기존bundle 보존, 새증분bundle/verify/SHA는 `.local/backups/`.
+  복구에는 기준 `5f03c571e223f86f422b6eb68af94a6ff05c78db`가 있는 저장소가 필요하다.
 - [3단계 사용법](VLA_STAGE3.md), [세션 기록](sessions/2026-10-28-vla-stage3-data-tools.md).
   아래1·2단계의 "다음 단계 시작 전" 문구는 당시 상태 기록이다. 지금은3단계 종료이며4단계 미시작.
 

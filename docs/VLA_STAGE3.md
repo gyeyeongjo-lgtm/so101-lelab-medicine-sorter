@@ -164,5 +164,9 @@ VLA 전용104개 PASS, skip0(1단계27+2단계42+3단계35). 실제 shared MP4/P
 **실제 녹화/학습/모델 추론/로봇0, 원격push NOT_PUSHED.**
 3단계 끝에서 중단한다. 4단계 모델 구성·환경·학습 및 실제 recorder adapter 검증은 별도 진행이다.
 복구는3단계 commit의 revert로 코드만 되돌린다. 원본 데이터·서비스 복구는 필요 없다.
-새 full-history bundle은 `.local/backups/vla-stage3-20261028.bundle`, verify/SHA 기록은 옆 receipt JSON.
-이전stage2 bundle은 유지한다. bundle에는 git-tracked 코드·문서 이력만 있고 dataset/model은 없다.
+전체이력 bundle 생성은 partial clone(blob:none)의 과거객체569개 미보유로 실패했다.
+대신 `.local/backups/vla-stage3-20261028-incremental.bundle`에 기준
+`5f03c571e223f86f422b6eb68af94a6ff05c78db` 이후1~3단계와 문서 이력을 담는다.
+**self-contained가 아니며 복구 시 위 기준commit이 있는 저장소가 필요하다.**
+verify/SHA 기록은 옆 receipt JSON에 둔다. 이전stage2 bundle은 유지한다.
+bundle에는 git-tracked 코드·문서 이력만 있고 dataset/model은 없다.

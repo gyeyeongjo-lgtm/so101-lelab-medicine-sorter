@@ -54,8 +54,15 @@ metadata/모든 state-action row/영상 컨테이너/공식샘플로더 검사, 
 ## 종료/복구/다음
 
 단계3 로컬 commit만 생성하고 push하지 않는다: NOT_PUSHED. 외부백업은 완료했다고 주장하지 않는다.
-최종 commit 후 `git bundle create .local/backups/vla-stage3-20261028.bundle vla/main`로
-기준저장소 없이 복구 가능한 전체이력 bundle을 새로 만들고 verify/SHA256을 기록한다.
+구현 commit은 `4bb48da1c6678a83335c01264c7a659ff810c82e`다.
+그 후 `git bundle create .local/backups/vla-stage3-20261028.bundle vla/main`을 시도했으나 exit1.
+read-only 조사에서 remote.origin.promisor=true, partialclonefilter=blob:none,
+`git rev-list --objects --missing=print`의 미보유 과거객체569개가 확인됐다. 전체bundle 파일은 생성되지 않았다.
+추가 다운로드/원격 push로 우회하지 않는다. 이 한계를 기록한 문서commit 후
+`.local/backups/vla-stage3-20261028-incremental.bundle`을 새로 만든다.
+범위는 `5f03c571e223f86f422b6eb68af94a6ff05c78db..vla/main`으로1~3단계와 문서이력을 포함한다.
+**복구에는 기준5f03c571e223f86f422b6eb68af94a6ff05c78db가 있는clone이 필요하다.**
+verify/SHA256 및 self_contained=false를 receipt에 기록한다.
 기존stage2 bundle은 덮어쓰지 않는다. commit SHA와 bundle SHA는 로컬 receipt와 최종 보고에 남긴다.
 롤백은3단계 commit revert; 원본 데이터나 서비스는 이번에 변경하지 않았다.
 실제record/학습/정책모델load·추론/로봇명령0. 단계4는 시작하지 않았다.
