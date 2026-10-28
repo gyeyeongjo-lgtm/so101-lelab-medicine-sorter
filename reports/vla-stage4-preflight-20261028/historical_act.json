@@ -1,0 +1,28 @@
+{
+  "status": "READ_ONLY",
+  "source_sha256": "03e09f678aaba0ed0040bfd948dd47f80a1c92e0b59b52b21b9a25c3caae03d2",
+  "values": {
+    "steps": 100000,
+    "batch_size": 8,
+    "num_workers": 2
+  },
+  "evidence": {
+    "steps": {
+      "file": "lerobot_training/train_act_a_v3_trim05_3cam_100k_3060.sh",
+      "line": 46,
+      "text": "--steps=100000 \\"
+    },
+    "batch_size": {
+      "file": "lerobot_training/train_act_a_v3_trim05_3cam_100k_3060.sh",
+      "line": 47,
+      "text": "--batch_size=8 \\"
+    },
+    "num_workers": {
+      "file": "lerobot_training/train_act_a_v3_trim05_3cam_100k_3060.sh",
+      "line": 48,
+      "text": "--num_workers=2 \\"
+    }
+  },
+  "cameras": "not explicit in shell script; derive from selected dataset features",
+  "chunk_size": "not explicit in shell script; do not infer old runtime default"
+}

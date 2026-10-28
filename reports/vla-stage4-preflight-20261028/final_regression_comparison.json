@@ -1,0 +1,23 @@
+{
+  "scope": "full guarded unittest discovery; no hardware or model training",
+  "before_tests": 691,
+  "after_tests": 722,
+  "counts": {
+    "failures": 6,
+    "errors": 23,
+    "skipped": 15
+  },
+  "unchanged": {
+    "failures": true,
+    "errors": true,
+    "skipped": true
+  },
+  "vla_subset": {
+    "tests": 135,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "actual_training": "NOT_RUN",
+  "live_training_entrypoint": "NOT_IMPLEMENTED"
+}

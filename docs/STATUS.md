@@ -2,6 +2,18 @@
 
 업데이트: 2026-10-28
 
+## 2026-10-28 VLA 4단계 — 무학습 준비·mock 검증, 실행 BLOCKED
+
+- train 설정/공통rename/공식옵션증거/읽기전용preflight·manifest/재개조건/ACT비교초안 추가.
+- train-only 통계와 명시적세션분할을 주입하는 연결은 fake training module로 검증했다.
+  raw CLI는 참고용, actual_launch_args=null, CLI execute는exit2이며 실제학습 연결은 미완료다.
+- 신규31+기존VLA104=135 PASS. 세기준 전체회귀의 failure6/error23/skip15 ID/정규화사유 동일.
+  최종 전체722 testsRun도 동일한 failure6/error23/skip15이며 변경 전과 항목·사유가 같다.
+  안전코드 수정0. legacy29건/의존성skip15건으로 분류했고 전체 PASS로 표시하지 않는다.
+- Jetson 접속1회 socket권한거부, CUDA조회available=false/device0. GPU계산/모델다운로드0.
+- 실제녹화/학습/smoke/모델추론/로봇/장치open0. push NOT_PUSHED,5단계미시작.
+- [4단계 상세와 차단사유](VLA_STAGE4.md), [세션](sessions/2026-10-28-vla-stage4-training-prep.md).
+
 ## 2026-10-28 VLA 3단계 — 데이터 도구 구현·오프라인 검증
 
 - 감사/대표장면 검수/append-only 검수·세션 기록/새 선별본/증거 기반 세션 분할 구현.
@@ -16,7 +28,7 @@
   기존bundle 보존, 새증분bundle/verify/SHA는 `.local/backups/`.
   복구에는 기준 `5f03c571e223f86f422b6eb68af94a6ff05c78db`가 있는 저장소가 필요하다.
 - [3단계 사용법](VLA_STAGE3.md), [세션 기록](sessions/2026-10-28-vla-stage3-data-tools.md).
-  아래1·2단계의 "다음 단계 시작 전" 문구는 당시 상태 기록이다. 지금은3단계 종료이며4단계 미시작.
+  아래1·2단계의 "다음 단계 시작 전" 문구는 당시 상태 기록이다. 최신 진행 상태는 맨 위4단계 기록을 따른다.
 
 ## 2026-10-28 VLA 2단계 — 계획/카운터 구현, 실제녹화 BLOCKED
 

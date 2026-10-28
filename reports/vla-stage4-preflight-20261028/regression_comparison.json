@@ -1,0 +1,716 @@
+{
+  "results": {
+    "base5f03c57": {
+      "counts": {
+        "tests": 587,
+        "failures": 6,
+        "errors": 23,
+        "skipped": 15
+      },
+      "classified": {
+        "dependency_missing": [
+          {
+            "kind": "skipped",
+            "id": "test_observe_teleop_trace.TraceAuditTests.test_active_trace_stops_when_teleop_ends_and_is_never_replay_authorized",
+            "reason": "optional websocket-client dependency is not installed"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_prepare_c_red_phases.CRedPhasePreparationTests.test_all_five_phases_pass_numeric_and_fake_bus_checks",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_prepare_c_red_phases.CRedPhasePreparationTests.test_full_approach_with_structured_logging_has_no_fake_schedule_regression",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_prepare_c_red_phases.CRedPhasePreparationTests.test_next_phase_not_run_after_first_failure",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_prepare_c_red_phases.CRedPhasePreparationTests.test_phase_boundaries_and_original_follower_commands",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_prepare_c_red_phases.CRedPhasePreparationTests.test_unprepared_command_is_blocked",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_prepare_c_red_phases.CRedPhasePreparationTests.test_urdf_violation_blocks_without_clipping",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_replay_c_red_phase.RecordedPhaseLiveGateTests.test_abort_never_runs_another_phase_and_closes_without_torque_change",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_replay_c_red_phase.RecordedPhaseLiveGateTests.test_default_is_dry_run_without_transport",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_replay_c_red_phase.RecordedPhaseLiveGateTests.test_single_grasp_success_needs_stillness_and_human_result",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_replay_c_red_phase.RecordedPhaseLiveGateTests.test_wrong_scope_or_phrase_never_opens_transport",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_teach_capture_web.TeachCaptureTests.test_cached_frame_exposes_original_receive_timestamp",
+            "reason": "loopback bind is unavailable in this sandbox: [Errno 1] Operation not permitted"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_teach_capture_web.TeachCaptureTests.test_http_capture_refuses_inactive_teleoperation",
+            "reason": "loopback bind is unavailable in this sandbox: [Errno 1] Operation not permitted"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_teach_capture_web.TeachCaptureTests.test_legacy_touch_capture_is_blocked_by_default",
+            "reason": "loopback bind is unavailable in this sandbox: [Errno 1] Operation not permitted"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_teach_capture_web.TeachCaptureTests.test_waypoint_http_requires_teleop_and_two_user_confirmations",
+            "reason": "loopback bind is unavailable in this sandbox: [Errno 1] Operation not permitted"
+          }
+        ],
+        "device_serial_required": [],
+        "legacy_fixture_or_aruco": [
+          {
+            "kind": "failures",
+            "id": "test_diagnose_aruco_reference_gaps.ReferenceGapDiagnosticTests.test_project_reference_centers_match_edge_gap_fit_and_center_checks",
+            "reason": " DESIRED: array([527.324,   0.   ])"
+          },
+          {
+            "kind": "failures",
+            "id": "test_live_c_safe_escape_only.SafeEscapeOnlyTests.test_fake_live_sends_exactly_one_fresh_relative_target",
+            "reason": "AssertionError: 1 != 0"
+          },
+          {
+            "kind": "failures",
+            "id": "test_live_c_safe_escape_only.SafeEscapeOnlyTests.test_half_motion_can_pass_even_when_terminal_tolerance_fails",
+            "reason": "AssertionError: 1 != 0"
+          },
+          {
+            "kind": "failures",
+            "id": "test_live_c_safe_escape_only.SafeEscapeOnlyTests.test_no_motion_fails_without_a_second_send",
+            "reason": "AssertionError: 0 != 1"
+          },
+          {
+            "kind": "failures",
+            "id": "test_live_wrist_escape_z_plus_20.LiveWristEscapeTests.test_fake_live_reaches_only_plus_twenty_and_stops",
+            "reason": "AssertionError: 1 != 0"
+          },
+          {
+            "kind": "failures",
+            "id": "test_live_wrist_escape_z_plus_20.LiveWristEscapeTests.test_first_failed_step_latches_off_without_second_target",
+            "reason": "AssertionError: 0 != 1"
+          },
+          {
+            "kind": "errors",
+            "id": "setUpClass (test_analyze_wrist_escape_postmortem.WristEscapePostmortemTests)",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_c_approach.LiveCApproachTests.test_actual_pre_approach_return_to_pick_ready_plan",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_c_approach.LiveCApproachTests.test_current_route_closed_gripper_blocks_before_any_send",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_c_approach.LiveCApproachTests.test_current_route_gate_precedes_coupled_targets",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_c_approach.LiveCApproachTests.test_home_to_new_grasp_tcp_pre_approach_plan",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_c_approach.LiveCApproachTests.test_pick_ready_to_new_grasp_tcp_pre_approach_plan",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_c_approach.LiveCApproachTests.test_safe_high_to_new_grasp_tcp_pre_approach_plan",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_c_approach.LiveCApproachTests.test_wrist_lead_phase_gate_uses_fresh_feedback_and_fk",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_home_safe_high_home_once.HomeSafeHighHomeOnceTests.test_dry_run_never_constructs_transport",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_home_safe_high_home_once.HomeSafeHighHomeOnceTests.test_recorded_round_trip_offline_metrics",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_home_safe_high_home_once.HomeSafeHighHomeOnceTests.test_wrong_phrase_does_not_construct_transport",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_wrist_escape_z_plus_20.LiveWristEscapeTests.test_offline_next_step_commands_only_wrist_and_is_bounded",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "setUpClass (test_plan_coupled_final_path.CoupledFinalPathTests)",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "setUpClass (test_plan_current_to_c_pre_approach.CurrentToCPreApproachPlannerTests)",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "setUpClass (test_plan_delayed_wrist_coupled_path.DelayedWristCoupledPathTests)",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "setUpClass (test_plan_home_to_c_pre_approach.HomeToCPreApproachPlannerTests)",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "setUpClass (test_plan_pick_ready_to_c_pre_approach.PickReadyToCPreApproachPlannerTests)",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "setUpClass (test_plan_responsive_joint_escape.ResponsiveJointEscapeTests)",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_plan_staged_load_relief_path.StagedLoadReliefPathTests.test_all_candidates_pass_bounded_fk_proxies_and_servo_bounds",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_plan_staged_load_relief_path.StagedLoadReliefPathTests.test_candidates_hold_elbow_while_unloading_lift",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_plan_staged_load_relief_path.StagedLoadReliefPathTests.test_endpoint_is_unchanged_and_minimal_candidate_is_selected",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_plan_staged_load_relief_path.StagedLoadReliefPathTests.test_failed_waypoint_fk_is_reconstructed",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_plan_staged_load_relief_path.StagedLoadReliefPathTests.test_fresh3_strong_unload_candidates_hold_elbow_and_pass_fk_proxies",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          }
+        ],
+        "safety_layer_code": [],
+        "other": []
+      }
+    },
+    "stage2d5136c0": {
+      "counts": {
+        "tests": 656,
+        "failures": 6,
+        "errors": 23,
+        "skipped": 15
+      },
+      "classified": {
+        "dependency_missing": [
+          {
+            "kind": "skipped",
+            "id": "test_observe_teleop_trace.TraceAuditTests.test_active_trace_stops_when_teleop_ends_and_is_never_replay_authorized",
+            "reason": "optional websocket-client dependency is not installed"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_prepare_c_red_phases.CRedPhasePreparationTests.test_all_five_phases_pass_numeric_and_fake_bus_checks",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_prepare_c_red_phases.CRedPhasePreparationTests.test_full_approach_with_structured_logging_has_no_fake_schedule_regression",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_prepare_c_red_phases.CRedPhasePreparationTests.test_next_phase_not_run_after_first_failure",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_prepare_c_red_phases.CRedPhasePreparationTests.test_phase_boundaries_and_original_follower_commands",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_prepare_c_red_phases.CRedPhasePreparationTests.test_unprepared_command_is_blocked",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_prepare_c_red_phases.CRedPhasePreparationTests.test_urdf_violation_blocks_without_clipping",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_replay_c_red_phase.RecordedPhaseLiveGateTests.test_abort_never_runs_another_phase_and_closes_without_torque_change",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_replay_c_red_phase.RecordedPhaseLiveGateTests.test_default_is_dry_run_without_transport",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_replay_c_red_phase.RecordedPhaseLiveGateTests.test_single_grasp_success_needs_stillness_and_human_result",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_replay_c_red_phase.RecordedPhaseLiveGateTests.test_wrong_scope_or_phrase_never_opens_transport",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_teach_capture_web.TeachCaptureTests.test_cached_frame_exposes_original_receive_timestamp",
+            "reason": "loopback bind is unavailable in this sandbox: [Errno 1] Operation not permitted"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_teach_capture_web.TeachCaptureTests.test_http_capture_refuses_inactive_teleoperation",
+            "reason": "loopback bind is unavailable in this sandbox: [Errno 1] Operation not permitted"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_teach_capture_web.TeachCaptureTests.test_legacy_touch_capture_is_blocked_by_default",
+            "reason": "loopback bind is unavailable in this sandbox: [Errno 1] Operation not permitted"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_teach_capture_web.TeachCaptureTests.test_waypoint_http_requires_teleop_and_two_user_confirmations",
+            "reason": "loopback bind is unavailable in this sandbox: [Errno 1] Operation not permitted"
+          }
+        ],
+        "device_serial_required": [],
+        "legacy_fixture_or_aruco": [
+          {
+            "kind": "failures",
+            "id": "test_diagnose_aruco_reference_gaps.ReferenceGapDiagnosticTests.test_project_reference_centers_match_edge_gap_fit_and_center_checks",
+            "reason": " DESIRED: array([527.324,   0.   ])"
+          },
+          {
+            "kind": "failures",
+            "id": "test_live_c_safe_escape_only.SafeEscapeOnlyTests.test_fake_live_sends_exactly_one_fresh_relative_target",
+            "reason": "AssertionError: 1 != 0"
+          },
+          {
+            "kind": "failures",
+            "id": "test_live_c_safe_escape_only.SafeEscapeOnlyTests.test_half_motion_can_pass_even_when_terminal_tolerance_fails",
+            "reason": "AssertionError: 1 != 0"
+          },
+          {
+            "kind": "failures",
+            "id": "test_live_c_safe_escape_only.SafeEscapeOnlyTests.test_no_motion_fails_without_a_second_send",
+            "reason": "AssertionError: 0 != 1"
+          },
+          {
+            "kind": "failures",
+            "id": "test_live_wrist_escape_z_plus_20.LiveWristEscapeTests.test_fake_live_reaches_only_plus_twenty_and_stops",
+            "reason": "AssertionError: 1 != 0"
+          },
+          {
+            "kind": "failures",
+            "id": "test_live_wrist_escape_z_plus_20.LiveWristEscapeTests.test_first_failed_step_latches_off_without_second_target",
+            "reason": "AssertionError: 0 != 1"
+          },
+          {
+            "kind": "errors",
+            "id": "setUpClass (test_analyze_wrist_escape_postmortem.WristEscapePostmortemTests)",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_c_approach.LiveCApproachTests.test_actual_pre_approach_return_to_pick_ready_plan",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_c_approach.LiveCApproachTests.test_current_route_closed_gripper_blocks_before_any_send",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_c_approach.LiveCApproachTests.test_current_route_gate_precedes_coupled_targets",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_c_approach.LiveCApproachTests.test_home_to_new_grasp_tcp_pre_approach_plan",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_c_approach.LiveCApproachTests.test_pick_ready_to_new_grasp_tcp_pre_approach_plan",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_c_approach.LiveCApproachTests.test_safe_high_to_new_grasp_tcp_pre_approach_plan",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_c_approach.LiveCApproachTests.test_wrist_lead_phase_gate_uses_fresh_feedback_and_fk",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_home_safe_high_home_once.HomeSafeHighHomeOnceTests.test_dry_run_never_constructs_transport",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_home_safe_high_home_once.HomeSafeHighHomeOnceTests.test_recorded_round_trip_offline_metrics",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_home_safe_high_home_once.HomeSafeHighHomeOnceTests.test_wrong_phrase_does_not_construct_transport",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_wrist_escape_z_plus_20.LiveWristEscapeTests.test_offline_next_step_commands_only_wrist_and_is_bounded",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "setUpClass (test_plan_coupled_final_path.CoupledFinalPathTests)",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "setUpClass (test_plan_current_to_c_pre_approach.CurrentToCPreApproachPlannerTests)",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "setUpClass (test_plan_delayed_wrist_coupled_path.DelayedWristCoupledPathTests)",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "setUpClass (test_plan_home_to_c_pre_approach.HomeToCPreApproachPlannerTests)",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "setUpClass (test_plan_pick_ready_to_c_pre_approach.PickReadyToCPreApproachPlannerTests)",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "setUpClass (test_plan_responsive_joint_escape.ResponsiveJointEscapeTests)",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_plan_staged_load_relief_path.StagedLoadReliefPathTests.test_all_candidates_pass_bounded_fk_proxies_and_servo_bounds",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_plan_staged_load_relief_path.StagedLoadReliefPathTests.test_candidates_hold_elbow_while_unloading_lift",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_plan_staged_load_relief_path.StagedLoadReliefPathTests.test_endpoint_is_unchanged_and_minimal_candidate_is_selected",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_plan_staged_load_relief_path.StagedLoadReliefPathTests.test_failed_waypoint_fk_is_reconstructed",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_plan_staged_load_relief_path.StagedLoadReliefPathTests.test_fresh3_strong_unload_candidates_hold_elbow_and_pass_fk_proxies",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          }
+        ],
+        "safety_layer_code": [],
+        "other": []
+      }
+    },
+    "current37667d5": {
+      "counts": {
+        "tests": 691,
+        "failures": 6,
+        "errors": 23,
+        "skipped": 15
+      },
+      "classified": {
+        "dependency_missing": [
+          {
+            "kind": "skipped",
+            "id": "test_observe_teleop_trace.TraceAuditTests.test_active_trace_stops_when_teleop_ends_and_is_never_replay_authorized",
+            "reason": "optional websocket-client dependency is not installed"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_prepare_c_red_phases.CRedPhasePreparationTests.test_all_five_phases_pass_numeric_and_fake_bus_checks",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_prepare_c_red_phases.CRedPhasePreparationTests.test_full_approach_with_structured_logging_has_no_fake_schedule_regression",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_prepare_c_red_phases.CRedPhasePreparationTests.test_next_phase_not_run_after_first_failure",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_prepare_c_red_phases.CRedPhasePreparationTests.test_phase_boundaries_and_original_follower_commands",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_prepare_c_red_phases.CRedPhasePreparationTests.test_unprepared_command_is_blocked",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_prepare_c_red_phases.CRedPhasePreparationTests.test_urdf_violation_blocks_without_clipping",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_replay_c_red_phase.RecordedPhaseLiveGateTests.test_abort_never_runs_another_phase_and_closes_without_torque_change",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_replay_c_red_phase.RecordedPhaseLiveGateTests.test_default_is_dry_run_without_transport",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_replay_c_red_phase.RecordedPhaseLiveGateTests.test_single_grasp_success_needs_stillness_and_human_result",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_replay_c_red_phase.RecordedPhaseLiveGateTests.test_wrong_scope_or_phrase_never_opens_transport",
+            "reason": "private recorded candidate unavailable"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_teach_capture_web.TeachCaptureTests.test_cached_frame_exposes_original_receive_timestamp",
+            "reason": "loopback bind is unavailable in this sandbox: [Errno 1] Operation not permitted"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_teach_capture_web.TeachCaptureTests.test_http_capture_refuses_inactive_teleoperation",
+            "reason": "loopback bind is unavailable in this sandbox: [Errno 1] Operation not permitted"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_teach_capture_web.TeachCaptureTests.test_legacy_touch_capture_is_blocked_by_default",
+            "reason": "loopback bind is unavailable in this sandbox: [Errno 1] Operation not permitted"
+          },
+          {
+            "kind": "skipped",
+            "id": "test_teach_capture_web.TeachCaptureTests.test_waypoint_http_requires_teleop_and_two_user_confirmations",
+            "reason": "loopback bind is unavailable in this sandbox: [Errno 1] Operation not permitted"
+          }
+        ],
+        "device_serial_required": [],
+        "legacy_fixture_or_aruco": [
+          {
+            "kind": "failures",
+            "id": "test_diagnose_aruco_reference_gaps.ReferenceGapDiagnosticTests.test_project_reference_centers_match_edge_gap_fit_and_center_checks",
+            "reason": " DESIRED: array([527.324,   0.   ])"
+          },
+          {
+            "kind": "failures",
+            "id": "test_live_c_safe_escape_only.SafeEscapeOnlyTests.test_fake_live_sends_exactly_one_fresh_relative_target",
+            "reason": "AssertionError: 1 != 0"
+          },
+          {
+            "kind": "failures",
+            "id": "test_live_c_safe_escape_only.SafeEscapeOnlyTests.test_half_motion_can_pass_even_when_terminal_tolerance_fails",
+            "reason": "AssertionError: 1 != 0"
+          },
+          {
+            "kind": "failures",
+            "id": "test_live_c_safe_escape_only.SafeEscapeOnlyTests.test_no_motion_fails_without_a_second_send",
+            "reason": "AssertionError: 0 != 1"
+          },
+          {
+            "kind": "failures",
+            "id": "test_live_wrist_escape_z_plus_20.LiveWristEscapeTests.test_fake_live_reaches_only_plus_twenty_and_stops",
+            "reason": "AssertionError: 1 != 0"
+          },
+          {
+            "kind": "failures",
+            "id": "test_live_wrist_escape_z_plus_20.LiveWristEscapeTests.test_first_failed_step_latches_off_without_second_target",
+            "reason": "AssertionError: 0 != 1"
+          },
+          {
+            "kind": "errors",
+            "id": "setUpClass (test_analyze_wrist_escape_postmortem.WristEscapePostmortemTests)",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_c_approach.LiveCApproachTests.test_actual_pre_approach_return_to_pick_ready_plan",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_c_approach.LiveCApproachTests.test_current_route_closed_gripper_blocks_before_any_send",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_c_approach.LiveCApproachTests.test_current_route_gate_precedes_coupled_targets",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_c_approach.LiveCApproachTests.test_home_to_new_grasp_tcp_pre_approach_plan",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_c_approach.LiveCApproachTests.test_pick_ready_to_new_grasp_tcp_pre_approach_plan",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_c_approach.LiveCApproachTests.test_safe_high_to_new_grasp_tcp_pre_approach_plan",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_c_approach.LiveCApproachTests.test_wrist_lead_phase_gate_uses_fresh_feedback_and_fk",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_home_safe_high_home_once.HomeSafeHighHomeOnceTests.test_dry_run_never_constructs_transport",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_home_safe_high_home_once.HomeSafeHighHomeOnceTests.test_recorded_round_trip_offline_metrics",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_home_safe_high_home_once.HomeSafeHighHomeOnceTests.test_wrong_phrase_does_not_construct_transport",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_live_wrist_escape_z_plus_20.LiveWristEscapeTests.test_offline_next_step_commands_only_wrist_and_is_bounded",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "setUpClass (test_plan_coupled_final_path.CoupledFinalPathTests)",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "setUpClass (test_plan_current_to_c_pre_approach.CurrentToCPreApproachPlannerTests)",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "setUpClass (test_plan_delayed_wrist_coupled_path.DelayedWristCoupledPathTests)",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "setUpClass (test_plan_home_to_c_pre_approach.HomeToCPreApproachPlannerTests)",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "setUpClass (test_plan_pick_ready_to_c_pre_approach.PickReadyToCPreApproachPlannerTests)",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "setUpClass (test_plan_responsive_joint_escape.ResponsiveJointEscapeTests)",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '.local/c-red-pivot-tcp-table-20261011-s01/so101_new_calib.urdf'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_plan_staged_load_relief_path.StagedLoadReliefPathTests.test_all_candidates_pass_bounded_fk_proxies_and_servo_bounds",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_plan_staged_load_relief_path.StagedLoadReliefPathTests.test_candidates_hold_elbow_while_unloading_lift",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_plan_staged_load_relief_path.StagedLoadReliefPathTests.test_endpoint_is_unchanged_and_minimal_candidate_is_selected",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_plan_staged_load_relief_path.StagedLoadReliefPathTests.test_failed_waypoint_fk_is_reconstructed",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          },
+          {
+            "kind": "errors",
+            "id": "test_plan_staged_load_relief_path.StagedLoadReliefPathTests.test_fresh3_strong_unload_candidates_hold_elbow_and_pass_fk_proxies",
+            "reason": "FileNotFoundError: [Errno 2] No such file or directory: '<snapshot-path>'"
+          }
+        ],
+        "safety_layer_code": [],
+        "other": []
+      }
+    }
+  },
+  "test_id_sets_identical": true
+}
