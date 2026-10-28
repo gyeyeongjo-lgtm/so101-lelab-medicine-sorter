@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stage 4 local planning only: no subprocess, network, policy/GPU imports or training."""
+"""Default read-only planning; explicit execute uses the guarded local-only adapter."""
 import argparse
 import importlib.metadata
 import json
@@ -18,7 +18,7 @@ from vla_train_data import train_statistics
 
 FIELDS={'schema_version','dataset_root','repo_id','split','sessions','audit','audit_receipt','cameras_config',
         'units_evidence','calibration_bounds','model','model_config','official_source','verified_options','output_dir',
-        'seed','batch_size','steps','save_freq','num_workers','device','wandb','push_to_hub','rename_map','physical_mapping_status','physical_mapping_evidence'}
+        'seed','batch_size','steps','save_freq','num_workers','device','min_free_vram_bytes','wandb','push_to_hub','rename_map','physical_mapping_status','physical_mapping_evidence'}
 PATHS={'dataset_root','split','sessions','audit','audit_receipt','cameras_config','units_evidence','calibration_bounds',
        'model_config','official_source','verified_options','output_dir','physical_mapping_evidence'}
 
@@ -27,7 +27,7 @@ def load_config(path):
     data=yaml.load(Path(path).read_text(),Loader=UniqueLoader)
     if not isinstance(data,dict) or set(data)!=FIELDS: raise RecordError('train config fields mismatch; secrets/extra options not accepted')
     if type(data['schema_version']) is not int or data['schema_version']!=1 or data['model']!='lerobot/smolvla_base': raise RecordError('unsupported schema/model')
-    for k in ('seed','batch_size','steps','save_freq','num_workers'):
+    for k in ('seed','batch_size','steps','save_freq','num_workers','min_free_vram_bytes'):
         if type(data[k]) is not int or data[k]<(0 if k in ('seed','num_workers') else 1): raise RecordError('invalid integer setting')
     if data['device']!='cuda' or data['wandb'] is not False or data['push_to_hub'] is not False: raise RecordError('Stage4 requires cuda plan, tracking/hub off')
     if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+',data['repo_id']): raise RecordError('invalid repo identifier')
@@ -74,12 +74,13 @@ def command(config,train_ids,rename,resume=None):
     values={'dataset.repo_id':config['repo_id'],'dataset.root':config['dataset_root'],
         'dataset.episodes':json.dumps(train_ids,separators=(',',':')),'dataset.eval_split':'0.0',
         'dataset.use_imagenet_stats':'false','dataset.video_backend':'pyav','policy.device':config['device'],
-        'policy.push_to_hub':'false','output_dir':config['output_dir'],'seed':str(config['seed']),
+        'policy.push_to_hub':'false','output_dir':str(Path(config['output_dir'])/'train'),'seed':str(config['seed']),
         'steps':str(config['steps']),'batch_size':str(config['batch_size']),'num_workers':str(config['num_workers']),
         'save_freq':str(config['save_freq']),'save_checkpoint_to_hub':'false','wandb.enable':'false',
-        'env_eval_freq':'0','eval_steps':'0','rename_map':json.dumps(rename,separators=(',',':'))}
+        'env_eval_freq':'0','eval_steps':'0','job.target':'local','dataset.image_transforms.enable':'false',
+        'rename_map':json.dumps(rename,separators=(',',':'))}
     if resume: values.update(resume='true',config_path=str(Path(resume).resolve()))
-    else: values['policy.path']=config['model']
+    else: values['policy.path']=str(Path(config['model_config']).parent) if config['model_config'] else config['model']
     allowed=verified_options(config)
     if any('--'+k not in allowed for k in values): raise RecordError('command contains unverified option')
     return args+['--'+k+'='+v for k,v in values.items()]
@@ -97,6 +98,8 @@ def resume_check(config, checkpoint, previous, contract):
     if d.get('root')!=config['dataset_root'] or d.get('repo_id')!=config['repo_id'] or d.get('episodes')!=contract['train_episodes'] or d.get('eval_split',0)!=0: raise RecordError('checkpoint dataset mismatch')
     policy=saved.get('policy',{})
     if policy.get('type')!='smolvla' or policy.get('push_to_hub') is not False: raise RecordError('checkpoint policy mismatch')
+    if saved.get('job',{}).get('target') not in (None,'local') or saved.get('env') is not None or saved.get('reward_model') is not None:
+        raise RecordError('remote/environment/reward resume prohibited')
     return {'checkpoint_config_sha256':sha(checkpoint),'previous_manifest_sha256':sha(previous)}
 
 
@@ -113,6 +116,7 @@ def prepare(config,*,accept_unit_unknown=False,reason=None,gpu_provider=None,res
         ds=Dataset(config['dataset_root']); provenance=read_json(ds.root/'provenance.json')
         if provenance.get('derived_binding')!=ds.binding or provenance.get('source_binding',{}).get('root')==str(ds.root): raise RecordError('new derived provenance required')
         source=Dataset(provenance['source_binding']['root'])
+        outside(source.root,output)
         if source.binding!=provenance['source_binding']: raise RecordError('original source metadata changed')
         source_metas={m['episode_index']:m for m in source.metas}
         lineage=provenance['episodes']
@@ -140,6 +144,12 @@ def prepare(config,*,accept_unit_unknown=False,reason=None,gpu_provider=None,res
             get_rename_map(config,ds.camera_keys,model['input_features'])
             if model.get('type')!='smolvla' or model.get('normalization_mapping')!={'VISUAL':'IDENTITY','STATE':'MEAN_STD','ACTION':'MEAN_STD'}: raise RecordError('base model normalization not supported by numeric-only adapter')
             info['model_config_sha256']=sha(config['model_config'])
+            if Path(config['model_config']).name!='config.json': raise RecordError('base metadata must be local model directory/config.json')
+            model_dir=Path(config['model_config']).parent
+            weights=model_dir/'model.safetensors'
+            if not weights.is_file() or weights.stat().st_size==0:
+                blockers.append('LOCAL_MODEL_WEIGHTS_MISSING')
+            else: info['local_weights_bytes']=weights.stat().st_size
         unit=units_evidence(ds,config['units_evidence'],config['calibration_bounds'])
         if unit['status']=='UNKNOWN' and not accept_unit_unknown: blockers.append('UNITS_UNVERIFIED')
         stats=train_statistics(ds,train_ids)
@@ -165,9 +175,9 @@ def prepare(config,*,accept_unit_unknown=False,reason=None,gpu_provider=None,res
     except (OSError,ValueError,KeyError,IndexError): blockers.append('CAMERA_CONFIG_OR_EVIDENCE_INVALID')
     try: args=command(config,train_ids,rename,resume)
     except (OSError,KeyError,ValueError): args=[]; blockers.append('OFFICIAL_OPTIONS_UNVERIFIED')
-    # No GPU query during dry-run. Current CLI has no live evidence provider.
+    # No GPU query during dry-run. Execution supplies a fresh read-only query.
     gpu=gpu_provider() if gpu_provider else None
-    if not gpu or gpu.get('available') is not True or gpu.get('free_bytes',0)<=0 or gpu.get('fit_verified') is not True:
+    if not gpu or gpu.get('available') is not True or gpu.get('free_bytes',0)<config['min_free_vram_bytes']:
         blockers.append('GPU_VRAM_UNVERIFIED')
     contract={k:info.get(k) for k in ('dataset_binding','split_sha256','meta_info_sha256','audit_receipt_sha256','provenance_sha256','source_binding','train_episodes','eval_episodes','train_stats_sha256','model_config_sha256','cameras_config_sha256','unit_evidence_sha256')}
     contract.update(model=config['model'],seed=config['seed'],batch_size=config['batch_size'],steps=config['steps'],num_workers=config['num_workers'],save_freq=config['save_freq'],rename_sha256=digest(rename),source_options_sha256=sha(config['verified_options']))
@@ -176,18 +186,16 @@ def prepare(config,*,accept_unit_unknown=False,reason=None,gpu_provider=None,res
     elif resume:
         try: resume_info=resume_check(config,resume,previous_manifest,contract)
         except (OSError,KeyError,ValueError): blockers.append('RESUME_IDENTITY_MISMATCH')
-    # Prevent accidentally using global meta.stats via the raw candidate command.
-    # No CLI launch until the injected partition/stats adapter is integrated and verified with training.
-    blockers.append('EXECUTION_DISABLED_STAGE4_STATS_ADAPTER_LIVE_NOT_VERIFIED')
     try: installed=importlib.metadata.version('lerobot')
     except importlib.metadata.PackageNotFoundError: installed='NOT_INSTALLED'
-    manifest={'schema_version':1,'status':'BLOCKED','repo_sha':repo_sha(),'installed_lerobot_version':installed,
+    manifest={'schema_version':1,'status':'BLOCKED' if blockers else 'PREFLIGHT_PASS','repo_sha':repo_sha(),'installed_lerobot_version':installed,
         'planned_source_version':'0.6.0','source_options_sha256':sha(config['verified_options']),
         'train_config_sha256':digest(config),'rename_sha256':digest(rename),'output_dir':str(output),
         'contract':contract,'seed':config['seed'],'prepared_at':now(),'start_time':None,'command_args':args,
         'command_display':shlex.join(args),'command_status':'CANDIDATE_ONLY_NOT_EXECUTABLE',
         'actual_launch_args':None,'verified_upstream_candidate_args':args,
-        'adapter_callable':'vla_train_data.invoke_training','adapter_status':'MOCK_VERIFIED_ONLY_NO_LIVE_ENTRYPOINT',
+        'adapter_callable':'vla_train_launch.execute','adapter_status':'IMPLEMENTED_LIVE_TRAINING_NOT_RUN',
+        'gpu_evidence':gpu,'memory_fit_status':'NOT_RUN_ADMISSION_FLOOR_ONLY',
         'planned_child_environment':{'PYTHONPATH':str(Path(config['official_source'])/'src'),'HF_HUB_OFFLINE':'1','HF_DATASETS_OFFLINE':'1','TRANSFORMERS_OFFLINE':'1','WANDB_MODE':'disabled'},
         'credential_policy':'environment variable names only; secret values never read into manifest',
         'shell':False,'unit_unknown_override':{'accepted':accept_unit_unknown,'reason':reason if accept_unit_unknown else None},
@@ -201,11 +209,14 @@ def main(argv=None):
     p.add_argument('--accept-unit-unknown',action='store_true'); p.add_argument('--unit-unknown-reason')
     p.add_argument('--resume-config',type=Path); p.add_argument('--previous-manifest',type=Path)
     a=p.parse_args(argv)
+    if a.execute:
+        from vla_train_launch import execute
+        return execute(a.config,accept_unit_unknown=a.accept_unit_unknown,reason=a.unit_unknown_reason,
+                       resume=a.resume_config,previous_manifest=a.previous_manifest)
     result=prepare(load_config(a.config),accept_unit_unknown=a.accept_unit_unknown,reason=a.unit_unknown_reason,resume=a.resume_config,previous_manifest=a.previous_manifest)
     result['train_config_file_sha256']=sha(a.config)
     print(json.dumps(result,ensure_ascii=False,indent=2))
-    # Deliberately no subprocess call. execute does NOT write a fake run manifest.
-    return 2 if a.execute else 0
+    return 0
 
 
 if __name__=='__main__': raise SystemExit(main())

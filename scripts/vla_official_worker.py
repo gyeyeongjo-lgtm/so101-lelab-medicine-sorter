@@ -35,7 +35,7 @@ def main():
     p = argparse.ArgumentParser()
     for key in ("root", "source", "result"):
         p.add_argument("--"+key, type=Path, required=True)
-    p.add_argument("--mode", choices=("reload", "derive"), default="reload")
+    p.add_argument("--mode", choices=("reload", "derive", "partitions"), default="reload")
     p.add_argument("--out", type=Path)
     p.add_argument("--excluded", default="[]")
     a = p.parse_args()
@@ -53,6 +53,29 @@ def main():
         sample = ds[0]
         report = {"status": "PASS", "official_source_version": project["version"],
                   "episodes": ds.num_episodes, "frames": len(ds), "sample_keys": sorted(sample)}
+        if a.mode == "partitions":
+            # Data-only integration, no training module / policy / optimizer imports.
+            from types import SimpleNamespace
+            from lerobot.configs.default import DatasetConfig
+            from lerobot.datasets.factory import make_dataset
+            from vla_data import Dataset, tree_hash
+            from vla_train_data import train_statistics, partitioned_datasets
+            before=tree_hash(root)
+            cfg=SimpleNamespace(dataset=DatasetConfig(repo_id="local/vla-audit",root=str(root),video_backend="pyav"),
+                trainable_config=SimpleNamespace(action_delta_indices=[0],observation_delta_indices=[0],reward_delta_indices=None),
+                tolerance_s=1e-4,num_workers=0)
+            train_ids=[0,2];eval_ids=[1]
+            stats=train_statistics(Dataset(root),train_ids)
+            train,ev=partitioned_datasets(cfg,make_dataset,train_ids,eval_ids,stats)
+            import numpy as np
+            assert train.episodes==train_ids and ev.episodes==eval_ids
+            for data in (train,ev):
+                data[0]
+                for key in stats:
+                    for stat in stats[key]: np.testing.assert_allclose(data.meta.stats[key][stat],stats[key][stat])
+            assert tree_hash(root)==before
+            report.update(train_episodes=train.episodes,eval_episodes=ev.episodes,
+                train_stats_shared=True,source_unchanged=True,training="NOT_RUN")
         if a.mode == "derive":
             if a.out is None or a.out.exists() or root == a.out.resolve() or root in a.out.resolve().parents:
                 raise ValueError("new output outside source required")

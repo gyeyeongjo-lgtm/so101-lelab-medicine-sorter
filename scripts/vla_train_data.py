@@ -40,7 +40,7 @@ def invoke_training(cfg, training_module, dataset_factory, train_ids, eval_ids, 
     """Dependency-injected wiring, tested ONLY with fake training_module.
 
     No module imports or launch here; caller must pass verified official objects.
-    CLI has no path to this function while Stage 4 execution remains disabled.
+    The public launcher uses the same partition adapter through upstream main().
     """
     original=training_module.make_train_eval_datasets
     training_module.make_train_eval_datasets=lambda requested:partitioned_datasets(requested,dataset_factory,train_ids,eval_ids,stats)

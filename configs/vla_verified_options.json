@@ -26,6 +26,8 @@
     "--rename_map",
     "--resume",
     "--config_path"
+    ,"--job.target"
+    ,"--dataset.image_transforms.enable"
   ],
   "source_only_flags": {
     "--policy.path": {
@@ -35,6 +37,8 @@
     }
   },
   "files": {
+    "src/lerobot/scripts/lerobot_train.py": "95f6d05d21205c03abbfbf4225ed1cb26b7af4826e3e8a84def3eb10ddd988dc",
+    "src/lerobot/configs/parser.py": "69118561b33fbed68ad27066c26af894ad21d2caf4ed3577bad71bf32a05e036",
     "src/lerobot/configs/train.py": "e947a6a0dc7006ef02bb1fb301007684c86930bc21e5a6abdfd4849a11727291",
     "src/lerobot/configs/default.py": "93ab849672a146123ca2f9e96a36123fbfd83e22f21e4353a468d7dca7d81712",
     "src/lerobot/datasets/factory.py": "8af7945ce4802e1aede4dda316f32cb57bc634482f12ee0eface4721cd748e05",

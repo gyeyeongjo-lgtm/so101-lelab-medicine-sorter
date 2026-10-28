@@ -4,6 +4,11 @@
 
 ## 2026-10-28 VLA 4단계 — 무학습 준비·mock 검증, 실행 BLOCKED
 
+- 실행기 보완: 공식0.6 main 연결 구현, 항상차단 상수 제거. 현재는 실제 데이터/카메라/모델/GPU 증거 부족으로 BLOCKED.
+- 최종 VLA143 PASS/skip0. 공식 dataset 객체의 소형 CPU 분할·통계 검사 PASS, fake upstream.main 연결 PASS.
+  실제 모델 forward/backward/resume학습 NOT_RUN. 전체730 testsRun의 기존 failure6/error23/skip15는 항목·사유 모두 동일.
+- 신규 runroot에 manifest, 아직 없는 runroot/train에 학습출력; 원본과 이전bundle 보존. remote/job/cloud/Hub/W&B 실행 차단.
+- 아래135개/미구현 기록은 초기 `1c540b3` 시점이며 위 보완 상태가 최신이다.
 - train 설정/공통rename/공식옵션증거/읽기전용preflight·manifest/재개조건/ACT비교초안 추가.
 - train-only 통계와 명시적세션분할을 주입하는 연결은 fake training module로 검증했다.
   raw CLI는 참고용, actual_launch_args=null, CLI execute는exit2이며 실제학습 연결은 미완료다.

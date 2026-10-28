@@ -1,0 +1,27 @@
+{
+  "scope": "guarded full discovery + official data-only fixture; real training NOT_RUN",
+  "baseline_tests": 691,
+  "final_tests": 730,
+  "counts": {
+    "failures": 6,
+    "errors": 23,
+    "skipped": 15
+  },
+  "unchanged_from_baseline": {
+    "failures": true,
+    "errors": true,
+    "skipped": true
+  },
+  "vla_subset": {
+    "tests": 143,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "live_launcher": "IMPLEMENTED",
+  "actual_training": "NOT_RUN",
+  "actual_model_forward_backward": "NOT_RUN",
+  "official_data_partition_fixture": "PASS",
+  "mock_upstream_main": "PASS",
+  "push": "NOT_PUSHED"
+}

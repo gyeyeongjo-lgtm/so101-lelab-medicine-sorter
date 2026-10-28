@@ -26,7 +26,7 @@ class TrainTests(unittest.TestCase):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.base=Path(self.tmp.name)
         self.original=Dataset(fixture(self.base/'original'));self.ds=Dataset(fixture(self.base/'derived'))
         self.config=load_config(ROOT/'configs/vla_train.yaml')
-        for key,name in dict(dataset_root='derived',split='split.json',sessions='sessions.jsonl',audit='audit.json',audit_receipt='receipt.json',model_config='base_config.json',output_dir='new-training',physical_mapping_evidence='physical.json').items():
+        for key,name in dict(dataset_root='derived',split='split.json',sessions='sessions.jsonl',audit='audit.json',audit_receipt='receipt.json',model_config='config.json',output_dir='new-training',physical_mapping_evidence='physical.json').items():
             self.config[key]=str(self.base/name)
         rows=[];counter=new_counter(self.original.root,'local/test');counter['actual_repo_id']='local/test';lineage=[]
         for m in self.ds.metas:
@@ -40,7 +40,7 @@ class TrainTests(unittest.TestCase):
         write_new(self.ds.root/'provenance.json',dict(schema_version=1,source_binding=self.original.binding,derived_binding=self.ds.binding,episodes=lineage))
         partition=split(self.ds,session_evidence(self.ds,self.base/'sessions.jsonl'),.34,101);write_new(self.base/'split.json',partition)
         model=dict(type='smolvla',input_features={v:{} for v in get_rename_map(self.config).values()},normalization_mapping={'VISUAL':'IDENTITY','STATE':'MEAN_STD','ACTION':'MEAN_STD'})
-        write_new(self.base/'base_config.json',model)
+        write_new(self.base/'config.json',model)
         self.refresh_audit()
 
     def refresh_audit(self):
@@ -59,9 +59,11 @@ class TrainTests(unittest.TestCase):
         result=self.result(accept_unit_unknown=True,reason='synthetic unknown unit trial')
         self.assertNotIn('UNITS_UNVERIFIED',result['blockers']);self.assertIn('GPU_VRAM_UNVERIFIED',result['blockers'])
         self.assertEqual(result['unit_unknown_override']['reason'],'synthetic unknown unit trial')
-    def test_execution_always_disabled(self):
+    def test_execution_blocked_by_real_missing_evidence(self):
         result=self.result(accept_unit_unknown=True,reason='synthetic',gpu_provider=lambda:dict(available=True,free_bytes=99999999999,fit_verified=True))
-        self.assertIn('EXECUTION_DISABLED_STAGE4_STATS_ADAPTER_LIVE_NOT_VERIFIED',result['blockers'])
+        self.assertIn('PHYSICAL_CAMERA_MAPPING_UNVERIFIED',result['blockers'])
+        self.assertIn('LOCAL_MODEL_WEIGHTS_MISSING',result['blockers'])
+        self.assertFalse(any(b.startswith('EXECUTION_DISABLED') for b in result['blockers']))
     def test_missing_camera_mapping(self):
         del self.config['rename_map']['observation.images.wrist']
         with self.assertRaises(RecordError): get_rename_map(self.config)

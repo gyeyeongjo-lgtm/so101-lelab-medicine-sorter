@@ -20,6 +20,7 @@ steps: 100000
 save_freq: 5000
 num_workers: 2
 device: cuda
+min_free_vram_bytes: 8589934592  # admission floor, NOT a proven batch/model fit
 wandb: false
 push_to_hub: false
 # The ONE project mapping; training and future inference must read this function/config.
