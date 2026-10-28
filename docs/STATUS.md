@@ -2,6 +2,20 @@
 
 업데이트: 2026-10-28
 
+## 2026-10-28 VLA 2단계 — 계획/카운터 구현, 실제녹화 BLOCKED
+
+- 9조합·27문장·기본한국어·기본A:red gate·10회씩총90목표를 설정으로 추가.
+- dry-run 추천/수동선택/문장/명령초안/불균형경고는 파일·장치를 변경하지 않는다.
+- 카운터는dataset밖, 저장완료이벤트+정확한1episode증가+task/row/필수영상검사 후만증가.
+  손상JSON·실패·중단·stale revision·atomic save실패는 증가금지(mock검증).
+- 새42tests, stage1포함69tests와기존회귀105tests = 총174 PASS.
+  실제record/학습/추론/serial open/모터/서비스변경 NOT_RUN.
+- raw0.6.0 CLI의 torqueoff종료/무제한기본값으로 execute는차단.
+  첫생성actual_repo_id를보존해동일root와이름으로resume하는계약은mock검증했다.
+  임의JSON/승인flag로우회불가. 기존RobotController/web/safety/ArUco/YOLO는보존.
+- [사용법/차단사유](VLA_STAGE2.md), [작업기록](sessions/2026-10-28-vla-stage2-record-planner.md).
+- 원격push는 이번단계에승인됨. 최종상태는완료응답참조. 3단계는시작하지않음.
+
 ## 2026-10-28 VLA 1단계 — 카메라 설정 구현, 실장비 NOT_RUN
 
 - 별도 clone의 `vla/main`에 `configs/vla_cameras.yaml`, camera-only 점검 CLI와
