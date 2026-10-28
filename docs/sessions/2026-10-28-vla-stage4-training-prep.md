@@ -67,3 +67,17 @@ push NOT_PUSHED, 5단계 미시작. 롤백은stage4commit revert이며원본데�
 - 초기 stage4 incremental bundle은 덮어쓰지 않음. 보완본은 stage4-20261028-launcher-v2.bundle 및 receipt로 별도 보존.
 - 실제 실행기 구현 미완료 상태는 해소했으나 실모델 forward/backward/normalizer/resume 검증은 NOT_RUN.
   실제 데이터·단위·카메라·모델cache·GPU 증거 미확인, 현재설정 BLOCKED. 5단계 미시작, NOT_PUSHED.
+
+## 모델 metadata 근거 보완
+
+- pinned 공식 Hub config URL의 로컬 curl은 DNS실패 exit6, web reader도 접근불가였다.
+- 주채팅 `01a18185-0095-7291-8dd7-b844e066fc92`의 별도 노트북 관측을
+  `configs/vla_model_metadata_evidence.json`에 ATTRIBUTED_EXTERNAL_OBSERVATION으로 저장했다.
+  보고된 원본크기2299bytes·SHA는 독립검증한 것으로 표시하지 않았다. 원본 config 파일 저장0.
+- 보고된 type/input keys/action shape/chunk_size를 모델 입력키 근거로만 사용한다.
+  runtime model_config=null, physical_mapping_status 미확인, Hub override=false 그대로다.
+- targeted `test_vla_model_metadata_evidence.py` 1개 PASS/skip0.
+  보고서 `.local/stage4/model-metadata-targeted.json`. 전체 회귀는 재실행하지 않았다.
+  앞 절143/730개는 직전 실행기 commit 검증 수치로 보존하며 이번 전체144 PASS라고 주장하지 않는다.
+- weights 다운로드·설치·학습·모델추론·장치·push0, 5단계 미시작.
+  기존commit/bundle 보존, metadata-v3 증분bundle을 별도 생성·검증하고 receipt에SHA를 기록한다.

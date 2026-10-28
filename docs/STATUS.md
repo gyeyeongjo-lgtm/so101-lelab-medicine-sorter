@@ -4,6 +4,9 @@
 
 ## 2026-10-28 VLA 4단계 — 무학습 준비·mock 검증, 실행 BLOCKED
 
+- 모델 입력 키 근거 보완: 별도 주채팅의 pinned Hub metadata 관측을 attributed JSON으로 기록.
+  이 환경에서는 DNS/web 접근불가로 원본2299bytes/SHA 독립검증 불가. runtime config=null·물리매핑미확인 유지.
+  상세 `configs/vla_model_metadata_evidence.json`. 실제weights/download/학습/추론/push 없음.
 - 실행기 보완: 공식0.6 main 연결 구현, 항상차단 상수 제거. 현재는 실제 데이터/카메라/모델/GPU 증거 부족으로 BLOCKED.
 - 최종 VLA143 PASS/skip0. 공식 dataset 객체의 소형 CPU 분할·통계 검사 PASS, fake upstream.main 연결 PASS.
   실제 모델 forward/backward/resume학습 NOT_RUN. 전체730 testsRun의 기존 failure6/error23/skip15는 항목·사유 모두 동일.

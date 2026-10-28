@@ -72,6 +72,16 @@ python3 -B -m unittest discover -s tests -p 'test_camera_preview_joint_ws.py'
 pretrained camera 번호가 특정 물리 시점을 절대 의미한다고 가정하지 않는다.
 방향/누락/중복, dataset 입력키, 로컬 모델 config의 input_features 존재를 검사한다.
 
+모델 입력 키의 추가 근거는 `configs/vla_model_metadata_evidence.json`이다.
+별도 노트북의 주채팅에서 공식 Hub revision `5e8d12a6e2975b0e5e5fce7c8caf47c371d257b6`
+config.json을 읽어 state+camera1/2/3, action shape6, chunk_size50을 확인했다고 보고했다.
+원본2299bytes/SHA256 `650584b56c104720f7a3c91d1ec6bec9e8de8ac11e60c92ba2fa82d93eda147d`는
+**외부 관측의 보고값**이며 이 실행 환경에서 독립 검증한 값이 아니다.
+여기서는 curl DNS실패와 web reader 접근불가로 원본 metadata를 저장하지 못했다.
+따라서 모델 입력 키 근거는 attributed observation으로 보완하되 runtime model_config=null,
+물리 카메라 대응 UNVERIFIED, 실제 가중치/학습/추론 NOT_RUN을 유지한다.
+원본 metadata의 push_to_hub=true와 별개로 학습 override는 false다. 이 근거 JSON은 모델 config가 아니다.
+
 실제 물리 대응은 UNVERIFIED. stage1 devices도 null이다. VERIFIED_FROM_RECORDING으로 바꾸려면
 별도 증거 JSON에 dataset_binding, cameras_config_sha256, rename_map,
 evidence[{file,line,contains,sha256}]를 제공해야 한다. 이름이나 과거 /dev/video 번호만으로 확정하지 않는다.

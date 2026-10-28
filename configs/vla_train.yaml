@@ -10,7 +10,7 @@ cameras_config: configs/vla_cameras.yaml
 units_evidence: null
 calibration_bounds: configs/so101_follower_calibration_bounds_20261008.json
 model: lerobot/smolvla_base
-model_config: null  # local base config.json; no automatic download
+model_config: null  # runtime config still missing; see vla_model_metadata_evidence.json for attributed external key evidence only
 official_source: /tmp/mediflow-lerobot060-help-H2dsrt/source
 verified_options: configs/vla_verified_options.json
 output_dir: .local/vla_outputs/smolvla_v1
