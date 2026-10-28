@@ -1,6 +1,21 @@
 # 현재 상태
 
-업데이트: 2026-10-27
+업데이트: 2026-10-28
+
+## 2026-10-28 VLA 1단계 — 카메라 설정 구현, 실장비 NOT_RUN
+
+- 별도 clone의 `vla/main`에 `configs/vla_cameras.yaml`, camera-only 점검 CLI와
+  무장치 테스트를 추가했다. 정확한 role은 wrist/top/oblique다.
+- 실제 고정 장치 경로는 미확인(null). 장치 신원 미확인/중복/숫자 경로이면 capture를
+  거부한다. 기본 실행은 schema만 검사하며, 성공 exit0을 연결 성공으로 표시하지 않는다.
+- Jetson SSH는 No route to host(exit255): 환경/실제영상 검사는 NOT_RUN.
+- 공식0.6.0 요구사항과 별도0.6.0 소스의 train/record CLI help(exit0)를 확인했다.
+  설치환경은0.6.1 그대로이며0.6.0 격리환경/Jetson 및 물리 카메라→모델camera1/2/3 대응은 미검증이다.
+- 설치·학습·추론·serial open·모터 명령·서비스 변경0. 기존 제어/웹/ArUco/YOLO 유지.
+- 신규27 + 기존 회귀105 = 132 tests PASS(무장치). template capture는 exit2/NOT_RUN으로
+  정상 거부하며 연결 성공을 주장하지 않는다.
+- 상세와 명령: [VLA_STAGE1](VLA_STAGE1.md), [세션 기록](sessions/2026-10-28-vla-stage1-cameras.md).
+- 원격 NOT_PUSHED. 2단계는 사용자 “다음” 승인 전 시작하지 않는다.
 
 ## 2026-10-27 적재 중 elbow transit settle — 구현·오프라인 PASS, 재실기 NOT_RUN
 
