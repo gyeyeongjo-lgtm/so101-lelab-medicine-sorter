@@ -44,5 +44,7 @@
    해결 후에도 현장 전원차단·시작 Enter·arm0.5°·짧은step·stopHOLD·disconnect토크유지 확인이 필요하다.
    기존2°상한/55°C/Overload/HOLD는 완화하지 않는다. 원본보정과 한꺼번에 변경하지 않는다.
 
-9. 실제 결과는 6단계 CSV에 사람이 기록한다. mock 수치나 bench속도를 성공률로 사용하지 않는다.
+9. 실제 결과는 6단계 CSV에 사람이 기록한다. [6단계 사용법](VLA_STAGE6.md)을 따른다.
+   먼저 `python3 -B scripts/vla_eval_report.py --csv data/vla_eval.csv validate`로 빈 템플릿과 SHA를 확인한다.
+   실제 기록은 별도 로컬 원장에만 추가한다. mock 수치나 bench속도를 성공률로 사용하지 않는다.
    실패 시 새 run manifest/step logs/현장 관찰을 가져온다. 로봇 동작 영상은 자동 저장하지 않는다.

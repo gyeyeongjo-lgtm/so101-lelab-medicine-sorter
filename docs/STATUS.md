@@ -1,6 +1,22 @@
 # 현재 상태
 
-업데이트: 2026-10-28
+업데이트: 2026-10-29
+
+## 2026-10-29 VLA 6단계 — 평가 원장·집계 구현, 실제 평가 0건
+
+- `data/vla_eval.csv`는 헤더만. 실제 성공/실패 기록을 만들지 않았다.
+- `scripts/vla_eval_report.py`: 엄격한 스키마/모순 검사, 잠금+SHA+원자 교체 방식의 논리적 append,
+  수정 이력 보존, 체크포인트별 9조합×5회, 마지막 이력만 집계, 지정 바구니 투입만 성공.
+- 미기록 N/A와 실제 실패0%를 구분하며 로드/움직임/파지/지정 투입을 별도 집계한다.
+- 신규57 PASS, 기존VLA203+신규57=260 PASS/skip0. 전체847 testsRun/failure6/error23/skip15;
+  5단계 전체790과 실패·오류·제외 ID 및 전체 사유가 동일하다. 전체 PASS 아님.
+- 5단계 신규 최종59(초기57+CLI2), 그 이전VLA144 → 203. 6단계57을 별도로 구분한다.
+- 제외15 = dependency1/private fixture10/loopback4. 정지·허용범위·중단 시 토크변경 금지 등
+  안전 관련 검사가 포함되므로 단순 test-name 문자열 분류나 제외 개수로 안전 검증 완료를 주장하지 않는다.
+- 기존 robot/fixed_demo/calibration/제어 제한 변경0. 5단계 실제 streaming/HOLD API·관측·단위·시작분포
+  연결은 여전히 미완료, 실shadow/live BLOCKED. 장치·Jetson·GPU·실모델·학습·push0, 7단계 미시작.
+- [사용법](VLA_STAGE6.md), [세션/검증 명령](sessions/2026-10-29-vla-stage6-evaluation.md),
+  `reports/vla-stage6-20261029/verification.json`. 커밋 후 새 증분bundle을 별도 생성/verify/SHA 기록한다.
 
 ## 2026-10-28 VLA 5단계 — mock 연결·벤치마크 준비, 실제 실행 BLOCKED
 

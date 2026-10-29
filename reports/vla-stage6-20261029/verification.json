@@ -1,0 +1,98 @@
+{
+  "scope": "OFFLINE_SYNTHETIC_ONLY",
+  "stage5_commit": "27f9c797ff8071f61bb6e81439cb4722d61c4d95",
+  "reports": {
+    "baseline": ".local/stage5-full-final.json",
+    "stage6_new": ".local/stage6-new-first.json",
+    "vla_final": ".local/stage6-vla-final.json",
+    "full_final": ".local/stage6-full-final.json"
+  },
+  "counts": {
+    "baseline": {
+      "tests": 790,
+      "failures": 6,
+      "errors": 23,
+      "skipped": 15
+    },
+    "stage6_new": {
+      "tests": 57,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "vla_final": {
+      "tests": 260,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "full_final": {
+      "tests": 847,
+      "failures": 6,
+      "errors": 23,
+      "skipped": 15
+    }
+  },
+  "comparison_with_stage5": {
+    "failures": {
+      "same_ids": true,
+      "same_full_reasons": true,
+      "added_ids": [],
+      "removed_ids": [],
+      "changed_reasons": []
+    },
+    "errors": {
+      "same_ids": true,
+      "same_full_reasons": true,
+      "added_ids": [],
+      "removed_ids": [],
+      "changed_reasons": []
+    },
+    "skipped": {
+      "same_ids": true,
+      "same_full_reasons": true,
+      "added_ids": [],
+      "removed_ids": [],
+      "changed_reasons": []
+    }
+  },
+  "test_partition": {
+    "pre_stage5_vla": 144,
+    "stage5_new_final": 59,
+    "stage5_vla_total": 203,
+    "stage5_new_initial_before_two_CLI_tests": 57,
+    "stage6_new": 57,
+    "all_vla": 260
+  },
+  "skip_categories": {
+    "missing_dependency:websocket-client": 1,
+    "missing_private_fixture": 10,
+    "sandbox_loopback_denied": 4
+  },
+  "skip_safety_review": {
+    "contains_safety_related_checks": true,
+    "method": "read skipped test bodies and guards, not merely test-name substring matching; no live coverage claim",
+    "dependency_1": "read-only trace stops on teleop termination and cannot authorize replay; not motor HOLD verification",
+    "private_fixture_10": "phase numeric/fake-bus validation, unprepared/URDF gates, stop-on-failure, replay scope, grasp stillness/human confirmation and abort without torque change are among omitted tests",
+    "loopback_4": "cached receive time, inactive-teleop capture rejection, legacy touch block, two-confirmation waypoint gate; HTTP capture authorization/freshness, not actual motor control",
+    "direct_temperature_overload_tests_in_skip15": false,
+    "direct_temperature_overload_caveat": "absence from skipped list is NOT complete legacy safety coverage; existing errors remain; Stage5 mock temperature/Overload/HOLD tests passed within 203 and 260",
+    "live_robot_temperature_overload_hold_verification": "NOT_RUN",
+    "detailed_ids_and_skip_reasons": "reports/vla-stage5-preflight-20261028/baseline_and_skip_classification.json"
+  },
+  "unexpected_tracked_changes_from_stage5": [],
+  "protected_code_check": "git diff 27f9c79 limited to new evaluation/docs/reports; protected paths are also compared explicitly before commit",
+  "actual_eval_rows": 0,
+  "not_run": [
+    "Jetson connection",
+    "camera/serial/motor access",
+    "GPU probe",
+    "model instantiation/inference",
+    "shadow/live",
+    "weights download",
+    "training",
+    "push",
+    "stage7 web"
+  ],
+  "live_status": "BLOCKED: real streaming/HOLD interface, observation provider, units and audited initial-state gate unconnected"
+}
